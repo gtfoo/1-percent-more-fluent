@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+:root {
+  --background: #faf8f5;
+  --surface: #ffffff;
+  --border: #e6e0d6;
+  --foreground: #1c1a17;
+  --muted: #6f675c;
+  --accent: #a4552b;
+  --accent-soft: #f3e6dd;
+  --ok: #2f6b46;
+  --warn: #8a6114;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #14130f;
+    --surface: #1c1a16;
+    --border: #322e26;
+    --foreground: #e8e4dc;
+    --muted: #9b9285;
+    --accent: #d98a5c;
+    --accent-soft: #2e241d;
+    --ok: #7bbd93;
+    --warn: #d7ac5b;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-geist-sans);
+  --font-serif: var(--font-reading);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* The reading surface. Generous measure and leading, because the whole point
+   of the app is sustained reading rather than glancing at a card. */
+.prose-reading {
+  font-family: var(--font-reading), Georgia, serif;
+  font-size: 1.3rem;
+  line-height: 1.85;
+  letter-spacing: 0.005em;
+}
+
+/* Every word is tappable, so the affordance has to be almost invisible until
+   you reach for it - underlining the whole text would make it unreadable. */
+.word {
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background-color 120ms ease;
+}
+.word:hover {
+  background-color: var(--accent-soft);
+}
+.word.looked-up {
+  background-color: var(--accent-soft);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.word.speaking {
+  background-color: var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
