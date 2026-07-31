@@ -3,28 +3,56 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+interface Sample {
+  level: number;
+  text: string;
+}
+
 interface Result {
   vocabEstimate: number;
   falseAlarmRate: number;
   unreliable: boolean;
+  testLevel: number;
+  readbackLevel: number | null;
   level: number;
   cefr: string;
 }
 
+type Step = "words" | "readback" | "done";
+
+/** Chosen when even the easiest sample is out of reach, or none of them are. */
+const BELOW_EASIEST = 0;
+const ABOVE_HARDEST = 95;
+
 export function PlacementTest() {
   const router = useRouter();
   const [items, setItems] = useState<string[] | null>(null);
+  const [samples, setSamples] = useState<Sample[]>([]);
   const [known, setKnown] = useState<Set<string>>(new Set());
+  const [step, setStep] = useState<Step>("words");
   const [result, setResult] = useState<Result | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped to pull a fresh sample of test items; the effect only ever sets
+  // state from the async callback, never synchronously in its body.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     fetch("/api/placement")
       .then((r) => r.json())
-      .then((d: { items: string[] }) => setItems(d.items))
-      .catch(() => setError("Could not load the test."));
-  }, []);
+      .then((d: { items: string[]; samples: Sample[] }) => {
+        if (cancelled) return;
+        setItems(d.items);
+        setSamples(d.samples ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Could not load the test.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   function toggle(word: string) {
     setKnown((prev) => {
@@ -35,7 +63,7 @@ export function PlacementTest() {
     });
   }
 
-  async function submit() {
+  async function submit(readbackLevel: number) {
     if (!items) return;
     setSubmitting(true);
     setError(null);
@@ -43,10 +71,11 @@ export function PlacementTest() {
       const res = await fetch("/api/placement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shown: items, known: [...known] }),
+        body: JSON.stringify({ shown: items, known: [...known], readbackLevel }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "failed");
       setResult(await res.json());
+      setStep("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -54,32 +83,28 @@ export function PlacementTest() {
     }
   }
 
-  if (error && !items) {
-    return <p className="text-warn">{error}</p>;
-  }
+  if (error && !items) return <p className="text-warn">{error}</p>;
 
-  if (result) {
+  // --- Step 3: the result -------------------------------------------------
+  if (step === "done" && result) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            You know roughly{" "}
-            <span className="text-accent">
-              {result.vocabEstimate.toLocaleString()}
-            </span>{" "}
-            Spanish words
+            You’re around <span className="text-accent">{result.cefr}</span>
           </h1>
           <p className="mt-2 text-muted">
-            That puts you around <strong>{result.cefr}</strong>. Nothing is locked
-            in — the level adjusts after every piece you read, based on how much
-            you actually look up.
+            The word test put you at roughly{" "}
+            {result.vocabEstimate.toLocaleString()} words. Nothing is locked in —
+            the level adjusts after every piece you read, based on how much you
+            actually look up.
           </p>
         </div>
 
         {result.unreliable && (
           <p className="rounded-lg border border-border bg-accent-soft px-4 py-3 text-sm">
-            You marked a lot of the invented words as known, so this estimate is
-            a rough one. It will correct itself quickly as you read.
+            You marked a lot of the invented words as known, so the word test
+            counted for less here. It will correct itself as you read.
           </p>
         )}
 
@@ -94,10 +119,9 @@ export function PlacementTest() {
             onClick={() => {
               setResult(null);
               setKnown(new Set());
+              setStep("words");
               setItems(null);
-              fetch("/api/placement")
-                .then((r) => r.json())
-                .then((d: { items: string[] }) => setItems(d.items));
+              setReloadKey((k) => k + 1);
             }}
             className="rounded-lg border border-border px-4 py-2 hover:bg-surface"
           >
@@ -108,6 +132,62 @@ export function PlacementTest() {
     );
   }
 
+  // --- Step 2: the read-back check ----------------------------------------
+  // A word test can be fooled - cognates especially - so before committing to a
+  // number we show real graded Spanish and let the learner point at it. This is
+  // the check that catches a badly wrong estimate in twenty seconds instead of
+  // over several reading sessions.
+  if (step === "readback") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Which of these can you read comfortably?
+          </h1>
+          <p className="mt-2 max-w-xl text-muted">
+            They get harder going down, and they’re all about the same thing.
+            Pick the last one you could follow without stopping — you don’t need
+            every word, just the sense of it.
+          </p>
+        </div>
+
+        <button
+          onClick={() => submit(BELOW_EASIEST)}
+          disabled={submitting}
+          className="w-full rounded-lg border border-border px-4 py-3 text-left hover:border-accent disabled:opacity-50"
+        >
+          <span className="font-medium">None of them — even the first is hard</span>
+        </button>
+
+        {samples.map((sample, i) => (
+          <div key={sample.level} className="rounded-xl border border-border bg-surface">
+            <p className="prose-reading px-5 py-4 !text-lg">{sample.text}</p>
+            <button
+              onClick={() => submit(sample.level)}
+              disabled={submitting}
+              className="w-full border-t border-border px-5 py-3 text-left font-medium hover:bg-accent-soft disabled:opacity-50"
+            >
+              {i === samples.length - 1
+                ? "I can read this one"
+                : "This is the last one I can follow"}
+            </button>
+          </div>
+        ))}
+
+        <button
+          onClick={() => submit(ABOVE_HARDEST)}
+          disabled={submitting}
+          className="w-full rounded-lg border border-border px-4 py-3 text-left hover:border-accent disabled:opacity-50"
+        >
+          <span className="font-medium">All of them were easy</span>
+        </button>
+
+        {error && <p className="text-warn">{error}</p>}
+      </div>
+    );
+  }
+
+  // --- Step 1: the yes/no word test ---------------------------------------
   return (
     <div className="space-y-6">
       <div>
@@ -149,11 +229,10 @@ export function PlacementTest() {
 
           <div className="flex items-center gap-4 border-t border-border pt-5">
             <button
-              onClick={submit}
-              disabled={submitting}
-              className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90 disabled:opacity-50"
+              onClick={() => setStep("readback")}
+              className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
             >
-              {submitting ? "Scoring…" : "Done"}
+              Next
             </button>
             <span className="text-sm text-muted">
               {known.size} of {items.length} marked

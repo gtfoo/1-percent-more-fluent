@@ -1,0 +1,45 @@
+{
+  "topic": "an ordinary morning at a neighbourhood market: what someone sees, buys and talks about",
+  "samples": [
+    {
+      "level": 10,
+      "cefr": "A1",
+      "vocabBand": 723,
+      "text": "Hoy voy a la calle grande por la mañana. Hay mucha gente en la calle con comida. Yo veo cosas buenas y hablo con mi amigo. Él vende comida y yo quiero comprar algo hoy. Vamos a hablar del sol y de este buen día. Es una mañana muy bonita para estar aquí. Me gusta mucho estar en este lugar.",
+      "outOfBandRate": 0.06666666666666667,
+      "passes": true
+    },
+    {
+      "level": 28,
+      "cefr": "A2",
+      "vocabBand": 1405,
+      "text": "Cada mañana de la semana, la plaza de la zona está llena de gente. Allí veo muchas mesas con comida muy buena, pan y pescado. Hoy compro un poco de queso y carne para la cena. Hablo con el señor de la tienda sobre el tiempo de hoy. Él me da las cosas y yo voy a volver a casa.",
+      "outOfBandRate": 0.06666666666666667,
+      "passes": true
+    },
+    {
+      "level": 47,
+      "cefr": "B1",
+      "vocabBand": 2831,
+      "text": "Cada sábado por la mañana voy al mercado de mi barrio porque me gusta mucho su ambiente. Allí veo a muchos vecinos alegres que compran comida para el fin de semana. Hoy hablo con el señor de las frutas sobre el tiempo y le compro un poco de fruta roja muy barata. Espero que todo esté muy bueno para la comida de mi familia.",
+      "outOfBandRate": 0.0625,
+      "passes": true
+    },
+    {
+      "level": 66,
+      "cefr": "B2",
+      "vocabBand": 5706,
+      "text": "Cada sábado voy al mercado de mi barrio porque me gusta el ambiente alegre que hay allí. En los puestos veo frutas muy frescas y hablo con el vendedor sobre el tiempo de estos días. Hoy he comprado manzanas rojas y naranjas dulces, y espero que mi familia disfrute esta comida tan rica y sana.",
+      "outOfBandRate": 0,
+      "passes": true
+    },
+    {
+      "level": 85,
+      "cefr": "C1",
+      "vocabBand": 11501,
+      "text": "Cada sábado por la mañana, el mercado de mi barrio se llena de colores vivos y olores a fruta fresca. Siempre compro manzanas rojas y verduras de temporada mientras observo el ir y venir de la gente. Luego, hablo un rato con la pescadera, quien siempre me aconseja sobre cuál es el mejor pescado del día.",
+      "outOfBandRate": 0.017857142857142856,
+      "passes": true
+    }
+  ]
+}

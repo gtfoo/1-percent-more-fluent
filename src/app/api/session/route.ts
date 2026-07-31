@@ -8,6 +8,13 @@ import { cefrFor, nextLevel, type SelfRating } from "@/lib/level";
 const RATINGS: SelfRating[] = ["too-easy", "just-right", "too-hard"];
 
 /**
+ * Nobody reads faster than this, so less time on the page than the text needs
+ * at this pace means it was not read. Used only as a fallback signal - an
+ * answered quiz or a tapped word is better evidence and is checked first.
+ */
+const IMPLAUSIBLY_FAST_WPM = 300;
+
+/**
  * Close out a reading session and re-calibrate.
  *
  * The lookup rate is taken from the server's own record of taps rather than
@@ -25,6 +32,7 @@ export async function POST(req: NextRequest) {
     pieceId?: string;
     rating?: string;
     quizScore?: number;
+    dwellMs?: number;
   };
 
   const piece = body.pieceId ? getPiece(body.pieceId) : null;
@@ -39,10 +47,31 @@ export async function POST(req: NextRequest) {
       : undefined;
 
   const totalWords = piece.report.totalWords || 1;
-  const lookupRate = countLookups(userId, piece.id) / totalWords;
+  const lookups = countLookups(userId, piece.id);
+  const lookupRate = lookups / totalWords;
+
+  // Did they actually read it? Zero lookups from someone who bounced off means
+  // the opposite of zero lookups from someone who breezed through, and the
+  // controller has to be able to tell them apart.
+  const minimumPlausibleMs = (totalWords / IMPLAUSIBLY_FAST_WPM) * 60_000;
+  const engaged =
+    lookups > 0 ||
+    quizScore !== undefined ||
+    rating !== undefined ||
+    (typeof body.dwellMs === "number" && body.dwellMs >= minimumPlausibleMs);
+
+  const { count: sessionCount } = getDb()
+    .prepare("SELECT COUNT(*) AS count FROM sessions WHERE user_id = ?")
+    .get(userId) as { count: number };
 
   const before = profile.level;
-  const after = nextLevel(before, { lookupRate, quizScore, rating });
+  const after = nextLevel(before, {
+    lookupRate,
+    quizScore,
+    rating,
+    engaged,
+    sessionCount,
+  });
   setLevel(userId, after);
 
   getDb()
@@ -64,6 +93,7 @@ export async function POST(req: NextRequest) {
 
   return Response.json({
     lookupRate,
+    engaged,
     levelBefore: before,
     levelAfter: after,
     cefrBefore: cefrFor(before),

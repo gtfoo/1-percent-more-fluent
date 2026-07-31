@@ -63,18 +63,43 @@ const LOANWORD_LETTERS = /[kw]/;
 
 // --- Placement test bands ---------------------------------------------------
 // Geometric, because vocabulary knowledge falls off geometrically with rank:
-// the gap between rank 100 and 200 matters as much as 10,000 to 20,000.
+// the gap between rank 100 and 200 matters as much as 6,000 to 12,000.
+//
+// Capped at 20,000 rather than the full 50,000 corpus. Past roughly 20k the
+// OpenSubtitles tail stops predicting anything useful about a learner - it is
+// technical vocabulary, transliterations and noise - while carrying enormous
+// weight in a band-area estimate. The old top band alone spanned 30,000 words,
+// 60% of the whole scale, decided by five test items.
+const TEST_MAX_RANK = 20_000;
+
 const BANDS: { maxRank: number }[] = [
-  { maxRank: 250 },
-  { maxRank: 750 },
-  { maxRank: 2_000 },
-  { maxRank: 5_000 },
-  { maxRank: 10_000 },
-  { maxRank: 20_000 },
-  { maxRank: 50_000 },
+  { maxRank: 120 },
+  { maxRank: 300 },
+  { maxRank: 700 },
+  { maxRank: 1_500 },
+  { maxRank: 3_000 },
+  { maxRank: 6_000 },
+  { maxRank: 11_000 },
+  { maxRank: TEST_MAX_RANK },
 ];
-const WORDS_PER_BAND = 8; // the test samples 5 of these per band at runtime
-const PSEUDOWORD_COUNT = 200;
+
+/** Real words offered per band; the test samples 5 of these at runtime. */
+const WORDS_PER_BAND = 8;
+
+/**
+ * Pseudowords offered per band; the test samples 2. Crucially these are built
+ * from donors *inside the same band*, because the thing they are there to
+ * measure varies by band.
+ *
+ * Rare Spanish words are disproportionately Latinate, so they are MORE
+ * transparent to an English speaker, not less - "epinefrina", "presidir",
+ * "humanamente", "cafeteria" are all readable with no Spanish at all. Drawing
+ * every catch trial from mid-frequency words (as before) measured over-claiming
+ * on ordinary vocabulary and then applied that single correction to the tail,
+ * where the bias is completely different. Per-band catch trials let the
+ * false-alarm correction subtract each band's own cognate inflation.
+ */
+const PSEUDOWORDS_PER_BAND = 5;
 
 const VOWELS = ["a", "e", "i", "o", "u"];
 
@@ -158,36 +183,47 @@ async function main() {
     );
   console.log(`${testable.length.toLocaleString()} words eligible as test items.`);
 
+  const seenPseudo = new Set<string>();
+
   const bands = BANDS.map((band, i) => {
     const minRank = i === 0 ? 51 : BANDS[i - 1]!.maxRank + 1;
-    const pool = testable.filter(
+    const inBand = testable.filter(
       (t) => t.rank >= minRank && t.rank <= band.maxRank,
     );
+
+    // Catch trials come from this band's own donors. Narrow bands at the top of
+    // the list can run dry, so widen the donor range until enough are found -
+    // still far closer in register than a single global pool.
+    const pseudowords: string[] = [];
+    for (const factor of [1, 2, 4]) {
+      if (pseudowords.length >= PSEUDOWORDS_PER_BAND) break;
+      const donors = testable.filter(
+        (t) => t.rank >= minRank / factor && t.rank <= band.maxRank * factor,
+      );
+      for (const donor of evenlySpaced(donors, PSEUDOWORDS_PER_BAND * 8)) {
+        if (pseudowords.length >= PSEUDOWORDS_PER_BAND) break;
+        const fake = pseudoword(donor.word, corpus, dictionary);
+        if (fake && !seenPseudo.has(fake)) {
+          seenPseudo.add(fake);
+          pseudowords.push(fake);
+        }
+      }
+    }
+
     return {
       minRank,
       maxRank: band.maxRank,
-      words: evenlySpaced(pool, WORDS_PER_BAND).map((t) => t.word),
+      words: evenlySpaced(inBand, WORDS_PER_BAND).map((t) => t.word),
+      pseudowords,
     };
   });
 
   for (const b of bands) {
-    console.log(`  band ${b.minRank}-${b.maxRank}: ${b.words.join(", ")}`);
+    const width = b.maxRank - b.minRank + 1;
+    console.log(`  band ${b.minRank}-${b.maxRank} (width ${width})`);
+    console.log(`    real:   ${b.words.join(", ")}`);
+    console.log(`    catch:  ${b.pseudowords.join(", ")}`);
   }
-
-  // --- Pseudowords, drawn from mid-frequency words so they read as ordinary
-  // Spanish rather than as obscure vocabulary.
-  const donors = testable.filter((t) => t.rank >= 1_000 && t.rank <= 20_000);
-  const pseudowords: string[] = [];
-  const seen = new Set<string>();
-  for (const donor of evenlySpaced(donors, PSEUDOWORD_COUNT * 4)) {
-    if (pseudowords.length >= PSEUDOWORD_COUNT) break;
-    const fake = pseudoword(donor.word, corpus, dictionary);
-    if (fake && !seen.has(fake)) {
-      seen.add(fake);
-      pseudowords.push(fake);
-    }
-  }
-  console.log(`  ${pseudowords.length} pseudowords, e.g. ${pseudowords.slice(0, 12).join(", ")}`);
 
   await mkdir(OUT_DIR, { recursive: true });
   await writeFile(
@@ -196,7 +232,7 @@ async function main() {
   );
   await writeFile(
     join(OUT_DIR, "placement.json"),
-    JSON.stringify({ bands, pseudowords }, null, 2),
+    JSON.stringify({ maxRank: TEST_MAX_RANK, bands }, null, 2),
   );
   console.log(`Wrote ${OUT_DIR}/frequency.json and placement.json`);
 }

@@ -64,6 +64,16 @@ export function Reader({
   const [charIndex, setCharIndex] = useState(-1);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Time on the page, used only to tell "read it and understood everything"
+  // apart from "opened it and gave up" - both of which produce zero lookups.
+  // Stamped in an effect rather than during render: Date.now() is impure, and
+  // a re-render would silently reset the clock.
+  const openedAt = useRef(0);
+  useEffect(() => {
+    openedAt.current = Date.now();
+  }, [piece.id]);
+  const [override, setOverride] = useState<string | null>(null);
+
   const [finishing, setFinishing] = useState(false);
   const [answers, setAnswers] = useState<(number | null)[]>(
     piece.questions.map(() => null),
@@ -220,6 +230,7 @@ export function Reader({
           pieceId: piece.id,
           rating,
           quizScore: answered ? correct / answered : undefined,
+          dwellMs: Date.now() - openedAt.current,
         }),
       });
       const data = await res.json();
@@ -231,6 +242,23 @@ export function Reader({
   }
 
   const activeGloss = selected ? glosses.get(selected) : undefined;
+
+  async function adjustLevel(direction: "easier" | "harder") {
+    try {
+      const res = await fetch("/api/level", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "could not adjust");
+      setOverride(
+        `Level moved to ${data.cefr} (about ${data.vocabBand.toLocaleString()} words). The next piece will be ${direction}.`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not adjust level.");
+    }
+  }
 
   return (
     <article className="space-y-8 pb-40">
@@ -273,7 +301,34 @@ export function Reader({
             className="hidden"
           />
         )}
+
+        {/* The escape hatch. Available before finishing, because the moment you
+            realise a piece is mispitched is the moment you stop reading it. */}
+        <div className="ml-auto flex items-center gap-2 text-sm">
+          <span className="text-muted">Mispitched?</span>
+          <button
+            onClick={() => adjustLevel("easier")}
+            className="rounded-lg border border-border px-3 py-1.5 hover:border-accent"
+          >
+            Too hard
+          </button>
+          <button
+            onClick={() => adjustLevel("harder")}
+            className="rounded-lg border border-border px-3 py-1.5 hover:border-accent"
+          >
+            Too easy
+          </button>
+        </div>
       </div>
+
+      {override && (
+        <p className="rounded-lg border border-border bg-accent-soft px-4 py-3 text-sm">
+          {override}{" "}
+          <Link href="/" className="underline underline-offset-4">
+            Write me another
+          </Link>
+        </p>
+      )}
 
       <div className="prose-reading space-y-6">
         {layout.map((tokens, i) => {

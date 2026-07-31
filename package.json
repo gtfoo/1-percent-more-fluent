@@ -8,10 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "wordlist": "tsx scripts/build-wordlist.ts",
+    "samples": "tsx scripts/build-samples.ts",
     "voices": "tsx scripts/probe-voices.ts",
     "models": "tsx scripts/probe-llm.ts",
     "bench": "tsx scripts/bench-models.ts",
     "morphology": "tsx scripts/check-morphology.ts",
+    "placement": "tsx scripts/check-placement.ts",
+    "calibration": "tsx scripts/check-calibration.ts",
     "inspect": "bash scripts/inspect-db.sh"
   },
   "dependencies": {

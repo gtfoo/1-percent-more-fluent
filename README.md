@@ -25,7 +25,7 @@ band on the first attempt and 4–8% when handed the specific offending words, s
 one correction round is the norm.
 
 **The level is a number, not a label.** One continuous value, 0–100, anchored
-to vocabulary size (500 words at 0, 24,000 at 100, geometric). CEFR is derived
+to vocabulary size (500 words at 0, 20,000 at 100, geometric). CEFR is derived
 from it for display and is never an input. Being continuous is what lets it be
 nudged a few points after every session instead of jumping between buckets.
 
@@ -35,6 +35,36 @@ honest one — you are not consciously producing it), a three-question
 comprehension check in Spanish, and a one-tap "too easy / just right / too
 hard". Target is ~5% of words looked up: below that the text is wasted
 practice, above it comprehension collapses.
+
+## Two things the level model gets wrong if you let it
+
+Both of these shipped, both were wrong, and both are now covered by tests
+(`npm run placement`, `npm run calibration`). They are worth knowing about
+because anyone rebuilding this would hit them.
+
+**Cognates break a naive yes/no vocabulary test.** Rare Spanish words are
+disproportionately Latinate, so they are *more* transparent to an English
+speaker, not less — `epinefrina`, `presidir`, `humanamente`, `cafeteria` are
+all readable with no Spanish at all. Combined with band-area scoring, where the
+widest band carried 60% of the estimate from five items, this rated a genuine
+A2/B1 learner as C2. Three fixes: catch trials are drawn **per band** so the
+false-alarm correction measures each band's own inflation; credit is
+**monotonic**, so a band is never credited above the bands beneath it; and the
+scale is capped at rank 20,000, past which the corpus tail predicts nothing.
+
+**Zero lookups is ambiguous.** Someone who found the text trivial taps nothing
+— and so does someone who opened a wall of incomprehensible Spanish and gave
+up. Reading both as "too easy" pushed a drowning reader *upwards*. Lookups now
+only count as evidence when something else shows the piece was actually read.
+Early sessions are also allowed to move much further than late ones, so a bad
+starting estimate escapes in one session rather than seven.
+
+The safety net for both is the read-back check at the end of the placement
+test: five paragraphs on one topic, ascending in difficulty, and the question
+"which is the last one you can follow?" It is free and instant (the samples are
+pre-generated and committed), it is grounded in real text rather than an
+abstract CEFR label, and it catches a badly wrong estimate in twenty seconds.
+It is weighted at 65% against the word test's 35%.
 
 ## Setup
 
@@ -101,12 +131,17 @@ scripts/          data building and measurement, not part of the app
 
 | | |
 |---|---|
-| `npm run wordlist` | rebuild the frequency list and placement test data |
-| `npm run voices` | list usable ElevenLabs voices and remaining quota |
-| `npm run bench` | time the real generation prompt across candidate models |
+| `npm run wordlist` | rebuild the frequency list and placement test data (free) |
+| `npm run samples` | rebuild the graded read-back paragraphs (**costs LLM calls**) |
+| `npm run placement` | score synthetic learners against the placement test |
+| `npm run calibration` | assert the level controller moves the right way |
 | `npm run morphology` | sanity-check the Spanish base-form fallback |
+| `npm run voices` | list usable ElevenLabs voices and remaining quota |
+| `npm run models` | list available text models and smoke-test one |
+| `npm run bench` | time the real generation prompt across candidate models |
 | `npm run inspect` | dump stored pieces, profiles and spend |
-| `bash scripts/check.sh` | types, lint, production build |
+| `bash scripts/set-level.sh 38` | force every profile to a level, bypassing the test |
+| `bash scripts/check.sh` | types, lint, model checks, production build |
 
 ## Data sources
 

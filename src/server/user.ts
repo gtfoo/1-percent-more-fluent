@@ -81,13 +81,20 @@ export function getProfile(userId: string): Profile | null {
   };
 }
 
-/** Record a placement-test result, which both creates and resets a profile. */
+/**
+ * Record a placement-test result, which both creates and resets a profile.
+ *
+ * `level` may be supplied to override what the vocabulary estimate alone would
+ * imply - the read-back check blends the two, because a learner looking at real
+ * graded text is better evidence than a word list, but not so much better that
+ * the objective measure should be thrown away.
+ */
 export function setPlacement(
   userId: string,
   vocabEstimate: number,
   language = "es",
+  level = levelForVocab(vocabEstimate),
 ): Profile {
-  const level = levelForVocab(vocabEstimate);
   const now = new Date().toISOString();
   getDb()
     .prepare(

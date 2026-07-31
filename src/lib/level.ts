@@ -27,7 +27,12 @@
  */
 
 export const MIN_VOCAB = 500;
-export const MAX_VOCAB = 24_000;
+/**
+ * Matches the placement test's ceiling (`TEST_MAX_RANK` in build-wordlist.ts).
+ * The scale must not extend past what the test can actually measure, or the top
+ * of it is unreachable guesswork.
+ */
+export const MAX_VOCAB = 20_000;
 const RANGE = MAX_VOCAB / MIN_VOCAB;
 
 export type Cefr = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
@@ -142,6 +147,19 @@ export interface SessionSignals {
   /** Comprehension quiz, 0-1. Undefined if they skipped it. */
   quizScore?: number;
   rating?: SelfRating;
+  /**
+   * Whether there is any evidence the reader actually read the piece - a quiz
+   * answered, a rating given, a word tapped, or plausible time on the page.
+   *
+   * This exists because zero lookups is ambiguous. Someone who found the text
+   * trivial taps nothing; so does someone who opened a wall of incomprehensible
+   * Spanish and gave up. Treating both as "too easy" pushed a drowning reader
+   * *upwards*, which is how a bad placement estimate went from bad to worse
+   * instead of self-correcting.
+   */
+  engaged: boolean;
+  /** Completed sessions so far. Early estimates are allowed to move further. */
+  sessionCount?: number;
 }
 
 /**
@@ -152,10 +170,37 @@ export interface SessionSignals {
  */
 export const TARGET_LOOKUP_RATE = 0.05;
 
-/** Largest single-session move, so one odd session cannot derail the estimate. */
-const MAX_STEP = 8;
+/**
+ * Largest single-session move once the estimate has settled, so one odd session
+ * cannot derail it.
+ */
+const SETTLED_MAX_STEP = 8;
+/** ...but a fresh estimate may be badly wrong, and must be able to escape fast. */
+const EARLY_MAX_STEP = 20;
+/** Sessions over which the controller tightens from early to settled. */
+const SETTLING_SESSIONS = 3;
 
-function fromLookups(rate: number): number {
+/**
+ * How hard the controller pushes, given how much evidence it has.
+ *
+ * A placement estimate that lands 50 points off should not take seven flawless
+ * sessions to walk back, so the first few sessions are amplified and capped
+ * higher. The raw signals only sum to about +/-10, so the gain - not the cap -
+ * is what actually does the work early on.
+ */
+function gainFor(sessionCount: number): number {
+  const t = Math.min(sessionCount, SETTLING_SESSIONS) / SETTLING_SESSIONS;
+  return 2.2 + (1 - 2.2) * t;
+}
+
+function maxStepFor(sessionCount: number): number {
+  const t = Math.min(sessionCount, SETTLING_SESSIONS) / SETTLING_SESSIONS;
+  return EARLY_MAX_STEP + (SETTLED_MAX_STEP - EARLY_MAX_STEP) * t;
+}
+
+function fromLookups(rate: number, engaged: boolean): number {
+  // Never read "no lookups" as "too easy" without evidence the piece was read.
+  if (rate === 0 && !engaged) return 0;
   if (rate < 0.02) return 3;
   if (rate < 0.035) return 1.5;
   if (rate <= 0.07) return 0;
@@ -181,10 +226,26 @@ function fromRating(rating: SelfRating): number {
  * learners routinely rate a text "just right" while looking up a third of it.
  */
 export function nextLevel(current: number, signals: SessionSignals): number {
-  let delta = fromLookups(signals.lookupRate);
+  let delta = fromLookups(signals.lookupRate, signals.engaged);
   if (signals.quizScore !== undefined) delta += fromQuiz(signals.quizScore);
   if (signals.rating) delta += fromRating(signals.rating);
 
-  const capped = Math.max(-MAX_STEP, Math.min(MAX_STEP, delta));
-  return clampLevel(current + capped);
+  const sessions = signals.sessionCount ?? SETTLING_SESSIONS;
+  const scaled = delta * gainFor(sessions);
+  const limit = maxStepFor(sessions);
+
+  return clampLevel(current + Math.max(-limit, Math.min(limit, scaled)));
+}
+
+/**
+ * The escape hatch: the reader saying outright that a piece was mispitched.
+ *
+ * Deliberately a big, immediate jump rather than another nudge - it is used
+ * when the estimate is wrong enough that waiting for the controller to converge
+ * is not a reasonable ask.
+ */
+export const OVERRIDE_STEP = 15;
+
+export function overrideLevel(current: number, direction: "easier" | "harder"): number {
+  return clampLevel(current + (direction === "harder" ? OVERRIDE_STEP : -OVERRIDE_STEP));
 }
