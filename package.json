@@ -15,6 +15,7 @@
     "morphology": "tsx scripts/check-morphology.ts",
     "placement": "tsx scripts/check-placement.ts",
     "calibration": "tsx scripts/check-calibration.ts",
+    "smoke": "bash scripts/smoke-generate.sh",
     "inspect": "bash scripts/inspect-db.sh"
   },
   "dependencies": {

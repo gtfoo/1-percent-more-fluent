@@ -60,8 +60,25 @@ only count as evidence when something else shows the piece was actually read.
 Early sessions are also allowed to move much further than late ones, so a bad
 starting estimate escapes in one session rather than seven.
 
-The safety net for both is the read-back check at the end of the placement
-test: five paragraphs on one topic, ascending in difficulty, and the question
+**The vocabulary band stops constraining the model as it widens.** At level 45
+a text lands ~5% outside its band, as intended. At level 84 the band is ~11,000
+words, so almost nothing falls outside it and the model just writes its default
+register — measured 0.0–1.5%. With only a ceiling on the budget, that is a
+runaway: the text stops getting harder, the reader looks nothing up, the
+controller reads that as "too easy" and climbs again, all the way to 100.
+
+Three things close it. `measure()` now has a **floor** as well as a ceiling. The
+correction names concrete words from just past the band (`registerAnchors`),
+because "be harder" alone does nothing — the model cannot know where the band
+ends. And the prompt states the budget as a **target to hit**, not a cap to stay
+under; framed as "at most 7%" the model optimises for safety and lands near 1%.
+
+Even so it under-shoots, so the loop is closed on the other side too: a session
+whose piece measurably undershot its own level **can lower the reader's level
+but never raise it**. That guard does not depend on the model complying.
+
+The safety net for all of these is the read-back check at the end of the
+placement test: five paragraphs on one topic, ascending in difficulty, and the question
 "which is the last one you can follow?" It is free and instant (the samples are
 pre-generated and committed), it is grounded in real text rather than an
 abstract CEFR label, and it catches a badly wrong estimate in twenty seconds.

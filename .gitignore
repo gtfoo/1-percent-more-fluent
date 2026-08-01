@@ -44,6 +44,7 @@ yarn-error.log*
 # by an LLM and costs money to rebuild, so it is committed.
 /src/data/*/frequency.json
 /src/data/*/placement.json
+/src/data/*/anchors.json
 
 # vercel
 .vercel

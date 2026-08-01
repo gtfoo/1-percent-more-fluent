@@ -1,45 +1,49 @@
 {
-  "topic": "an ordinary morning at a neighbourhood market: what someone sees, buys and talks about",
   "samples": [
     {
       "level": 10,
+      "topic": "what someone does on an ordinary weekday morning",
       "cefr": "A1",
       "vocabBand": 723,
-      "text": "Hoy voy a la calle grande por la mañana. Hay mucha gente en la calle con comida. Yo veo cosas buenas y hablo con mi amigo. Él vende comida y yo quiero comprar algo hoy. Vamos a hablar del sol y de este buen día. Es una mañana muy bonita para estar aquí. Me gusta mucho estar en este lugar.",
-      "outOfBandRate": 0.06666666666666667,
+      "text": "Me levanto muy temprano todos los días. Primero, tomo un poco de agua fría. Luego, hago un café caliente en casa. Como un poco de pan con mi familia. Nosotros hablamos de las cosas del nuevo día. Busco mi ropa para el trabajo. Salgo de casa a las ocho de la mañana. Voy a ir rápido a mi trabajo.",
+      "outOfBandRate": 0.11864406779661017,
       "passes": true
     },
     {
       "level": 28,
+      "topic": "a neighbour's dog that keeps escaping from the garden",
       "cefr": "A2",
       "vocabBand": 1405,
-      "text": "Cada mañana de la semana, la plaza de la zona está llena de gente. Allí veo muchas mesas con comida muy buena, pan y pescado. Hoy compro un poco de queso y carne para la cena. Hablo con el señor de la tienda sobre el tiempo de hoy. Él me da las cosas y yo voy a volver a casa.",
-      "outOfBandRate": 0.06666666666666667,
-      "passes": true
+      "text": "El perro de mi vecino es muy travieso y siempre se escapa. Ayer, el animal hizo un agujero debajo de la valla. De repente, lo vi en mi jardín mirando las plantas. Se acostó feliz sobre el césped verde. Yo llamé a su dueño y él vino a buscarlo enseguida.",
+      "outOfBandRate": 0.24,
+      "passes": false
     },
     {
       "level": 47,
+      "topic": "why a small family bakery decided to close after forty years",
       "cefr": "B1",
       "vocabBand": 2831,
-      "text": "Cada sábado por la mañana voy al mercado de mi barrio porque me gusta mucho su ambiente. Allí veo a muchos vecinos alegres que compran comida para el fin de semana. Hoy hablo con el señor de las frutas sobre el tiempo y le compro un poco de fruta roja muy barata. Espero que todo esté muy bueno para la comida de mi familia.",
-      "outOfBandRate": 0.0625,
+      "text": "Después de cuarenta años, la panadería de la familia López cierra sus puertas para siempre. Los dueños ya están cansados y prefieren descansar junto a sus nietos. Además, los precios han subido mucho y los jóvenes compran en los grandes supermercados. Aunque es una decisión difícil, ellos esperan que el barrio recuerde con cariño sus deliciosos panes.",
+      "outOfBandRate": 0.10526315789473684,
       "passes": true
     },
     {
       "level": 66,
+      "topic": "how a city changed after the old railway line was removed",
       "cefr": "B2",
       "vocabBand": 5706,
-      "text": "Cada sábado voy al mercado de mi barrio porque me gusta el ambiente alegre que hay allí. En los puestos veo frutas muy frescas y hablo con el vendedor sobre el tiempo de estos días. Hoy he comprado manzanas rojas y naranjas dulces, y espero que mi familia disfrute esta comida tan rica y sana.",
-      "outOfBandRate": 0,
+      "text": "Cuando quitaron la vieja vía del tren, nuestra ciudad cambió por completo. En el lugar donde antes pasaban los antiguos trenes, ahora hay un hermoso parque que cruza varios barrios. Los vecinos pasean a sus mascotas y juegan bajo los árboles todos los días. Ahora el aire es mucho más limpio y se respira una gran tranquilidad.",
+      "outOfBandRate": 0.03508771929824561,
       "passes": true
     },
     {
       "level": 85,
+      "topic": "an argument between two friends about whether to move abroad",
       "cefr": "C1",
       "vocabBand": 11501,
-      "text": "Cada sábado por la mañana, el mercado de mi barrio se llena de colores vivos y olores a fruta fresca. Siempre compro manzanas rojas y verduras de temporada mientras observo el ir y venir de la gente. Luego, hablo un rato con la pescadera, quien siempre me aconseja sobre cuál es el mejor pescado del día.",
-      "outOfBandRate": 0.017857142857142856,
-      "passes": true
+      "text": "Carlos y Lucas tuvieron una fuerte discusión porque Carlos quiere mudarse al extranjero para siempre. Carlos explicó que busca un futuro mejor, pero Lucas le pidió que se quedara porque teme que la distancia rompa su amistad. Si Carlos se fuera, su amigo se sentiría muy solo, aunque sabe que esa decisión cambiaría sus vidas.",
+      "outOfBandRate": 0,
+      "passes": false
     }
   ]
 }

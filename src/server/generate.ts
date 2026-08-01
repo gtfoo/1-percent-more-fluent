@@ -93,11 +93,14 @@ export function buildPrompt(
     `TOPIC>>>`,
     "",
     `Difficulty budget:`,
-    `- Vocabulary: use words drawn from the ${params.vocabBand.toLocaleString()} most common Spanish words. At most ${Math.round(params.newWordBudget * 100)}% of the text may fall outside that set, and every such word must appear in the glossary.`,
-    // Models overshoot the vocabulary budget by reaching for a more literary
-    // register, not by using genuinely obscure words. Naming that failure mode
-    // is what pulls the first attempt inside the budget.
-    `- Before you use a word, ask whether someone with a ${params.vocabBand.toLocaleString()}-word Spanish vocabulary would have met it. When in doubt take the plainer everyday synonym: "decir" not "manifestar", "ver" not "contemplar", "casa" not "vivienda", "irse" not "marcharse". Concrete nouns the topic genuinely needs are fine - gloss those.`,
+    // The budget is a TARGET, not a cap. Framed as "at most X%" the model
+    // optimises for safety and lands around 1% - which reads fluently, teaches
+    // nothing, and drives the level upward because the reader looks nothing up.
+    `- Vocabulary: build the text from the ${params.vocabBand.toLocaleString()} most common Spanish words, and let about ${Math.round(params.newWordBudget * 100)}% of it fall OUTSIDE that set. That share is the point - unknown words are how the reader learns - so treat it as a figure to hit, not a ceiling to stay under. Every word outside the set must appear in the glossary.`,
+    // Models overshoot in one specific way - reaching for a literary register
+    // rather than genuinely rare words - so the guidance is about register, not
+    // about being easier in general.
+    `- Aim that ${Math.round(params.newWordBudget * 100)}% at words this reader would plausibly meet next, not at showy ones. Given a choice between an everyday word and a literary one, take the everyday one: "decir" not "manifestar", "ver" not "contemplar", "casa" not "vivienda". The difficulty should come from precision and range, not from ornament.`,
     `- Sentences: average about ${params.sentenceWords} words.`,
     `- Grammar: restrict yourself to ${params.allowedGrammar.join("; ")}.`,
     `- Length: about ${targetWords} words in total.`,

@@ -160,6 +160,20 @@ export interface SessionSignals {
   engaged: boolean;
   /** Completed sessions so far. Early estimates are allowed to move further. */
   sessionCount?: number;
+  /**
+   * Whether the piece itself measured EASIER than its own level called for.
+   *
+   * This is what finally closes the runaway. The generator does not reliably
+   * hit the upper half of its vocabulary budget - measured attempts land around
+   * 1-3% against a 7% target even when told explicitly to aim higher - and a
+   * reader who sails through text that was never at their level has told us
+   * nothing about whether they could handle harder material. Without this, an
+   * under-shooting generator and an upward-only signal feed each other all the
+   * way to level 100.
+   *
+   * So: an easy piece can still move the level DOWN, but never up.
+   */
+  pieceUndershot?: boolean;
 }
 
 /**
@@ -220,15 +234,40 @@ function fromRating(rating: SelfRating): number {
 }
 
 /**
- * A staircase controller: nudge the level from three independent signals and
- * let repeated sessions converge. The self-rating carries the most weight
- * because it is a direct answer, but it is deliberately not the only input -
- * learners routinely rate a text "just right" while looking up a third of it.
+ * Lookups and the quiz are ONE signal, not two.
+ *
+ * Both answer "did you understand this", and they correlate hard - someone who
+ * looked nothing up almost always aces the quiz. Adding them treated a single
+ * piece of evidence as two independent ones: together they contributed +5 of a
+ * possible +9, which is most of how a level ran away upward. Averaging keeps
+ * both inputs without letting agreement between them double the push.
+ *
+ * The lookup rate is the honest signal but coarse - on a 170-word piece one tap
+ * is 0.6%, so its bands are finer than the instrument. The quiz is objective
+ * but only three questions. Neither deserves to dominate.
+ */
+function fromComprehension(signals: SessionSignals): number {
+  const lookups = fromLookups(signals.lookupRate, signals.engaged);
+  if (signals.quizScore === undefined) return lookups;
+  return (lookups + fromQuiz(signals.quizScore)) / 2;
+}
+
+/**
+ * A staircase controller: nudge the level from comprehension and the reader's
+ * own verdict, and let repeated sessions converge.
  */
 export function nextLevel(current: number, signals: SessionSignals): number {
-  let delta = fromLookups(signals.lookupRate, signals.engaged);
-  if (signals.quizScore !== undefined) delta += fromQuiz(signals.quizScore);
+  let delta = fromComprehension(signals);
+
+  // "Just right" is the reader explicitly asking not to be moved. It should not
+  // silently lose to a lookup rate of zero - which is exactly what happened
+  // when a piece rated just-right still pushed the level up nine points.
+  if (signals.rating === "just-right") delta *= 0.5;
   if (signals.rating) delta += fromRating(signals.rating);
+
+  // Breezing through text that was too easy for its own level is not evidence
+  // the reader should be pushed higher.
+  if (signals.pieceUndershot) delta = Math.min(delta, 0);
 
   const sessions = signals.sessionCount ?? SETTLING_SESSIONS;
   const scaled = delta * gainFor(sessions);

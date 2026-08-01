@@ -101,6 +101,10 @@ const WORDS_PER_BAND = 8;
  */
 const PSEUDOWORDS_PER_BAND = 5;
 
+/** Band edges for which register anchors are emitted; see `anchors` below. */
+const ANCHOR_EDGES = [500, 1000, 2000, 3000, 5000, 8000, 12000, 20000];
+const ANCHOR_WORDS = 18;
+
 const VOWELS = ["a", "e", "i", "o", "u"];
 
 /**
@@ -225,11 +229,32 @@ async function main() {
     console.log(`    catch:  ${b.pseudowords.join(", ")}`);
   }
 
+  // --- Register anchors. When generated text comes back too EASY for its
+  // level, the difficulty checker has to show the model what the edge of the
+  // reader's range sounds like - "be harder" on its own does not work, because
+  // the model has no idea where the band ends.
+  //
+  // These must be dictionary-vetted for the same reason test items are. Sampled
+  // raw, the corpus tail hands over "your", "sebastian" and "ningun" - English
+  // contamination, proper nouns and misspellings - which calibrate nothing.
+  const anchors = ANCHOR_EDGES.map((fromRank) => ({
+    fromRank,
+    words: evenlySpaced(
+      testable.filter((t) => t.rank > fromRank && t.rank <= fromRank * 2 && t.word.length >= 4),
+      ANCHOR_WORDS,
+    ).map((t) => t.word),
+  }));
+
+  for (const a of anchors) {
+    console.log(`  anchors past ${a.fromRank}: ${a.words.slice(0, 8).join(", ")}`);
+  }
+
   await mkdir(OUT_DIR, { recursive: true });
   await writeFile(
     join(OUT_DIR, "frequency.json"),
     JSON.stringify({ source: SOURCE, words }),
   );
+  await writeFile(join(OUT_DIR, "anchors.json"), JSON.stringify({ anchors }, null, 2));
   await writeFile(
     join(OUT_DIR, "placement.json"),
     JSON.stringify({ maxRank: TEST_MAX_RANK, bands }, null, 2),

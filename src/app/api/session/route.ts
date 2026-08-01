@@ -3,7 +3,8 @@ import { getOrCreateUserId, getProfile, setLevel } from "@/server/user";
 import { getPiece } from "@/server/generate";
 import { countLookups } from "@/server/gloss";
 import { getDb } from "@/server/db";
-import { cefrFor, nextLevel, type SelfRating } from "@/lib/level";
+import { cefrFor, nextLevel, paramsFor, type SelfRating } from "@/lib/level";
+import { BUDGET_FLOOR, MIN_WORDS_FOR_FLOOR } from "@/server/difficulty";
 
 const RATINGS: SelfRating[] = ["too-easy", "just-right", "too-hard"];
 
@@ -64,6 +65,14 @@ export async function POST(req: NextRequest) {
     .prepare("SELECT COUNT(*) AS count FROM sessions WHERE user_id = ?")
     .get(userId) as { count: number };
 
+  // Did the piece actually reach the difficulty its own level called for? If
+  // not, sailing through it says nothing about the reader, and the level must
+  // not climb on the strength of it.
+  const params = paramsFor(piece.level);
+  const pieceUndershot =
+    piece.report.totalWords >= MIN_WORDS_FOR_FLOOR &&
+    piece.report.outOfBandRate < params.newWordBudget * BUDGET_FLOOR;
+
   const before = profile.level;
   const after = nextLevel(before, {
     lookupRate,
@@ -71,6 +80,7 @@ export async function POST(req: NextRequest) {
     rating,
     engaged,
     sessionCount,
+    pieceUndershot,
   });
   setLevel(userId, after);
 
@@ -94,6 +104,7 @@ export async function POST(req: NextRequest) {
   return Response.json({
     lookupRate,
     engaged,
+    pieceUndershot,
     levelBefore: before,
     levelAfter: after,
     cefrBefore: cefrFor(before),

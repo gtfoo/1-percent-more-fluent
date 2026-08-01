@@ -13,7 +13,7 @@
  */
 import { sentences, words } from "@/lib/spanish";
 import type { LevelParams } from "@/lib/level";
-import { rankOf } from "./frequency";
+import { rankOf, registerAnchors } from "./frequency";
 import { baseForms } from "./morphology";
 
 export interface DifficultyReport {
@@ -38,8 +38,40 @@ export interface DifficultyReport {
  * fluent. 1.5x costs a second call on some generations and is worth it.
  */
 export const BUDGET_SLACK = 1.5;
+
+/**
+ * ...and how far BELOW the budget before the text is too easy for its level.
+ *
+ * This half matters more than it sounds. The vocabulary band only constrains
+ * the model at low levels; by level 84 the band is ~11,000 words, so nothing
+ * falls outside it and the model just writes its default register. Measured
+ * across real generations: 5.2% out-of-band at level 45 against a 7.8% budget,
+ * but 1.5% at level 84 and 0.0% at level 96.
+ *
+ * With only a ceiling, that asymmetry is a runaway. Text stops getting harder
+ * as the level climbs, so the reader looks nothing up, the controller reads
+ * that as "too easy" and pushes the level higher again - all the way to 100
+ * regardless of what they can actually read. A floor closes the loop.
+ */
+export const BUDGET_FLOOR = 0.4;
+
 /** Sentences may run this much longer than target before we complain. */
 const SENTENCE_SLACK = 1.5;
+
+/**
+ * The floor only applies once there is enough text for the rate to mean
+ * something. On a 55-word paragraph the acceptable window between floor and
+ * ceiling is barely one to five words wide, and generation genuinely cannot
+ * aim that finely - the graded samples oscillated 0% -> 23% -> 0% across three
+ * attempts trying. Real reading pieces start at 180 words, where the same
+ * window is 4 to 15 words and comfortably hittable.
+ *
+ * There is a second reason not to push the floor at short lengths: above B2 a
+ * text's difficulty comes as much from grammar as from vocabulary. The C1
+ * sample that measured 0% out-of-band was still using the imperfect subjunctive
+ * and conditional throughout - genuinely advanced, just not rare-worded.
+ */
+export const MIN_WORDS_FOR_FLOOR = 120;
 
 /**
  * The best (lowest) frequency rank across a word and its plausible base forms,
@@ -92,6 +124,18 @@ export function measure(text: string, params: LevelParams): DifficultyReport {
       `${(outOfBandRate * 100).toFixed(1)}% of words fall outside the ${params.vocabBand.toLocaleString()} most common Spanish words (limit ${(budgetCeiling * 100).toFixed(0)}%). Replace these with everyday equivalents: ${outOfBand.slice(0, 25).join(", ")}.`,
     );
   }
+  // The other side of the budget: text that never leaves the band teaches the
+  // reader nothing, and at higher levels that is the model's default output.
+  const budgetFloor = params.newWordBudget * BUDGET_FLOOR;
+  if (totalWords >= MIN_WORDS_FOR_FLOOR && outOfBandRate < budgetFloor) {
+    // Concrete anchors from just beyond the band. "Be harder" alone does not
+    // work - the model has no way to know where the band ends.
+    const edge = registerAnchors(params.vocabBand);
+    problems.push(
+      `Only ${(outOfBandRate * 100).toFixed(1)}% of words fall outside the ${params.vocabBand.toLocaleString()} most common words, so this is too easy for the level - aim for about ${(params.newWordBudget * 100).toFixed(0)}%. Do not simplify further and do not lengthen it; instead reach for the more precise or vivid word wherever there is a choice. Words at the edge of this reader's range look like this: ${edge.join(", ")}. Use that register - not those exact words unless they fit - and put whatever lands outside the band in the glossary.`,
+    );
+  }
+
   const sentenceCeiling = params.sentenceWords * SENTENCE_SLACK;
   if (meanSentenceWords > sentenceCeiling) {
     problems.push(

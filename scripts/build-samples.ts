@@ -34,11 +34,24 @@ loadEnv();
 
 const OUT_DIR = join("src", "data", "es");
 
-/** Evenly spread across the scale so each sample is clearly a step up. */
-const ANCHORS = [10, 28, 47, 66, 85];
-
-const TOPIC =
-  "an ordinary morning at a neighbourhood market: what someone sees, buys and talks about";
+/**
+ * Evenly spread across the scale so each sample is clearly a step up, and each
+ * on a DIFFERENT everyday topic.
+ *
+ * They originally shared one topic, so that difficulty would be the only thing
+ * varying between them. That was a mistake: having read the easy version, you
+ * already know what the hard one says, and context carries you through text you
+ * could not actually decode. The check inflated exactly the estimate it exists
+ * to correct. Different topics cost a little comparability and buy back an
+ * honest answer.
+ */
+const ANCHORS: { level: number; topic: string }[] = [
+  { level: 10, topic: "what someone does on an ordinary weekday morning" },
+  { level: 28, topic: "a neighbour's dog that keeps escaping from the garden" },
+  { level: 47, topic: "why a small family bakery decided to close after forty years" },
+  { level: 66, topic: "how a city changed after the old railway line was removed" },
+  { level: 85, topic: "an argument between two friends about whether to move abroad" },
+];
 
 const TARGET_WORDS = 60;
 const MAX_ATTEMPTS = 3;
@@ -47,7 +60,7 @@ const SampleSchema = z.object({
   text: z.string().describe("A single paragraph of Spanish. No title, no notes."),
 });
 
-async function buildOne(level: number) {
+async function buildOne(level: number, topic: string) {
   const params = paramsFor(level);
   let corrections: string[] = [];
 
@@ -57,7 +70,7 @@ async function buildOne(level: number) {
       system:
         "You write graded reading samples for learners of Spanish. Natural, idiomatic Spanish that stays strictly inside the difficulty budget you are given.",
       prompt: [
-        `Write ONE paragraph of about ${TARGET_WORDS} words in Spanish about ${TOPIC}.`,
+        `Write ONE paragraph of about ${TARGET_WORDS} words in Spanish about ${topic}.`,
         "",
         `Difficulty budget:`,
         `- Vocabulary: draw from the ${params.vocabBand.toLocaleString()} most common Spanish words. At most ${Math.round(params.newWordBudget * 100)}% may fall outside that set.`,
@@ -82,6 +95,7 @@ async function buildOne(level: number) {
     if (report.passes || attempt === MAX_ATTEMPTS) {
       return {
         level,
+        topic,
         cefr: cefrFor(level),
         vocabBand: params.vocabBand,
         text: object.text.trim(),
@@ -95,16 +109,16 @@ async function buildOne(level: number) {
 }
 
 async function main() {
-  console.log(`Generating ${ANCHORS.length} graded samples on one shared topic:\n`);
+  console.log(`Generating ${ANCHORS.length} graded samples, one topic each:\n`);
   const samples = [];
-  for (const level of ANCHORS) {
-    samples.push(await buildOne(level));
+  for (const anchor of ANCHORS) {
+    samples.push(await buildOne(anchor.level, anchor.topic));
   }
 
   await mkdir(OUT_DIR, { recursive: true });
   await writeFile(
     join(OUT_DIR, "samples.json"),
-    JSON.stringify({ topic: TOPIC, samples }, null, 2),
+    JSON.stringify({ samples }, null, 2),
   );
 
   console.log(`\nWrote ${OUT_DIR}/samples.json`);

@@ -5,14 +5,43 @@ import { cefrFor, clampLevel, levelForVocab } from "@/lib/level";
 import samples from "@/data/es/samples.json";
 
 /**
- * How much the read-back check counts against the word test.
+ * How much the read-back check counts against the word test - asymmetrically.
  *
- * The read-back is still self-report, but it is *grounded* self-report - the
- * learner is looking at real graded Spanish rather than being asked to name a
- * CEFR level in the abstract - so it earns most of the weight. The word test
- * keeps a meaningful share because it is the only genuinely objective signal.
+ * The read-back is grounded self-report: the learner is looking at real graded
+ * text rather than naming a CEFR level in the abstract. But it is still
+ * self-report, and self-report fails in one direction far more than the other.
+ * Almost nobody claims to understand less than they do; plenty of people
+ * overestimate, especially with a familiar topic in front of them.
+ *
+ * So it is trusted heavily when it says "lower than the word test" - that is
+ * the case it exists to catch, someone the word test rated C2 who cannot read
+ * an A1 paragraph - and only lightly when it says "higher". A flat 65% took a
+ * word test of 55 and stored 75, which is the wrong direction to be generous in.
  */
-const READBACK_WEIGHT = 0.65;
+const READBACK_WEIGHT_DOWN = 0.75;
+const READBACK_WEIGHT_UP = 0.3;
+
+/** However confident the reader is, the word test still bounds the optimism. */
+const MAX_UPWARD_OVERRIDE = 10;
+
+/**
+ * Combine the objective word test with the reader's own read-back choice.
+ * Exported so `scripts/check-calibration.ts` can assert the asymmetry holds.
+ */
+export function blendReadback(
+  testLevel: number,
+  readbackLevel: number | null,
+): number {
+  if (readbackLevel === null) return testLevel;
+
+  const weight =
+    readbackLevel < testLevel ? READBACK_WEIGHT_DOWN : READBACK_WEIGHT_UP;
+  const blended = weight * readbackLevel + (1 - weight) * testLevel;
+
+  return readbackLevel > testLevel
+    ? Math.min(blended, testLevel + MAX_UPWARD_OVERRIDE)
+    : blended;
+}
 
 /** A fresh sample of test items, plus the graded paragraphs for the read-back. */
 export async function GET() {
@@ -49,12 +78,7 @@ export async function POST(req: NextRequest) {
   const readbackLevel =
     typeof body.readbackLevel === "number" ? clampLevel(body.readbackLevel) : null;
 
-  const level =
-    readbackLevel === null
-      ? testLevel
-      : clampLevel(
-          READBACK_WEIGHT * readbackLevel + (1 - READBACK_WEIGHT) * testLevel,
-        );
+  const level = clampLevel(blendReadback(testLevel, readbackLevel));
 
   const profile = setPlacement(userId, result.vocabEstimate, "es", level);
 
