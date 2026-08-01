@@ -16,9 +16,9 @@ const reading = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Comprensible",
+  title: "1 Percent More Fluent",
   description:
-    "Short stories, articles and conversations generated in Spanish, at a level you can actually read.",
+    "Short stories, articles and conversations generated in the language you are learning, at a level you can actually read.",
 };
 
 export default function RootLayout({
@@ -35,7 +35,7 @@ export default function RootLayout({
         <header className="border-b border-border">
           <div className="mx-auto flex w-full max-w-3xl items-baseline justify-between px-5 py-4">
             <Link href="/" className="text-lg font-semibold tracking-tight">
-              Comprensible
+              1 Percent More Fluent
             </Link>
             <Link
               href="/setup"

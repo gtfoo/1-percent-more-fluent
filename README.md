@@ -1,11 +1,12 @@
-# Comprensible
+# 1 Percent More Fluent
 
-Generated Spanish reading and listening material, pitched at a level you can
-actually read. You say what you feel like reading — a folk tale, a piece about
-the trade war, two friends arguing about a film — and it writes one, checks how
-hard it actually came out, and rewrites it if it missed.
+Generated reading and listening material in the language you're learning,
+pitched at a level you can actually read. You say what you feel like reading —
+a folk tale, a piece about the trade war, two friends arguing about a film —
+and it writes one, checks how hard it actually came out, and rewrites it if it
+missed.
 
-Working name; renaming it now costs a directory and a `package.json` line.
+Spanish today; Simplified Chinese and Indonesian next.
 
 ## The idea
 

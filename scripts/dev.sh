@@ -5,8 +5,8 @@
 # better-sqlite3 is compiled for Linux. Driving `npm` from Windows across
 # the \\wsl.localhost share does not work.
 #
-# Port 3003 matches the "comprensible" entry in gtfoo/.claude/launch.json, so
-# this script and the preview tooling never fight over a socket. 3000/3001/3002
+# Port 3003 matches the "fluent" entry in gtfoo/.claude/launch.json, so this
+# script and the preview tooling never fight over a socket. 3000/3001/3002
 # already belong to gtfoo, carpark-sg and role-match.
 #
 #   bash scripts/dev.sh          # restart
@@ -14,6 +14,7 @@
 set -u
 
 PORT=3003
+PROJECT=/home/gtfoo/Git/1-percent-more-fluent
 
 cd "$(dirname "$0")/.." || exit 1
 
@@ -21,12 +22,12 @@ cd "$(dirname "$0")/.." || exit 1
 source ~/.nvm/nvm.sh >/dev/null 2>&1
 nvm use 20 >/dev/null 2>&1
 
-LOG=/tmp/comprensible-dev.log
+LOG=/tmp/fluent-dev.log
 
-# Only kill this project's server, matched by its port, so sibling projects
-# on other ports are left alone.
-pkill -f "next dev.*-p $PORT" >/dev/null 2>&1
-pkill -f "/home/gtfoo/Git/comprensible/node_modules/.bin/next" >/dev/null 2>&1
+# Kill only this project's server, matched by its own binary path. The bracket
+# stops the pattern matching this script's own command line - without it pkill
+# finds itself and terminates the shell that invoked it.
+pkill -f "$PROJECT/node_modules/.bin/nex[t]" >/dev/null 2>&1
 sleep 1
 
 # Turbopack's incremental cache does not survive being killed mid-write, and a

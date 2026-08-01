@@ -15,7 +15,7 @@ LEVEL="$LEVEL" npx tsx -e '
 const Database = require("better-sqlite3");
 const { cefrFor, paramsFor } = require("./src/lib/level.ts");
 const level = Number(process.env.LEVEL);
-const db = new Database("data/comprensible.sqlite");
+const db = new Database("data/fluent.sqlite");
 const before = db.prepare("SELECT user_id, level FROM profiles").all();
 db.prepare("UPDATE profiles SET level = ?, updated_at = ?").run(level, new Date().toISOString());
 for (const row of before) {

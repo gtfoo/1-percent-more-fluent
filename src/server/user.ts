@@ -3,8 +3,21 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
 import { levelForVocab } from "@/lib/level";
 
-const COOKIE = "comprensible_uid";
+const COOKIE = "fluent_uid";
+/**
+ * The app was called "Comprensible" before. Renaming the cookie outright would
+ * orphan every existing profile and its whole reading history, so the old name
+ * is still read and silently adopted. Safe to delete once nobody is carrying
+ * one - it has no effect on new users.
+ */
+const LEGACY_COOKIE = "comprensible_uid";
 const ONE_YEAR = 60 * 60 * 24 * 365;
+
+type Jar = Awaited<ReturnType<typeof cookies>>;
+
+function readUserCookie(jar: Jar): string | undefined {
+  return jar.get(COOKIE)?.value ?? jar.get(LEGACY_COOKIE)?.value;
+}
 
 export interface Profile {
   userId: string;
@@ -23,8 +36,15 @@ export async function getOrCreateUserId(): Promise<string> {
   const jar = await cookies();
   const db = getDb();
 
-  const existing = jar.get(COOKIE)?.value;
+  const existing = readUserCookie(jar);
   if (existing && db.prepare("SELECT 1 FROM users WHERE id = ?").get(existing)) {
+    // Re-issue under the current name so a legacy cookie migrates on first use.
+    jar.set(COOKIE, existing, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: ONE_YEAR,
+    });
     return existing;
   }
 
@@ -50,7 +70,7 @@ export async function getOrCreateUserId(): Promise<string> {
  */
 export async function getUserId(): Promise<string | null> {
   const jar = await cookies();
-  const id = jar.get(COOKIE)?.value;
+  const id = readUserCookie(jar);
   if (!id) return null;
   const known = getDb().prepare("SELECT 1 FROM users WHERE id = ?").get(id);
   return known ? id : null;

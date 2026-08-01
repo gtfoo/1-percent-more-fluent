@@ -7,7 +7,7 @@ nvm use 20 >/dev/null 2>&1
 
 npx tsx -e '
 const Database = require("better-sqlite3");
-const db = new Database("data/comprensible.sqlite", { readonly: true });
+const db = new Database("data/fluent.sqlite", { readonly: true });
 
 console.log("=== profiles ===");
 for (const p of db.prepare("SELECT user_id, level, vocab_estimate, placed_at FROM profiles").all()) {

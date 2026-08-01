@@ -10,7 +10,7 @@ export function getDb(): Database.Database {
   const dir = join(process.cwd(), "data");
   mkdirSync(dir, { recursive: true });
 
-  db = new Database(join(dir, "comprensible.sqlite"));
+  db = new Database(join(dir, "fluent.sqlite"));
   db.pragma("journal_mode = WAL");
 
   db.exec(`
