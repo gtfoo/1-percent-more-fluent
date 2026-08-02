@@ -34,6 +34,27 @@ npm run build && bash scripts/try-standalone.sh
 
 ---
 
+## The droplet as it actually is
+
+Discovered by inspection, so the commands below use real values rather than
+placeholders:
+
+| | |
+|---|---|
+| Host | `167.71.196.128`, `ubuntu-s-1vcpu-1gb-sgp1` — **1 vCPU, 1GB**, with a 2GB swapfile |
+| Deploy user | `deploy`, reachable with the existing `~/.ssh/carpark_deploy` key |
+| Apps live at | `/home/deploy/<name>` — `carpark` (3001), `career-side-quests` (3002), `gtfoo` (3000) |
+| This app | `/home/deploy/1-percent-more-fluent`, port **3100** (confirmed free) |
+| Node | v20.20.2 at `/usr/bin/node` |
+
+**The deploy user has almost no sudo.** `sudo -l` reports exactly one
+permitted command: `/usr/bin/systemctl restart carpark`. So creating the
+systemd unit, editing the Caddyfile and reloading Caddy all need a separate
+root session — they cannot be automated through the deploy account, and the
+GitHub Actions deploy will not work until the sudoers line below is added.
+
+The 2GB swapfile is what lets `next build` finish on a 1GB box. Do not remove it.
+
 ## One-time setup
 
 ### 1. DNS
@@ -74,11 +95,13 @@ cp -r .next/static .next/standalone/.next/static
 cp -r public .next/standalone/public
 ```
 
-### 3. systemd
+### 3. systemd — **needs root**
 
-`/etc/systemd/system/fluent.service`:
+Everything in this section and the next requires a root session; the `deploy`
+user cannot do any of it.
 
-```ini
+```bash
+sudo tee /etc/systemd/system/fluent.service > /dev/null <<'EOF'
 [Unit]
 Description=1 Percent More Fluent
 After=network.target
@@ -88,44 +111,46 @@ Type=simple
 User=deploy
 WorkingDirectory=/home/deploy/1-percent-more-fluent
 EnvironmentFile=/home/deploy/1-percent-more-fluent/.env.local
-
-# The two that matter. DATA_DIR must point OUTSIDE the build output - see the
-# note at the top of this file.
 Environment=DATA_DIR=/home/deploy/1-percent-more-fluent/data
 Environment=NODE_ENV=production
 Environment=PORT=3100
 Environment=HOSTNAME=127.0.0.1
-
 ExecStart=/usr/bin/node .next/standalone/server.js
 Restart=always
 RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
+EOF
+
+# The deploy user must be able to restart it, or GitHub Actions cannot deploy.
+echo 'deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart fluent' \
+  | sudo tee /etc/sudoers.d/fluent-deploy > /dev/null
+sudo chmod 440 /etc/sudoers.d/fluent-deploy
+sudo visudo -c
+
+# Free port 3100 first if a temporary process is holding it.
+sudo pkill -f 'standalone/server.j[s]' || true
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now fluent
+sudo systemctl status fluent --no-pager
 ```
 
-Check `PORT=3100` is not already taken — `ss -ltnp | grep 3100`. Carpark SG is
-on this box too.
+Notes on that unit:
+
+- `DATA_DIR` is the line that matters. It must point outside the build output —
+  see the warning at the top of this file.
+- `EnvironmentFile` reads `.env.local` directly. systemd's parser wants plain
+  `KEY=value` with no `export` and no quotes, which is what the file contains.
+- `carpark.service` uses `npm run start` instead; this app needs
+  `node .next/standalone/server.js` because it builds with `output: "standalone"`.
 
 **Two deploys can collide.** GitHub's `concurrency` group only serialises runs
 within a repository, so a push to `carpark-sg` and a push here can build on the
-droplet at the same time. Two simultaneous `npm ci` + `next build` will exhaust
-a 1GB droplet. If that happens, the symptom is a build killed by the OOM killer
-— `sudo dmesg | grep -i oom` — and the fix is either a swap file or not pushing
-to both at once.
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now fluent
-sudo systemctl status fluent
-```
-
-Let the deploy user restart it without a password —
-`/etc/sudoers.d/fluent-deploy`, created with `visudo -f`:
-
-```
-deploy ALL=(root) NOPASSWD: /bin/systemctl restart fluent
-```
+droplet at the same time. Two simultaneous `npm ci` + `next build` on a 1GB box
+is what the 2GB swapfile is protecting against. If a build dies anyway, look for
+`sudo dmesg | grep -i oom`.
 
 ### 4. Caddy
 
@@ -161,11 +186,11 @@ gh secret set DROPLET_APP_DIR -R gtfoo/1-percent-more-fluent
 
 | Secret | Value |
 |---|---|
-| `DROPLET_HOST` | droplet IP or hostname |
+| `DROPLET_HOST` | `167.71.196.128` |
 | `DROPLET_USER` | `deploy` |
-| `DROPLET_SSH_KEY` | private key whose public half is in the deploy user's `authorized_keys` |
-| `DROPLET_PORT` | SSH port, omit for 22 |
-| `DROPLET_APP_DIR` | `/home/deploy/1-percent-more-fluent` — the only one whose value differs from carpark's |
+| `DROPLET_SSH_KEY` | the same key carpark uses — `~/.ssh/carpark_deploy` already authenticates as `deploy` |
+| `DROPLET_PORT` | omit; SSH is on 22 |
+| `DROPLET_APP_DIR` | `/home/deploy/1-percent-more-fluent` — the only value that differs from carpark's |
 
 Check them with `gh secret list -R gtfoo/1-percent-more-fluent`.
 
