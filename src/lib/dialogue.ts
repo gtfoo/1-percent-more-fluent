@@ -29,6 +29,15 @@ export interface Turn {
 const MAX_NAME_LENGTH = 32;
 
 /**
+ * Both colons, because CJK text uses the full-width one and a model writing
+ * Chinese reaches for it without being asked. Matching only ":" meant Chinese
+ * turns never split: the speaker's name stayed inside the line, so it was read
+ * aloud by the narrator, rendered as prose the learner is expected to know, and
+ * left every turn without a speaker to match a voice to.
+ */
+const COLON = /[:：]/;
+
+/**
  * Split conversation paragraphs into turns.
  *
  * The prefix is matched against the declared speaker names where possible,
@@ -41,7 +50,7 @@ export function splitTurns(paragraphs: string[], speakers: Speaker[]): Turn[] {
   let offset = 0;
 
   for (const paragraph of paragraphs) {
-    const colon = paragraph.indexOf(":");
+    const colon = paragraph.search(COLON);
     let speaker: string | null = null;
     let text = paragraph.trim();
 

@@ -22,6 +22,7 @@ step eslint npx eslint .
 step "placement scoring" npx tsx scripts/check-placement.ts
 step "calibration" npx tsx scripts/check-calibration.ts
 step "language contract" npx tsx scripts/check-language.ts
+step "dialogue turns" npx tsx scripts/check-dialogue.ts
 step "next build" npx next build
 
 echo

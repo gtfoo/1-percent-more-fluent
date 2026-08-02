@@ -69,8 +69,13 @@ body {
   background-color: var(--accent-soft);
   box-shadow: inset 0 -2px 0 var(--accent);
 }
-.word.speaking {
+/* Set imperatively from the audio loop, never by React - see Reader.tsx.
+   No transition: the 120ms fade above is right for a hover, but a Chinese word
+   is only about 200ms of speech, so easing the highlight in reads as the same
+   lag it is meant to be tracking. It has to land on the beat. */
+.word[data-speaking] {
   background-color: var(--accent-soft);
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

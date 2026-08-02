@@ -29,7 +29,7 @@
  * which constructions unlock when, and what the label is called - belongs to
  * the language module.
  */
-import { DEFAULT_LANGUAGE, getLanguage, type Language } from "./languages";
+import type { Language } from "./languages";
 
 export const MIN_VOCAB = 500;
 /**

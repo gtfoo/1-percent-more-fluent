@@ -47,6 +47,8 @@ interface PlacedToken {
   text: string;
   isWord: boolean;
   at: number;
+  /** Index into the flat `words` list, for word tokens only. */
+  wordIndex?: number;
 }
 
 export function Reader({
@@ -64,8 +66,32 @@ export function Reader({
   const [alignment, setAlignment] = useState<Alignment | null>(null);
   const [audioBusy, setAudioBusy] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [charIndex, setCharIndex] = useState(-1);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  /**
+   * The spoken-word highlight is driven straight into the DOM rather than
+   * through React state, and this is why.
+   *
+   * It updates every animation frame. Routing that through `setState` re-rendered
+   * every word span sixty times a second, and the commit landed about 150ms
+   * behind the audio - measured, not guessed. Spanish hid it: a word takes
+   * roughly 450ms to say, so a late highlight was still sitting on the right
+   * word. Chinese words run about 200ms, so the same lag put the highlight a
+   * whole word behind for most of the piece.
+   *
+   * `data-speaking` is deliberately an attribute React never renders. React
+   * patches only what it rendered, so a re-render for an unrelated reason - a
+   * gloss arriving, say - cannot wipe the highlight the way a className would.
+   */
+  const wordRefs = useRef<(HTMLElement | null)[]>([]);
+  const speakingRef = useRef(-1);
+
+  const markSpeaking = useCallback((index: number) => {
+    if (speakingRef.current === index) return;
+    wordRefs.current[speakingRef.current]?.removeAttribute("data-speaking");
+    wordRefs.current[index]?.setAttribute("data-speaking", "");
+    speakingRef.current = index;
+  }, []);
 
   // Time on the page, used only to tell "read it and understood everything"
   // apart from "opened it and gave up" - both of which produce zero lookups.
@@ -99,38 +125,45 @@ export function Reader({
    * so its offsets come from `splitTurns` - which is why that split is shared
    * with the server rather than reimplemented here.
    */
-  const layout = useMemo(() => {
+  const { blocks: layout, words } = useMemo(() => {
     // Written as plain loops rather than nested `map` closures: accumulating an
     // offset inside a callback reads as mutation-after-render to the compiler,
     // even though it all happens in one pass.
     const blocks: { speaker: string | null; tokens: PlacedToken[] }[] = [];
+    // Word tokens only, in render order, so the highlight can binary-search
+    // them by character offset without walking the blocks.
+    const words: { at: number; end: number }[] = [];
+
+    const place = (text: string, base: number, speaker: string | null) => {
+      const tokens: PlacedToken[] = [];
+      let local = 0;
+      for (const token of language.tokenize(text)) {
+        const at = base + local;
+        if (token.isWord) {
+          tokens.push({ ...token, at, wordIndex: words.length });
+          words.push({ at, end: at + token.text.length });
+        } else {
+          tokens.push({ ...token, at });
+        }
+        local += token.text.length;
+      }
+      blocks.push({ speaker, tokens });
+    };
 
     if (isConversation) {
       for (const turn of splitTurns(piece.paragraphs, piece.speakers)) {
-        const tokens: PlacedToken[] = [];
-        let local = 0;
-        for (const token of language.tokenize(turn.text)) {
-          tokens.push({ ...token, at: turn.offset + local });
-          local += token.text.length;
-        }
-        blocks.push({ speaker: turn.speaker, tokens });
+        place(turn.text, turn.offset, turn.speaker);
       }
-      return blocks;
+      return { blocks, words };
     }
 
     let base = 0;
     for (const text of piece.paragraphs) {
-      const tokens: PlacedToken[] = [];
-      let local = 0;
-      for (const token of language.tokenize(text)) {
-        tokens.push({ ...token, at: base + local });
-        local += token.text.length;
-      }
-      blocks.push({ speaker: null, tokens });
+      place(text, base, null);
       base += text.length + JOINER.length;
     }
 
-    return blocks;
+    return { blocks, words };
   }, [piece.paragraphs, piece.speakers, isConversation, language]);
 
   /**
@@ -150,24 +183,54 @@ export function Reader({
 
     // React bails out when the value is unchanged, so this is cheap.
     setPlaying(!el.paused && !el.ended);
-    if (!alignment || el.paused) return;
+    if (!alignment || el.paused) {
+      // Pausing leaves the current word marked - it is still the one you
+      // stopped on - but finishing should not leave the last word lit.
+      if (el.ended) markSpeaking(-1);
+      return;
+    }
 
     const t = el.currentTime;
     const ends = alignment.ends;
     let lo = 0;
     let hi = ends.length - 1;
-    let found = -1;
+    let charIndex = -1;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
       if (ends[mid]! > t) {
-        found = mid;
+        charIndex = mid;
         hi = mid - 1;
       } else {
         lo = mid + 1;
       }
     }
-    setCharIndex(found);
-  }, [alignment]);
+
+    // Which word contains that character: the last one starting at or before it.
+    let found = -1;
+    if (charIndex >= 0) {
+      lo = 0;
+      hi = words.length - 1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (words[mid]!.at <= charIndex) {
+          found = mid;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      // Punctuation and spaces sit between words; nothing is speaking then.
+      if (found >= 0 && charIndex >= words[found]!.end) found = -1;
+    }
+
+    markSpeaking(found);
+  }, [alignment, words, markSpeaking]);
+
+  // A new piece means a new set of spans; the old indices refer to nothing.
+  useEffect(() => {
+    wordRefs.current = [];
+    speakingRef.current = -1;
+  }, [words]);
 
   useEffect(() => {
     if (!audioUrl) return;
@@ -332,7 +395,7 @@ export function Reader({
             onTimeUpdate={syncToAudio}
             onPlay={syncToAudio}
             onPause={syncToAudio}
-            onEnded={() => setCharIndex(-1)}
+            onEnded={() => markSpeaking(-1)}
             className="hidden"
           />
         )}
@@ -388,22 +451,21 @@ export function Reader({
               {block.tokens.map((token, j) => {
                 if (!token.isWord) return <span key={j}>{token.text}</span>;
                 const key = language.normalizeWord(token.text);
-                const isSpeaking =
-                  charIndex >= token.at &&
-                  charIndex < token.at + token.text.length;
                 const isLookedUp = glosses.has(key);
+                const w = token.wordIndex!;
                 return (
                   <span
                     key={j}
+                    ref={(el) => {
+                      wordRefs.current[w] = el;
+                    }}
                     role="button"
                     tabIndex={0}
                     onClick={() => lookUp(token.text, paragraph)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") lookUp(token.text, paragraph);
                     }}
-                    className={`word${isLookedUp ? " looked-up" : ""}${
-                      isSpeaking ? " speaking" : ""
-                    }`}
+                    className={`word${isLookedUp ? " looked-up" : ""}`}
                   >
                     {token.text}
                   </span>
