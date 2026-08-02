@@ -194,6 +194,45 @@ cd ~/1-percent-more-fluent && git pull --ff-only && bash scripts/deploy.sh
 sudo journalctl -u fluent -f
 ```
 
+## Troubleshooting
+
+### `ERR_SSL_PROTOCOL_ERROR`
+
+Run `bash scripts/diagnose-tls.sh` from anywhere. It probes the target, a
+hostname that definitely does not exist, and a known-good one, all against the
+same IP. **The comparison is the diagnosis:**
+
+- Target behaves like the **bogus** name (both "no certificate") → Caddy does
+  not know this hostname. The site block is missing from the config Caddy is
+  actually running. Not a certificate problem.
+- Target gets a certificate but the browser still complains → a real TLS or
+  cert problem; check the issuer and expiry it prints.
+- Target does not resolve → DNS, not Caddy.
+
+For the first case, on the droplet:
+
+```bash
+# Is it in the file?
+grep -n "1-percent-more-fluent" /etc/caddy/Caddyfile
+
+# Is it in the RUNNING config? This is the one that matters - the admin API
+# reports what Caddy actually loaded, not what the file says.
+curl -s localhost:2019/config/ | grep -o "1-percent-more-fluent[^\"]*" \
+  || echo "NOT in the running config"
+
+# Syntax check before reloading; a bad reload leaves the OLD config running,
+# which looks exactly like having changed nothing.
+sudo caddy validate --config /etc/caddy/Caddyfile
+
+sudo systemctl reload caddy
+sudo journalctl -u caddy -n 40 --no-pager
+```
+
+A successful reload obtains the certificate within a few seconds — look for
+`certificate obtained successfully` in the log. Note that port 80 returning a
+308 redirect proves nothing: Caddy redirects http→https for *any* hostname,
+including ones it has never heard of.
+
 ## What persists, and what does not
 
 `data/` is gitignored and never touched by a deploy. It holds
