@@ -3,7 +3,8 @@ import { getOrCreateUserId, getProfile, setLevel } from "@/server/user";
 import { getPiece } from "@/server/generate";
 import { countLookups } from "@/server/gloss";
 import { getDb } from "@/server/db";
-import { cefrFor, nextLevel, paramsFor, type SelfRating } from "@/lib/level";
+import { labelFor, nextLevel, paramsFor, type SelfRating } from "@/lib/level";
+import { getLanguage } from "@/lib/languages";
 import { BUDGET_FLOOR, MIN_WORDS_FOR_FLOOR } from "@/server/difficulty";
 
 const RATINGS: SelfRating[] = ["too-easy", "just-right", "too-hard"];
@@ -68,7 +69,8 @@ export async function POST(req: NextRequest) {
   // Did the piece actually reach the difficulty its own level called for? If
   // not, sailing through it says nothing about the reader, and the level must
   // not climb on the strength of it.
-  const params = paramsFor(piece.level);
+  const language = getLanguage(piece.language);
+  const params = paramsFor(piece.level, language);
   const pieceUndershot =
     piece.report.totalWords >= MIN_WORDS_FOR_FLOOR &&
     piece.report.outOfBandRate < params.newWordBudget * BUDGET_FLOOR;
@@ -107,7 +109,7 @@ export async function POST(req: NextRequest) {
     pieceUndershot,
     levelBefore: before,
     levelAfter: after,
-    cefrBefore: cefrFor(before),
-    cefrAfter: cefrFor(after),
+    labelBefore: labelFor(before, language),
+    labelAfter: labelFor(after, language),
   });
 }

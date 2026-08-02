@@ -13,7 +13,7 @@
 import { z } from "zod";
 import { generateStructured } from "./llm";
 import { getDb } from "./db";
-import { normalizeWord } from "@/lib/spanish";
+import { getLanguage } from "@/lib/languages";
 
 const GlossSchema = z.object({
   lemma: z.string().describe("The dictionary form of the word."),
@@ -53,30 +53,32 @@ function readCache(language: string, word: string): Gloss | null {
  * a real dictionary lookup is richer than a one-line story gloss.
  */
 export function seedGlossary(
-  language: string,
+  code: string,
   entries: { word: string; meaning: string }[],
 ): void {
+  const language = getLanguage(code);
   const stmt = getDb().prepare(
     `INSERT OR IGNORE INTO gloss_cache (language, word, meaning, created_at)
      VALUES (?, ?, ?, ?)`,
   );
   const now = new Date().toISOString();
   for (const entry of entries) {
-    const key = normalizeWord(entry.word);
+    const key = language.normalizeWord(entry.word);
     if (!key || !entry.meaning) continue;
-    stmt.run(language, key, JSON.stringify({ meaning: entry.meaning }), now);
+    stmt.run(language.code, key, JSON.stringify({ meaning: entry.meaning }), now);
   }
 }
 
 export async function glossWord(
   word: string,
   sentence: string,
-  language = "es",
+  code: string,
 ): Promise<Gloss> {
-  const key = normalizeWord(word);
+  const language = getLanguage(code);
+  const key = language.normalizeWord(word);
   if (!key) throw new Error("empty word");
 
-  const hit = readCache(language, key);
+  const hit = readCache(language.code, key);
   if (hit) return hit;
 
   const { object } = await generateStructured({
@@ -84,7 +86,7 @@ export async function glossWord(
     system:
       "You are a bilingual dictionary. Answer with the plain dictionary meaning of the word. Be terse.",
     prompt: [
-      `Spanish word: ${key}`,
+      `${language.name} word: ${key}`,
       // The sentence disambiguates homographs even though we cache the result
       // context-free; it costs nothing to pass and improves the common case.
       `It appeared in this sentence: ${sentence}`,
@@ -98,19 +100,29 @@ export async function glossWord(
       `INSERT OR REPLACE INTO gloss_cache (language, word, meaning, created_at)
        VALUES (?, ?, ?, ?)`,
     )
-    .run(language, key, JSON.stringify(object), new Date().toISOString());
+    .run(language.code, key, JSON.stringify(object), new Date().toISOString());
 
   return { word: key, cached: false, ...object };
 }
 
 /** Record that the reader needed help with a word - the difficulty signal. */
-export function recordLookup(userId: string, pieceId: string, word: string): void {
+export function recordLookup(
+  userId: string,
+  pieceId: string,
+  word: string,
+  code: string,
+): void {
   getDb()
     .prepare(
       `INSERT OR IGNORE INTO lookups (user_id, piece_id, word, created_at)
        VALUES (?, ?, ?, ?)`,
     )
-    .run(userId, pieceId, normalizeWord(word), new Date().toISOString());
+    .run(
+      userId,
+      pieceId,
+      getLanguage(code).normalizeWord(word),
+      new Date().toISOString(),
+    );
 }
 
 export function countLookups(userId: string, pieceId: string): number {

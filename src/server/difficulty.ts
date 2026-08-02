@@ -11,10 +11,8 @@
  * that, ordinary conjugations like "camina" and "prefiere" get flagged, which
  * both overstates difficulty and pushes the generator into stilted Spanish.
  */
-import { sentences, words } from "@/lib/spanish";
 import type { LevelParams } from "@/lib/level";
 import { rankOf, registerAnchors } from "./frequency";
-import { baseForms } from "./morphology";
 
 export interface DifficultyReport {
   totalWords: number;
@@ -77,23 +75,24 @@ export const MIN_WORDS_FOR_FLOOR = 120;
  * The best (lowest) frequency rank across a word and its plausible base forms,
  * or null if none of them appear in the corpus at all.
  */
-function bestRank(word: string): number | null {
+function bestRank(word: string, params: LevelParams): number | null {
   let best: number | null = null;
-  for (const form of baseForms(word)) {
-    const rank = rankOf(form);
+  for (const form of params.language.baseForms(word)) {
+    const rank = rankOf(form, params.language.code);
     if (rank !== null && (best === null || rank < best)) best = rank;
   }
   return best;
 }
 
 export function measure(text: string, params: LevelParams): DifficultyReport {
-  const all = words(text);
+  const language = params.language;
+  const all = language.words(text);
   const totalWords = all.length;
 
   const beyond = new Map<string, number>();
   const seen = new Map<string, number | null>();
   for (const word of all) {
-    if (!seen.has(word)) seen.set(word, bestRank(word));
+    if (!seen.has(word)) seen.set(word, bestRank(word, params));
     const rank = seen.get(word)!;
     // Outside the top 50k entirely is treated as maximally rare.
     if (rank === null) beyond.set(word, Infinity);
@@ -109,7 +108,10 @@ export function measure(text: string, params: LevelParams): DifficultyReport {
   const outOfBandTokens = all.filter((w) => beyond.has(w)).length;
   const outOfBandRate = totalWords ? outOfBandTokens / totalWords : 0;
 
-  const sentenceLengths = sentences(text).map((s) => words(s).length).filter(Boolean);
+  const sentenceLengths = language
+    .sentences(text)
+    .map((s) => language.words(s).length)
+    .filter(Boolean);
   const meanSentenceWords = sentenceLengths.length
     ? sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length
     : 0;
@@ -121,7 +123,7 @@ export function measure(text: string, params: LevelParams): DifficultyReport {
   const budgetCeiling = params.newWordBudget * BUDGET_SLACK;
   if (outOfBandRate > budgetCeiling) {
     problems.push(
-      `${(outOfBandRate * 100).toFixed(1)}% of words fall outside the ${params.vocabBand.toLocaleString()} most common Spanish words (limit ${(budgetCeiling * 100).toFixed(0)}%). Replace these with everyday equivalents: ${outOfBand.slice(0, 25).join(", ")}.`,
+      `${(outOfBandRate * 100).toFixed(1)}% of words fall outside the ${params.vocabBand.toLocaleString()} most common ${language.name} words (limit ${(budgetCeiling * 100).toFixed(0)}%). Replace these with everyday equivalents: ${outOfBand.slice(0, 25).join(", ")}.`,
     );
   }
   // The other side of the budget: text that never leaves the band teaches the
@@ -130,7 +132,7 @@ export function measure(text: string, params: LevelParams): DifficultyReport {
   if (totalWords >= MIN_WORDS_FOR_FLOOR && outOfBandRate < budgetFloor) {
     // Concrete anchors from just beyond the band. "Be harder" alone does not
     // work - the model has no way to know where the band ends.
-    const edge = registerAnchors(params.vocabBand);
+    const edge = registerAnchors(params.vocabBand, language.code);
     problems.push(
       `Only ${(outOfBandRate * 100).toFixed(1)}% of words fall outside the ${params.vocabBand.toLocaleString()} most common words, so this is too easy for the level - aim for about ${(params.newWordBudget * 100).toFixed(0)}%. Do not simplify further and do not lengthen it; instead reach for the more precise or vivid word wherever there is a choice. Words at the edge of this reader's range look like this: ${edge.join(", ")}. Use that register - not those exact words unless they fit - and put whatever lands outside the band in the glossary.`,
     );

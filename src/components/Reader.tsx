@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { tokenize, normalizeWord } from "@/lib/spanish";
+import { getLanguage } from "@/lib/languages";
 import { splitTurns, type Speaker } from "@/lib/dialogue";
 
 interface Gloss {
@@ -22,6 +22,7 @@ export interface ReaderPiece {
   id: string;
   title: string;
   format: string;
+  language: string;
   paragraphs: string[];
   speakers: Speaker[];
   questions: { question: string; options: string[]; answer: number }[];
@@ -34,8 +35,8 @@ interface SessionResult {
   lookupRate: number;
   levelBefore: number;
   levelAfter: number;
-  cefrBefore: string;
-  cefrAfter: string;
+  labelBefore: string;
+  labelAfter: string;
 }
 
 /** Must match how the server joins paragraphs before sending them to TTS. */
@@ -84,6 +85,7 @@ export function Reader({
   const [result, setResult] = useState<SessionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const language = getLanguage(piece.language);
   const isConversation = piece.format === "conversation";
 
   /**
@@ -107,7 +109,7 @@ export function Reader({
       for (const turn of splitTurns(piece.paragraphs, piece.speakers)) {
         const tokens: PlacedToken[] = [];
         let local = 0;
-        for (const token of tokenize(turn.text)) {
+        for (const token of language.tokenize(turn.text)) {
           tokens.push({ ...token, at: turn.offset + local });
           local += token.text.length;
         }
@@ -120,7 +122,7 @@ export function Reader({
     for (const text of piece.paragraphs) {
       const tokens: PlacedToken[] = [];
       let local = 0;
-      for (const token of tokenize(text)) {
+      for (const token of language.tokenize(text)) {
         tokens.push({ ...token, at: base + local });
         local += token.text.length;
       }
@@ -129,7 +131,7 @@ export function Reader({
     }
 
     return blocks;
-  }, [piece.paragraphs, piece.speakers, isConversation]);
+  }, [piece.paragraphs, piece.speakers, isConversation, language]);
 
   /**
    * Follow the audio at frame rate.
@@ -181,7 +183,7 @@ export function Reader({
   }, [audioUrl, syncToAudio]);
 
   async function lookUp(raw: string, sentence: string) {
-    const word = normalizeWord(raw);
+    const word = language.normalizeWord(raw);
     if (!word) return;
     setSelected(word);
 
@@ -279,7 +281,7 @@ export function Reader({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "could not adjust");
       setOverride(
-        `Level moved to ${data.cefr} (about ${data.vocabBand.toLocaleString()} words). The next piece will be ${direction}.`,
+        `Level moved to ${data.label} (about ${data.vocabBand.toLocaleString()} words). The next piece will be ${direction}.`,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not adjust level.");
@@ -377,7 +379,7 @@ export function Reader({
               )}
               {block.tokens.map((token, j) => {
                 if (!token.isWord) return <span key={j}>{token.text}</span>;
-                const key = normalizeWord(token.text);
+                const key = language.normalizeWord(token.text);
                 const isSpeaking =
                   charIndex >= token.at &&
                   charIndex < token.at + token.text.length;
@@ -499,7 +501,7 @@ export function Reader({
           </p>
           <p className="text-muted">
             Level {result.levelBefore.toFixed(0)} → {result.levelAfter.toFixed(0)}{" "}
-            ({result.cefrBefore} → {result.cefrAfter})
+            ({result.labelBefore} → {result.labelAfter})
           </p>
           <Link
             href="/"

@@ -20,11 +20,16 @@
  * comprehension better than any other single measure:
  *
  *     level   0 -> ~500 word families   (absolute beginner)
- *     level 100 -> ~24,000              (educated native reader)
+ *     level 100 -> ~20,000              (educated native reader)
  *
  * and it is geometric, because the step from 1,000 to 2,000 words is roughly
  * the same amount of learning as 10,000 to 20,000.
+ *
+ * The scale and the controller are language-neutral. Everything that is not -
+ * which constructions unlock when, and what the label is called - belongs to
+ * the language module.
  */
+import { DEFAULT_LANGUAGE, getLanguage, type Language } from "./languages";
 
 export const MIN_VOCAB = 500;
 /**
@@ -34,8 +39,6 @@ export const MIN_VOCAB = 500;
  */
 export const MAX_VOCAB = 20_000;
 const RANGE = MAX_VOCAB / MIN_VOCAB;
-
-export type Cefr = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 
 export function clampLevel(level: number): number {
   return Math.max(0, Math.min(100, level));
@@ -53,49 +56,23 @@ export function levelForVocab(size: number): number {
 }
 
 /**
- * CEFR is shown to the learner because it is the vocabulary they expect, but
- * it is never an input. The thresholds are the widely cited vocabulary sizes
- * for each band.
+ * The proficiency label shown to the learner - CEFR for Spanish, HSK for
+ * Chinese. Shown because it is the vocabulary they expect, never an input.
  */
-const CEFR_THRESHOLDS: { max: number; label: Cefr }[] = [
-  { max: 1_000, label: "A1" },
-  { max: 2_000, label: "A2" },
-  { max: 4_000, label: "B1" },
-  { max: 8_000, label: "B2" },
-  { max: 16_000, label: "C1" },
-  { max: Infinity, label: "C2" },
-];
-
-export function cefrFor(level: number): Cefr {
-  const vocab = vocabSizeFor(level);
-  return CEFR_THRESHOLDS.find((t) => vocab < t.max)!.label;
+export function labelFor(level: number, language: Language): string {
+  return language.levelLabel(vocabSizeFor(level));
 }
 
-// --- Grammar gating ---------------------------------------------------------
-// Spanish grammar arrives in a fairly consistent order for learners, so we gate
-// constructions by level and tell the model explicitly what it may use. This
-// matters more than vocabulary at the low end: a text can be built entirely
-// from the top 500 words and still be incomprehensible to a beginner if it is
-// written in the imperfect subjunctive.
-
-export interface GrammarGate {
-  minLevel: number;
-  /** Described in English, because it goes straight into the prompt. */
-  allows: string;
-}
-
-const GRAMMAR: GrammarGate[] = [
-  { minLevel: 0, allows: "present indicative; ser/estar/hay; ir a + infinitive for the future" },
-  { minLevel: 18, allows: "preterite and imperfect past tenses; direct and indirect object pronouns" },
-  { minLevel: 32, allows: "present perfect; simple future; reflexive verbs; comparatives" },
-  { minLevel: 46, allows: "conditional; present subjunctive in common triggers (espero que, quiero que)" },
-  { minLevel: 60, allows: "full present subjunctive; relative clauses; passive with se" },
-  { minLevel: 74, allows: "imperfect subjunctive; conditional perfect; complex subordination" },
-  { minLevel: 88, allows: "idiomatic and literary registers; any construction" },
-];
-
-export function grammarFor(level: number): string[] {
-  return GRAMMAR.filter((g) => level >= g.minLevel).map((g) => g.allows);
+/**
+ * Constructions permitted at this level, cumulative.
+ *
+ * Gating grammar matters more than vocabulary at the low end: a text built
+ * entirely from the top 500 words is still incomprehensible to a beginner if it
+ * is written in the imperfect subjunctive. Which constructions, and in what
+ * order, is a property of the language - Chinese has no tenses to gate at all.
+ */
+export function grammarFor(level: number, language: Language): string[] {
+  return language.grammar.filter((g) => level >= g.minLevel).map((g) => g.allows);
 }
 
 // --- Generation parameters --------------------------------------------------
@@ -110,7 +87,9 @@ export const LENGTH_WORDS: Record<Length, number> = {
 
 export interface LevelParams {
   level: number;
-  cefr: Cefr;
+  language: Language;
+  /** The proficiency label to show, e.g. "B1" or "HSK 4". */
+  label: string;
   /** Words outside the top `vocabBand` of the frequency list are "new". */
   vocabBand: number;
   /** Target mean sentence length, in words. */
@@ -125,14 +104,18 @@ export interface LevelParams {
   newWordBudget: number;
 }
 
-export function paramsFor(level: number): LevelParams {
+export function paramsFor(
+  level: number,
+  language: Language = getLanguage(DEFAULT_LANGUAGE),
+): LevelParams {
   const l = clampLevel(level);
   return {
     level: l,
-    cefr: cefrFor(l),
+    language,
+    label: labelFor(l, language),
     vocabBand: vocabSizeFor(l),
     sentenceWords: Math.round(8 + 0.14 * l),
-    allowedGrammar: grammarFor(l),
+    allowedGrammar: grammarFor(l, language),
     newWordBudget: 0.1 - 0.05 * (l / 100),
   };
 }

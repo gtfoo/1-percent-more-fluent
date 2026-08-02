@@ -145,18 +145,45 @@ library and professional voices return `402 paid_plan_required`, including some
 that used to be premade. `npm run voices` lists what a given key can actually
 use, plus remaining quota.
 
+## Adding a language
+
+Everything language-specific lives behind one interface. Adding a language is
+two things: a module in `src/lib/languages/` and a data entry in
+`src/server/frequency.ts`. The generator, reader, difficulty checker and
+placement test do not change.
+
+The load-bearing part of the interface is **`baseForms`**. A frequency list
+holds surface forms, so taken literally an inflection of a common verb reads as
+a rare word — which overstates difficulty and pushes the generator into stilted
+prose. Spanish answers this by stripping inflectional endings; Chinese will
+answer it by decomposing a compound its segmenter produced but the list lacks.
+Same contract, unrelated implementations.
+
+The interface was deliberately shaped against the *hardest* case rather than
+the easiest. Spanish alone would suggest "a regex for letters and a suffix
+stripper", which would not survive first contact with a language that has no
+spaces and no inflection.
+
+`npm run language` asserts the contract for every registered language —
+including that `tokenize` round-trips exactly, which the reader depends on to
+make words tappable and to line audio timings up with them.
+
 ## Layout
 
 ```
 src/lib/          shared by client and server — no node built-ins
-  level.ts        the level model: 0-100 <-> vocab band, grammar, CEFR, calibration
-  spanish.ts      tokenising and sentence splitting
+  languages/      one module per language, behind a common interface
+    types.ts      the contract, and why each part of it exists
+    es.ts         Spanish: text handling, morphology, grammar gates, CEFR
+  level.ts        the level scale and calibration controller (language-neutral)
+  dialogue.ts     splitting conversations into speaker turns
 src/server/       server-only
+  frequency.ts    the per-language corpora, keyed by code
   generate.ts     prompt building, generation, the verify-and-retry loop
   difficulty.ts   measures generated text against the level
-  morphology.ts   Spanish base forms, so "camina" is not called a rare word
   placement.ts    the yes/no vocabulary test and its scoring
   tts.ts          ElevenLabs, content-hash cache, character timings
+  voices.ts       casting conversations from the premade voice pool
   gloss.ts        word lookups, cached globally
 scripts/          data building and measurement, not part of the app
 ```
@@ -169,7 +196,7 @@ scripts/          data building and measurement, not part of the app
 | `npm run samples` | rebuild the graded read-back paragraphs (**costs LLM calls**) |
 | `npm run placement` | score synthetic learners against the placement test |
 | `npm run calibration` | assert the level controller moves the right way |
-| `npm run morphology` | sanity-check the Spanish base-form fallback |
+| `npm run language` | assert the contract every registered language must satisfy |
 | `npm run voices` | list usable ElevenLabs voices and remaining quota |
 | `npm run models` | list available text models and smoke-test one |
 | `npm run bench` | time the real generation prompt across candidate models |
@@ -188,7 +215,8 @@ scripts/          data building and measurement, not part of the app
 
 ## Known limitations
 
-- **Spanish only.** The frequency list, morphology rules and placement test are
+- **Spanish is the only language implemented so far**, though the seams are in
+  place. The frequency list, morphology rules and placement test are
   all per-language.
 - **The morphology is a heuristic, not a lemmatiser.** It strips productive
   endings and undoes stem-changing diphthongs. It errs towards "known", which

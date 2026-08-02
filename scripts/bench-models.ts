@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { google } from "@ai-sdk/google";
 import { generateText, Output } from "ai";
-import { PieceSchema, buildPrompt } from "../src/server/generate";
+import { pieceSchema, buildPrompt } from "../src/server/generate";
 import { paramsFor } from "../src/lib/level";
 import { measure, BUDGET_SLACK } from "../src/server/difficulty";
 
@@ -50,7 +50,7 @@ async function bench(id: string) {
       const { output } = await generateText({
         model: google(id),
         prompt: buildPrompt("story", TOPIC, "short", params, corrections),
-        output: Output.object({ schema: PieceSchema }),
+        output: Output.object({ schema: pieceSchema(params.language.name) }),
         temperature: 0.8,
         maxRetries: 0,
       });
@@ -82,7 +82,7 @@ async function bench(id: string) {
 async function main() {
   const ids = process.argv.slice(2).length ? process.argv.slice(2) : CANDIDATES;
   console.log(
-    `Prompt: short story, level ${params.level.toFixed(0)} (${params.cefr}), band ${params.vocabBand}, budget ${(params.newWordBudget * 100).toFixed(0)}% (fail above ${(params.newWordBudget * BUDGET_SLACK * 100).toFixed(0)}%)\n`,
+    `Prompt: short story, level ${params.level.toFixed(0)} (${params.label}), band ${params.vocabBand}, budget ${(params.newWordBudget * 100).toFixed(0)}% (fail above ${(params.newWordBudget * BUDGET_SLACK * 100).toFixed(0)}%)\n`,
   );
   for (const id of ids) await bench(id);
 }

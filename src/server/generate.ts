@@ -14,6 +14,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { paramsFor, LENGTH_WORDS, type Length, type LevelParams } from "@/lib/level";
+import { getLanguage } from "@/lib/languages";
 import { generateStructured } from "./llm";
 import { measure, type DifficultyReport } from "./difficulty";
 import { getDb } from "./db";
@@ -21,8 +22,13 @@ import { seedGlossary } from "./gloss";
 import type { Format } from "@/lib/formats";
 import type { Speaker } from "@/lib/dialogue";
 
-export const PieceSchema = z.object({
-  title: z.string().describe("A short title, in Spanish."),
+/**
+ * Built per language rather than declared once: the field descriptions carry
+ * the language name, and they are a meaningful part of the instruction the
+ * model actually follows.
+ */
+export const pieceSchema = (language: string) => z.object({
+  title: z.string().describe(`A short title, in ${language}.`),
   paragraphs: z
     .array(z.string())
     .min(1)
@@ -32,7 +38,7 @@ export const PieceSchema = z.object({
   glossary: z
     .array(
       z.object({
-        word: z.string().describe("The Spanish word, as it appears in the text."),
+        word: z.string().describe(`The ${language} word, as it appears in the text.`),
         meaning: z.string().describe("A short English gloss."),
       }),
     )
@@ -50,17 +56,17 @@ export const PieceSchema = z.object({
   questions: z
     .array(
       z.object({
-        question: z.string().describe("A comprehension question, in Spanish."),
-        options: z.array(z.string()).describe("Exactly three answers, in Spanish."),
+        question: z.string().describe(`A comprehension question, in ${language}.`),
+        options: z.array(z.string()).describe(`Exactly three answers, in ${language}.`),
         answer: z.number().int().describe("0-based index of the correct option."),
       }),
     )
     .describe("Exactly three comprehension questions."),
 });
 
-export type Piece = z.infer<typeof PieceSchema>;
+export type Piece = z.infer<ReturnType<typeof pieceSchema>>;
 
-const SYSTEM = `You write graded reading material for learners of Spanish.
+const system = (language: string) => `You write graded reading material for learners of ${language}.
 
 Your one job is to write something genuinely enjoyable to read that stays inside
 a strict difficulty budget. Both halves matter. Text that respects the budget but
@@ -68,7 +74,7 @@ reads like a textbook exercise fails; text that reads beautifully but sits above
 the learner's level also fails, because they will not understand it.
 
 Rules:
-- Write natural, idiomatic Spanish. Never translate from English word by word.
+- Write natural, idiomatic ${language}. Never translate from English word by word.
 - Stay inside the vocabulary and grammar limits you are given.
 - Vary sentence structure. Hitting an average sentence length does not mean
   every sentence should be that length.
@@ -94,7 +100,7 @@ export function buildPrompt(
         : "a natural spoken conversation between two named people, 10-16 turns, each turn prefixed with the speaker's name and a colon";
 
   const lines = [
-    `Write ${shape} in Spanish.`,
+    `Write ${shape} in ${params.language.name}.`,
     "",
     // The topic is learner-supplied free text. Fence it so it is read as a
     // subject, never as instructions.
@@ -107,16 +113,16 @@ export function buildPrompt(
     // The budget is a TARGET, not a cap. Framed as "at most X%" the model
     // optimises for safety and lands around 1% - which reads fluently, teaches
     // nothing, and drives the level upward because the reader looks nothing up.
-    `- Vocabulary: build the text from the ${params.vocabBand.toLocaleString()} most common Spanish words, and let about ${Math.round(params.newWordBudget * 100)}% of it fall OUTSIDE that set. That share is the point - unknown words are how the reader learns - so treat it as a figure to hit, not a ceiling to stay under. Every word outside the set must appear in the glossary.`,
+    `- Vocabulary: build the text from the ${params.vocabBand.toLocaleString()} most common ${params.language.name} words, and let about ${Math.round(params.newWordBudget * 100)}% of it fall OUTSIDE that set. That share is the point - unknown words are how the reader learns - so treat it as a figure to hit, not a ceiling to stay under. Every word outside the set must appear in the glossary.`,
     // Models overshoot in one specific way - reaching for a literary register
     // rather than genuinely rare words - so the guidance is about register, not
     // about being easier in general.
-    `- Aim that ${Math.round(params.newWordBudget * 100)}% at words this reader would plausibly meet next, not at showy ones. Given a choice between an everyday word and a literary one, take the everyday one: "decir" not "manifestar", "ver" not "contemplar", "casa" not "vivienda". The difficulty should come from precision and range, not from ornament.`,
+    `- Aim that ${Math.round(params.newWordBudget * 100)}% at words this reader would plausibly meet next, not at showy ones. Given a choice between an everyday word and a literary one, take the everyday one: ${params.language.registerExamples}. The difficulty should come from precision and range, not from ornament.`,
     `- Sentences: average about ${params.sentenceWords} words.`,
     `- Grammar: restrict yourself to ${params.allowedGrammar.join("; ")}.`,
     `- Length: about ${targetWords} words in total.`,
     "",
-    `Also produce exactly three multiple-choice comprehension questions in Spanish, each with three options.`,
+    `Also produce exactly three multiple-choice comprehension questions in ${params.language.name}, each with three options.`,
   ];
 
   if (corrections?.length) {
@@ -149,7 +155,8 @@ export async function generatePiece(args: {
   length: Length;
   language?: string;
 }): Promise<GeneratedPiece> {
-  const params = paramsFor(args.level);
+  const language = getLanguage(args.language);
+  const params = paramsFor(args.level, language);
 
   let piece: Piece | null = null;
   let report: DifficultyReport | null = null;
@@ -160,8 +167,8 @@ export async function generatePiece(args: {
   while (attempts < MAX_ATTEMPTS) {
     attempts++;
     const result = await generateStructured({
-      schema: PieceSchema,
-      system: SYSTEM,
+      schema: pieceSchema(language.name),
+      system: system(language.name),
       prompt: buildPrompt(args.format, args.topic, args.length, params, corrections),
       // Some warmth, or every story about "a trip to the market" is the same
       // story. The verifier is what keeps difficulty honest, not low variance.
@@ -180,10 +187,9 @@ export async function generatePiece(args: {
   // more useful to the reader than an error page, and the report travels with
   // it so the UI can be honest about what happened.
   const id = randomUUID();
-  const language = args.language ?? "es";
 
   // The glossary came free with the text, so put it where taps will find it.
-  seedGlossary(language, piece!.glossary);
+  seedGlossary(language.code, piece!.glossary);
 
   getDb()
     .prepare(
@@ -193,7 +199,7 @@ export async function generatePiece(args: {
     .run(
       id,
       args.userId,
-      language,
+      language.code,
       args.format,
       args.topic,
       args.level,

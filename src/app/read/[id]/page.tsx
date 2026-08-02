@@ -19,6 +19,7 @@ export default async function ReadPage({
         id: piece.id,
         title: piece.title,
         format: piece.format,
+        language: piece.language,
         paragraphs: piece.paragraphs,
         speakers: piece.speakers,
         questions: piece.questions,

@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
 import { buildTest, score } from "@/server/placement";
 import { getOrCreateUserId, setPlacement } from "@/server/user";
-import { cefrFor, clampLevel, levelForVocab } from "@/lib/level";
-import samples from "@/data/es/samples.json";
+import { clampLevel, labelFor, levelForVocab } from "@/lib/level";
+import { DEFAULT_LANGUAGE, getLanguage } from "@/lib/languages";
+import { gradedSamples } from "@/server/frequency";
 
 /**
  * How much the read-back check counts against the word test - asymmetrically.
@@ -44,13 +45,11 @@ export function blendReadback(
 }
 
 /** A fresh sample of test items, plus the graded paragraphs for the read-back. */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const code = req.nextUrl.searchParams.get("language") ?? DEFAULT_LANGUAGE;
   return Response.json({
-    items: buildTest(),
-    samples: (samples.samples as { level: number; text: string }[]).map((s) => ({
-      level: s.level,
-      text: s.text,
-    })),
+    items: buildTest(code),
+    samples: gradedSamples(code).map((s) => ({ level: s.level, text: s.text })),
   });
 }
 
@@ -61,6 +60,7 @@ export async function POST(req: NextRequest) {
     shown?: unknown;
     known?: unknown;
     readbackLevel?: unknown;
+    language?: unknown;
   };
   if (!Array.isArray(body.shown) || !Array.isArray(body.known)) {
     return Response.json({ error: "shown and known must be arrays" }, { status: 400 });
@@ -72,7 +72,11 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "no items answered" }, { status: 400 });
   }
 
-  const result = score(shown, known);
+  const language = getLanguage(
+    typeof body.language === "string" ? body.language : DEFAULT_LANGUAGE,
+  );
+
+  const result = score(shown, known, language.code);
   const testLevel = levelForVocab(result.vocabEstimate);
 
   const readbackLevel =
@@ -80,13 +84,13 @@ export async function POST(req: NextRequest) {
 
   const level = clampLevel(blendReadback(testLevel, readbackLevel));
 
-  const profile = setPlacement(userId, result.vocabEstimate, "es", level);
+  const profile = setPlacement(userId, result.vocabEstimate, language.code, level);
 
   return Response.json({
     ...result,
     testLevel,
     readbackLevel,
     level: profile.level,
-    cefr: cefrFor(profile.level),
+    label: labelFor(profile.level, language),
   });
 }

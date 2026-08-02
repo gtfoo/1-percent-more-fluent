@@ -12,7 +12,7 @@
     "voices": "tsx scripts/probe-voices.ts",
     "models": "tsx scripts/probe-llm.ts",
     "bench": "tsx scripts/bench-models.ts",
-    "morphology": "tsx scripts/check-morphology.ts",
+    "language": "tsx scripts/check-language.ts",
     "placement": "tsx scripts/check-placement.ts",
     "calibration": "tsx scripts/check-calibration.ts",
     "smoke": "bash scripts/smoke-generate.sh",

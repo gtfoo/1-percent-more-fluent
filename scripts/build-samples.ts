@@ -18,7 +18,11 @@ import { join } from "node:path";
 import { z } from "zod";
 import { generateStructured } from "../src/server/llm";
 import { measure } from "../src/server/difficulty";
-import { cefrFor, paramsFor } from "../src/lib/level";
+import { paramsFor } from "../src/lib/level";
+import { DEFAULT_LANGUAGE, getLanguage } from "../src/lib/languages";
+
+/** `LANGUAGE=zh-CN npm run samples` builds the set for another language. */
+const LANGUAGE = getLanguage(process.env.LANGUAGE ?? DEFAULT_LANGUAGE);
 
 function loadEnv(path = ".env.local") {
   try {
@@ -61,7 +65,7 @@ const SampleSchema = z.object({
 });
 
 async function buildOne(level: number, topic: string) {
-  const params = paramsFor(level);
+  const params = paramsFor(level, LANGUAGE);
   let corrections: string[] = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -87,7 +91,7 @@ async function buildOne(level: number, topic: string) {
     const report = measure(object.text, params);
     const status = report.passes ? "PASS" : "fail";
     console.log(
-      `  ${cefrFor(level)} level ${level} try${attempt} ${status}  ` +
+      `  ${params.label} level ${level} try${attempt} ${status}  ` +
         `${report.totalWords}w  ${(report.outOfBandRate * 100).toFixed(1)}% out-of-band  ` +
         `sent=${report.meanSentenceWords.toFixed(1)}`,
     );
@@ -96,7 +100,7 @@ async function buildOne(level: number, topic: string) {
       return {
         level,
         topic,
-        cefr: cefrFor(level),
+        label: params.label,
         vocabBand: params.vocabBand,
         text: object.text.trim(),
         outOfBandRate: report.outOfBandRate,
@@ -123,7 +127,7 @@ async function main() {
 
   console.log(`\nWrote ${OUT_DIR}/samples.json`);
   for (const s of samples) {
-    console.log(`\n--- ${s.cefr} (level ${s.level}) ---\n${s.text}`);
+    console.log(`\n--- ${s.label} (level ${s.level}) ---\n${s.text}`);
   }
 }
 

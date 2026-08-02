@@ -13,9 +13,13 @@
  * the rarest bands than the middle ones - and the widest bands carry the most
  * weight. They must not come out advanced.
  */
-import placement from "../src/data/es/placement.json";
 import { score } from "../src/server/placement";
-import { cefrFor, levelForVocab } from "../src/lib/level";
+import { placementBands } from "../src/server/frequency";
+import { labelFor, levelForVocab } from "../src/lib/level";
+import { DEFAULT_LANGUAGE, getLanguage } from "../src/lib/languages";
+
+/** `LANGUAGE=zh-CN npm run placement` scores the same learners elsewhere. */
+const LANGUAGE = getLanguage(process.env.LANGUAGE ?? DEFAULT_LANGUAGE);
 
 interface Band {
   minRank: number;
@@ -24,7 +28,7 @@ interface Band {
   pseudowords: string[];
 }
 
-const BANDS = placement.bands as Band[];
+const BANDS = placementBands(LANGUAGE.code) as Band[];
 
 /**
  * A learner is described by the share of REAL words they claim per band, and
@@ -107,9 +111,9 @@ for (const learner of LEARNERS) {
     known.push(...take(band.pseudowords, learner.pseudoRate(i)));
   });
 
-  const result = score(shown, known);
+  const result = score(shown, known, LANGUAGE.code);
   const level = levelForVocab(result.vocabEstimate);
-  const cefr = cefrFor(level);
+  const cefr = labelFor(level, LANGUAGE);
   const ok = learner.expect.includes(cefr);
   if (!ok) failures++;
 

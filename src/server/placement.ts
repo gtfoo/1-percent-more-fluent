@@ -15,17 +15,8 @@
  * monotonicity constraint. Both of those deviations from the textbook version
  * exist for the same reason - see the comments on `score`.
  */
-import placement from "@/data/es/placement.json";
 import { MAX_VOCAB } from "@/lib/level";
-
-interface Band {
-  minRank: number;
-  maxRank: number;
-  words: string[];
-  pseudowords: string[];
-}
-
-const BANDS = placement.bands as Band[];
+import { placementBands } from "./frequency";
 
 /** Ranks 1-50 are excluded from testing, so credit them automatically. */
 const ASSUMED_KNOWN = 50;
@@ -50,8 +41,8 @@ function sample<T>(items: T[], n: number): T[] {
  * page cannot accidentally reveal the answer key. Scoring re-derives
  * membership server-side from the same data file.
  */
-export function buildTest(): string[] {
-  const items = BANDS.flatMap((band) => [
+export function buildTest(code: string): string[] {
+  const items = placementBands(code).flatMap((band) => [
     ...sample(band.words, WORDS_PER_BAND),
     ...sample(band.pseudowords, PSEUDOWORDS_PER_BAND),
   ]);
@@ -98,13 +89,17 @@ const UNRELIABLE_FALSE_ALARM_RATE = 0.5;
  *    lower an estimate, which is the correct direction to err for a tool whose
  *    failure mode was telling a B1 learner they were C2.
  */
-export function score(shown: string[], known: string[]): PlacementResult {
+export function score(
+  shown: string[],
+  known: string[],
+  code: string,
+): PlacementResult {
   const shownSet = new Set(shown.map((w) => w.toLowerCase()));
   const knownSet = new Set(known.map((w) => w.toLowerCase()));
 
   // First pass: per-band tallies, and the pooled false-alarm rate used as a
   // fallback wherever a band has too few catch trials to speak for itself.
-  const tallies = BANDS.map((band) => {
+  const tallies = placementBands(code).map((band) => {
     const realShown = band.words.filter((w) => shownSet.has(w));
     const pseudoShown = band.pseudowords.filter((w) => shownSet.has(w));
     return {

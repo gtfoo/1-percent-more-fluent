@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getOrCreateUserId, getProfile, setLevel } from "@/server/user";
-import { cefrFor, overrideLevel, paramsFor } from "@/lib/level";
+import { overrideLevel, paramsFor } from "@/lib/level";
+import { getLanguage } from "@/lib/languages";
 
 /**
  * The escape hatch: the reader saying outright that the level is wrong.
@@ -26,9 +27,10 @@ export async function POST(req: NextRequest) {
   const after = overrideLevel(profile.level, direction);
   setLevel(userId, after);
 
+  const params = paramsFor(after, getLanguage(profile.language));
   return Response.json({
     level: after,
-    cefr: cefrFor(after),
-    vocabBand: paramsFor(after).vocabBand,
+    label: params.label,
+    vocabBand: params.vocabBand,
   });
 }

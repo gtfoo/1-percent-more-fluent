@@ -2,7 +2,8 @@ import Link from "next/link";
 import { getUserId, getProfile } from "@/server/user";
 import { listPieces } from "@/server/generate";
 import { isTtsConfigured, charactersSpent } from "@/server/tts";
-import { cefrFor, paramsFor } from "@/lib/level";
+import { labelFor, paramsFor } from "@/lib/level";
+import { getLanguage } from "@/lib/languages";
 import { Compose } from "@/components/Compose";
 
 export default async function Home() {
@@ -34,7 +35,8 @@ export default async function Home() {
     );
   }
 
-  const params = paramsFor(profile.level);
+  const language = getLanguage(profile.language);
+  const params = paramsFor(profile.level, language);
   const recent = listPieces(profile.userId);
   const spent = charactersSpent();
 
@@ -45,7 +47,7 @@ export default async function Home() {
           <div>
             <p className="text-sm text-muted">Your level</p>
             <p className="text-2xl font-semibold">
-              {cefrFor(profile.level)}{" "}
+              {params.label}{" "}
               <span className="text-base font-normal text-muted">
                 · about {params.vocabBand.toLocaleString()} words
               </span>
@@ -79,7 +81,7 @@ export default async function Home() {
                 >
                   <span className="font-medium">{p.title}</span>
                   <span className="shrink-0 text-sm text-muted">
-                    {p.format} · {cefrFor(p.level)}
+                    {p.format} · {labelFor(p.level, language)}
                   </span>
                 </Link>
               </li>

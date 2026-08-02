@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { getOrCreateUserId } from "@/server/user";
 import { glossWord, recordLookup } from "@/server/gloss";
 import { getPiece } from "@/server/generate";
+import { DEFAULT_LANGUAGE } from "@/lib/languages";
 
 export async function POST(req: NextRequest) {
   const userId = await getOrCreateUserId();
@@ -20,16 +21,14 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "unknown piece" }, { status: 404 });
   }
 
+  const code = piece?.language ?? DEFAULT_LANGUAGE;
+
   // The tap is logged whether or not the definition comes from the LLM: it is
   // the difficulty signal, and the level calibration depends on it.
-  if (piece) recordLookup(userId, piece.id, word);
+  if (piece) recordLookup(userId, piece.id, word, code);
 
   try {
-    const gloss = await glossWord(
-      word,
-      (body.sentence ?? "").slice(0, 400),
-      piece?.language ?? "es",
-    );
+    const gloss = await glossWord(word, (body.sentence ?? "").slice(0, 400), code);
     return Response.json(gloss);
   } catch (err) {
     console.error("gloss failed", err);
