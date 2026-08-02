@@ -365,8 +365,13 @@ export function Reader({
         </p>
       )}
 
+      {/* The page chrome is English; only this block is the target language.
+          Marking it tells a screen reader to switch pronunciation, stops the
+          browser offering to translate the whole UI, and - for Chinese - picks
+          the right line-breaking rules and Han glyph variants. */}
       <div
         className="prose-reading space-y-6"
+        lang={language.code}
         style={{ fontFamily: language.fontStack }}
       >
         {layout.map((block, i) => {
@@ -522,7 +527,14 @@ export function Reader({
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface">
           <div className="mx-auto flex w-full max-w-3xl items-start justify-between gap-6 px-5 py-4">
             <div>
-              <p className="text-lg font-semibold">
+              {/* The sheet is fixed-position, so it sits outside the prose
+                  block and does not inherit its language or font. The headword
+                  is target-language; the meaning below it is English. */}
+              <p
+                className="text-lg font-semibold"
+                lang={language.code}
+                style={{ fontFamily: language.fontStack }}
+              >
                 {selected}
                 {activeGloss?.lemma && activeGloss.lemma !== selected && (
                   <span className="ml-2 font-normal text-muted">

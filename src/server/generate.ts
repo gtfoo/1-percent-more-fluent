@@ -14,7 +14,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { paramsFor, LENGTH_WORDS, type Length, type LevelParams } from "@/lib/level";
-import { getLanguage } from "@/lib/languages";
+import type { Language } from "@/lib/languages";
 import { generateStructured } from "./llm";
 import { measure, type DifficultyReport } from "./difficulty";
 import { getDb } from "./db";
@@ -152,10 +152,17 @@ export async function generatePiece(args: {
   level: number;
   format: Format;
   topic: string;
+  /**
+   * Required, deliberately. This was optional and defaulted through
+   * getLanguage(undefined) to Spanish, so a Chinese learner got Spanish pieces
+   * - stored tagged "es", so the reader tokenised them as Spanish too - and
+   * nothing anywhere reported a problem. A caller always knows the learner's
+   * language; making it optional only bought a silent wrong answer.
+   */
+  language: Language;
   length: Length;
-  language?: string;
 }): Promise<GeneratedPiece> {
-  const language = getLanguage(args.language);
+  const language = args.language;
   const params = paramsFor(args.level, language);
 
   let piece: Piece | null = null;

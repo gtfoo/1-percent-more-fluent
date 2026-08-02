@@ -104,10 +104,12 @@ export interface LevelParams {
   newWordBudget: number;
 }
 
-export function paramsFor(
-  level: number,
-  language: Language = getLanguage(DEFAULT_LANGUAGE),
-): LevelParams {
+/**
+ * `language` is required. It used to default to Spanish, which is the same trap
+ * that made every generated piece Spanish regardless of the learner: a caller
+ * that forgets it gets a confidently wrong answer instead of a compile error.
+ */
+export function paramsFor(level: number, language: Language): LevelParams {
   const l = clampLevel(level);
   return {
     level: l,

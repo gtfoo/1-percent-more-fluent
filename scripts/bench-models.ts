@@ -12,6 +12,7 @@ import { google } from "@ai-sdk/google";
 import { generateText, Output } from "ai";
 import { pieceSchema, buildPrompt } from "../src/server/generate";
 import { paramsFor } from "../src/lib/level";
+import { DEFAULT_LANGUAGE, getLanguage } from "../src/lib/languages";
 import { measure, BUDGET_SLACK } from "../src/server/difficulty";
 
 function loadEnv(path = ".env.local") {
@@ -34,7 +35,9 @@ const CANDIDATES = [
   "gemini-3.6-flash",
 ];
 
-const params = paramsFor(44.5); // a mid-B1 profile
+/** `LANGUAGE=zh-CN npm run bench` benchmarks generation for another language. */
+const LANGUAGE = getLanguage(process.env.LANGUAGE ?? DEFAULT_LANGUAGE);
+const params = paramsFor(44.5, LANGUAGE); // a mid-B1 profile
 const TOPIC = "a folk tale about a fisherman who catches a talking fish";
 
 /**

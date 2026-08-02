@@ -4,6 +4,7 @@ import { generatePiece } from "@/server/generate";
 import { FORMATS, type Format } from "@/lib/formats";
 import { isLlmConfigured } from "@/server/llm";
 import { LENGTH_WORDS, type Length } from "@/lib/level";
+import { getLanguage } from "@/lib/languages";
 
 const MAX_TOPIC_CHARS = 200;
 
@@ -46,6 +47,8 @@ export async function POST(req: NextRequest) {
     const { id, report, attempts } = await generatePiece({
       userId,
       level: profile.level,
+      // The learner's own language, from their profile - never a default.
+      language: getLanguage(profile.language),
       format,
       topic,
       length,

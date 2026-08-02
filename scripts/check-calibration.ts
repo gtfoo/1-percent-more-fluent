@@ -11,6 +11,7 @@
  */
 import { nextLevel, overrideLevel, paramsFor, type SessionSignals } from "../src/lib/level";
 import { measure } from "../src/server/difficulty";
+import { getLanguage } from "../src/lib/languages";
 import { blendReadback } from "../src/app/api/placement/route";
 
 interface Case {
@@ -172,7 +173,9 @@ for (const [from, dir, cmp] of [
 // nothing up. Text far under budget must now fail just as text over it does.
 console.log("\n--- difficulty floor ---");
 {
-  const params = paramsFor(85);
+  // Spanish explicitly: the sample text below is Spanish, so measuring it
+  // against any other language's frequency list would prove nothing.
+  const params = paramsFor(85, getLanguage("es"));
   // Only the commonest words, repeated - nothing a learner could not read.
   // Long enough to clear MIN_WORDS_FOR_FLOOR: the floor deliberately ignores
   // short texts, so a short sample here would pass for the wrong reason.

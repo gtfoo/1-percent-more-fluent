@@ -219,6 +219,7 @@ export function PlacementTest({ languages }: { languages: LanguageChoice[] }) {
           <div key={sample.level} className="rounded-xl border border-border bg-surface">
             <p
               className="prose-reading px-5 py-4 !text-lg"
+              lang={language.code}
               style={{ fontFamily: language.fontStack }}
             >
               {sample.text}
@@ -280,6 +281,7 @@ export function PlacementTest({ languages }: { languages: LanguageChoice[] }) {
                       ? "border-accent bg-accent text-white"
                       : "border-border bg-surface hover:border-accent"
                   }`}
+                  lang={language.code}
                   style={{ fontFamily: language.fontStack }}
                 >
                   {word}

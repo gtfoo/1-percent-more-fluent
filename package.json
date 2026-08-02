@@ -17,6 +17,7 @@
     "calibration": "tsx scripts/check-calibration.ts",
     "smoke": "bash scripts/smoke-generate.sh",
     "smoke:dialogue": "bash scripts/smoke-dialogue.sh",
+    "smoke:language": "bash scripts/smoke-language.sh",
     "inspect": "bash scripts/inspect-db.sh",
     "standalone": "bash scripts/try-standalone.sh",
     "tls": "bash scripts/diagnose-tls.sh",

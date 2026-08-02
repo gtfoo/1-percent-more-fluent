@@ -1,11 +1,16 @@
 import Database from "better-sqlite3";
 import { paramsFor } from "../src/lib/level";
+import { getLanguage } from "../src/lib/languages";
 import { BUDGET_SLACK, BUDGET_FLOOR } from "../src/server/difficulty";
 
 const db = new Database("data/fluent.sqlite", { readonly: true });
 const row = db
-  .prepare("SELECT title, level, model, report FROM pieces ORDER BY created_at DESC LIMIT 1")
-  .get() as { title: string; level: number; model: string; report: string } | undefined;
+  .prepare(
+    "SELECT title, level, model, language, report FROM pieces ORDER BY created_at DESC LIMIT 1",
+  )
+  .get() as
+  | { title: string; level: number; model: string; language: string; report: string }
+  | undefined;
 
 if (!row) {
   console.error("no pieces");
@@ -13,7 +18,9 @@ if (!row) {
 }
 
 const report = JSON.parse(row.report);
-const params = paramsFor(row.level);
+// The piece's own language, not a default - a Chinese piece measured against
+// Spanish parameters would report nonsense.
+const params = paramsFor(row.level, getLanguage(row.language));
 const floor = params.newWordBudget * BUDGET_FLOOR;
 const ceiling = params.newWordBudget * BUDGET_SLACK;
 const rate = report.outOfBandRate;
