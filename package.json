@@ -20,7 +20,8 @@
     "inspect": "bash scripts/inspect-db.sh",
     "standalone": "bash scripts/try-standalone.sh",
     "tls": "bash scripts/diagnose-tls.sh",
-    "samples:write": "tsx scripts/write-samples.ts"
+    "samples:write": "tsx scripts/write-samples.ts",
+    "production": "bash scripts/check-production.sh"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.103",

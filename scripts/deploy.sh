@@ -41,7 +41,16 @@ fi
 echo "==> npm ci (recompiles better-sqlite3 for this host)"
 npm ci
 
-echo "==> next build"
+# Clean, not incremental. Turbopack's cache served a STALE copy of a committed
+# JSON import here: src/data/zh-CN/samples.json was correct on disk, the build
+# inlined the empty placeholder it had cached from a previous commit, and the
+# read-back step silently vanished from the live site while every other part of
+# the deploy reported success.
+#
+# It also makes the two copies below correct. `cp -r a b` when b already exists
+# copies INTO it, so repeated deploys were producing public/public.
+echo "==> next build (clean)"
+rm -rf .next
 npm run build
 
 # `output: "standalone"` emits a server with only the node_modules it needs,

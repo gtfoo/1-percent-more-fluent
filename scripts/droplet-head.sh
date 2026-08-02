@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
-# Which commit is deployed, and is it healthy? No nested quoting to get wrong.
+# Which commit is deployed, and is it healthy?
+#
+#   bash scripts/droplet-head.sh            # report
+#   bash scripts/droplet-head.sh <sha>      # exit 0 only if THAT sha is deployed
+#
+# The second form exists because a plain `grep <sha>` over the report matches
+# the local HEAD line too, which once made a polling loop declare success while
+# the droplet had not moved at all.
 set -u
 cd "$(dirname "$0")" || exit 1
+WANT="${1:-}"
+
+DEPLOYED=$(bash ./droplet.sh 'cd /home/deploy/1-percent-more-fluent && git rev-parse --short HEAD' 2>/dev/null | tail -1)
+
+if [ -n "$WANT" ]; then
+  [ "$DEPLOYED" = "$WANT" ]
+  exit $?
+fi
 
 bash ./droplet.sh '
 cd /home/deploy/1-percent-more-fluent
