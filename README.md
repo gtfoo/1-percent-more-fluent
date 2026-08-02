@@ -105,6 +105,23 @@ npm run wordlist
 npm run dev
 ```
 
+## Deploying
+
+See [DEPLOY.md](DEPLOY.md). It runs as a systemd service on a droplet behind
+Caddy, deployed by GitHub Actions over SSH.
+
+It **cannot** go serverless: it writes a SQLite database and caches synthesised
+audio on disk, and both have to survive a deploy.
+
+The one trap is worth knowing before you touch any of it. Next's standalone
+server calls `process.chdir(__dirname)`, so in production the working directory
+is `.next/standalone` — which every rebuild deletes. Anything resolved from
+`process.cwd()` would therefore start from an empty database on each deploy and
+orphan the audio cache, silently. `DATA_DIR` is set explicitly and
+`src/server/paths.ts` refuses to start if it ever resolves inside the build
+output. `npm run standalone` runs the production server locally so this class
+of bug is catchable before it ships — `next dev` does not chdir, so it hides it.
+
 ## Cost
 
 Text is nearly free — a 400-word story is about 600 output tokens. **Speech is

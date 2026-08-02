@@ -24,6 +24,7 @@ import { mkdir, writeFile, access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { join } from "node:path";
 import { getDb } from "./db";
+import { AUDIO_DIR } from "./paths";
 import { castSpeakers } from "./voices";
 import type { Speaker, Turn } from "@/lib/dialogue";
 
@@ -44,7 +45,9 @@ const DEFAULTS = {
   maxChars: 6_000,
 };
 
-const AUDIO_DIR = join(process.cwd(), "public", "audio");
+// Re-exported so the audio route can import it from here alongside everything
+// else it needs; `export ... from` alone would not bind it in this module.
+export { AUDIO_DIR };
 
 export interface Alignment {
   characters: string[];

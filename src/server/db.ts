@@ -1,16 +1,16 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { DATA_DIR } from "./paths";
 
 let db: Database.Database | null = null;
 
 export function getDb(): Database.Database {
   if (db) return db;
 
-  const dir = join(process.cwd(), "data");
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(DATA_DIR, { recursive: true });
 
-  db = new Database(join(dir, "fluent.sqlite"));
+  db = new Database(join(DATA_DIR, "fluent.sqlite"));
   db.pragma("journal_mode = WAL");
 
   db.exec(`
