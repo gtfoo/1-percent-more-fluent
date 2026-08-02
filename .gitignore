@@ -53,3 +53,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Stray curl cookie jars: a mistyped "curl -b " writes a file literally
+# named -b, and git add -A has swept one into a commit before.
+-b
