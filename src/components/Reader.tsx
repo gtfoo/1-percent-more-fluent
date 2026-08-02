@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { tokenize, normalizeWord } from "@/lib/spanish";
+import { splitTurns, type Speaker } from "@/lib/dialogue";
 
 interface Gloss {
   word: string;
@@ -22,6 +23,7 @@ export interface ReaderPiece {
   title: string;
   format: string;
   paragraphs: string[];
+  speakers: Speaker[];
   questions: { question: string; options: string[]; answer: number }[];
   totalWords: number;
   outOfBandRate: number;
@@ -82,31 +84,52 @@ export function Reader({
   const [result, setResult] = useState<SessionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const isConversation = piece.format === "conversation";
+
   /**
    * Absolute character offsets for every token, measured against the exact
    * string the server sends to TTS. Without this the audio timings cannot be
    * mapped back onto the words on screen.
+   *
+   * The two formats live in different coordinate spaces. A narration is the
+   * paragraphs joined by a blank line, exactly as sent. A conversation is sent
+   * to the dialogue endpoint as turns with NO speaker names and no separators,
+   * so its offsets come from `splitTurns` - which is why that split is shared
+   * with the server rather than reimplemented here.
    */
   const layout = useMemo(() => {
     // Written as plain loops rather than nested `map` closures: accumulating an
     // offset inside a callback reads as mutation-after-render to the compiler,
     // even though it all happens in one pass.
-    const paragraphs: PlacedToken[][] = [];
-    let base = 0;
+    const blocks: { speaker: string | null; tokens: PlacedToken[] }[] = [];
 
+    if (isConversation) {
+      for (const turn of splitTurns(piece.paragraphs, piece.speakers)) {
+        const tokens: PlacedToken[] = [];
+        let local = 0;
+        for (const token of tokenize(turn.text)) {
+          tokens.push({ ...token, at: turn.offset + local });
+          local += token.text.length;
+        }
+        blocks.push({ speaker: turn.speaker, tokens });
+      }
+      return blocks;
+    }
+
+    let base = 0;
     for (const text of piece.paragraphs) {
-      const placed: PlacedToken[] = [];
+      const tokens: PlacedToken[] = [];
       let local = 0;
       for (const token of tokenize(text)) {
-        placed.push({ ...token, at: base + local });
+        tokens.push({ ...token, at: base + local });
         local += token.text.length;
       }
-      paragraphs.push(placed);
+      blocks.push({ speaker: null, tokens });
       base += text.length + JOINER.length;
     }
 
-    return paragraphs;
-  }, [piece.paragraphs]);
+    return blocks;
+  }, [piece.paragraphs, piece.speakers, isConversation]);
 
   /**
    * Follow the audio at frame rate.
@@ -119,40 +142,43 @@ export function Reader({
    * `timeupdate` is no use for this - it fires about four times a second,
    * far too coarse to track individual words.
    */
+  const syncToAudio = useCallback(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    // React bails out when the value is unchanged, so this is cheap.
+    setPlaying(!el.paused && !el.ended);
+    if (!alignment || el.paused) return;
+
+    const t = el.currentTime;
+    const ends = alignment.ends;
+    let lo = 0;
+    let hi = ends.length - 1;
+    let found = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (ends[mid]! > t) {
+        found = mid;
+        hi = mid - 1;
+      } else {
+        lo = mid + 1;
+      }
+    }
+    setCharIndex(found);
+  }, [alignment]);
+
   useEffect(() => {
     if (!audioUrl) return;
     let raf = 0;
 
     const tick = () => {
-      const el = audioRef.current;
-      if (el) {
-        // React bails out when the value is unchanged, so this is cheap.
-        setPlaying(!el.paused && !el.ended);
-
-        if (alignment && !el.paused) {
-          const t = el.currentTime;
-          const ends = alignment.ends;
-          let lo = 0;
-          let hi = ends.length - 1;
-          let found = -1;
-          while (lo <= hi) {
-            const mid = (lo + hi) >> 1;
-            if (ends[mid]! > t) {
-              found = mid;
-              hi = mid - 1;
-            } else {
-              lo = mid + 1;
-            }
-          }
-          setCharIndex(found);
-        }
-      }
+      syncToAudio();
       raf = requestAnimationFrame(tick);
     };
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [audioUrl, alignment]);
+  }, [audioUrl, syncToAudio]);
 
   async function lookUp(raw: string, sentence: string) {
     const word = normalizeWord(raw);
@@ -297,6 +323,13 @@ export function Reader({
           <audio
             ref={audioRef}
             src={audioUrl}
+            // requestAnimationFrame is suspended while the tab is hidden, so on
+            // its own the UI freezes mid-listen if the reader switches away -
+            // stuck on "Play" while audio carries on. `timeupdate` still fires
+            // when hidden, so it drives the same sync at a coarser rate.
+            onTimeUpdate={syncToAudio}
+            onPlay={syncToAudio}
+            onPause={syncToAudio}
             onEnded={() => setCharIndex(-1)}
             className="hidden"
           />
@@ -331,11 +364,18 @@ export function Reader({
       )}
 
       <div className="prose-reading space-y-6">
-        {layout.map((tokens, i) => {
+        {layout.map((block, i) => {
           const paragraph = piece.paragraphs[i]!;
           return (
             <p key={i}>
-              {tokens.map((token, j) => {
+              {/* The name is a label, not prose: it is never spoken aloud and
+                  never counts as a word the reader has to know. */}
+              {block.speaker && (
+                <span className="mr-2 select-none text-sm font-semibold uppercase tracking-wide text-accent">
+                  {block.speaker}
+                </span>
+              )}
+              {block.tokens.map((token, j) => {
                 if (!token.isWord) return <span key={j}>{token.text}</span>;
                 const key = normalizeWord(token.text);
                 const isSpeaking =

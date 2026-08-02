@@ -124,6 +124,22 @@ Two rules follow, and both are load-bearing:
 
 The home page shows the running character total.
 
+**Conversations are spoken as dialogue, not narrated.** Each character gets a
+distinct, gender-matched voice and the speaker names are never read aloud —
+otherwise you hear "Alice colon, good morning" in one flat voice, which is
+unfollowable when you are still decoding the words. The generator declares each
+speaker's gender (inferring it from a name would not survive the move to
+Chinese or Indonesian), `src/server/voices.ts` casts them from the premade pool,
+and ElevenLabs' `/v1/text-to-dialogue` takes all the turns in **one** request —
+so it costs the same as single-voice narration, slightly less in fact, since
+the names are dropped.
+
+One subtlety worth knowing before touching it: the two audio paths return
+timings in different coordinate spaces. Narration aligns to the paragraphs
+joined by a blank line; a dialogue aligns to the turns concatenated with no
+names and no separators. `splitTurns` in `src/lib/dialogue.ts` is shared by the
+server and the reader precisely so those offsets cannot drift apart.
+
 On a free ElevenLabs key only the ~21 **premade** voices work via the API —
 library and professional voices return `402 paid_plan_required`, including some
 that used to be premade. `npm run voices` lists what a given key can actually

@@ -94,5 +94,23 @@ export function getDb(): Database.Database {
     );
   `);
 
+  addColumn("pieces", "speakers", "TEXT NOT NULL DEFAULT '[]'");
+
   return db;
+}
+
+/**
+ * Add a column to an existing table if it is not already there.
+ *
+ * The CREATE TABLE statements above are `IF NOT EXISTS`, so they do nothing
+ * once a table exists - a new column has to be added explicitly or every
+ * database created before this point keeps the old shape. Conversations
+ * generated before speaker genders existed simply carry an empty list.
+ */
+function addColumn(table: string, column: string, definition: string): void {
+  const columns = db!.prepare(`PRAGMA table_info(${table})`).all() as {
+    name: string;
+  }[];
+  if (columns.some((c) => c.name === column)) return;
+  db!.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }

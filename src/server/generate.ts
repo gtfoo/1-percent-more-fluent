@@ -19,6 +19,7 @@ import { measure, type DifficultyReport } from "./difficulty";
 import { getDb } from "./db";
 import { seedGlossary } from "./gloss";
 import type { Format } from "@/lib/formats";
+import type { Speaker } from "@/lib/dialogue";
 
 export const PieceSchema = z.object({
   title: z.string().describe("A short title, in Spanish."),
@@ -36,6 +37,16 @@ export const PieceSchema = z.object({
       }),
     )
     .describe("Every word in the text a learner at this level is unlikely to know."),
+  speakers: z
+    .array(
+      z.object({
+        name: z.string().describe("Exactly as it appears before the colon in the turns."),
+        gender: z.enum(["female", "male"]),
+      }),
+    )
+    .describe(
+      "For a conversation, every speaker and their gender. An empty array for a story or an article. The gender is used to cast a voice, so it must be given even when the name makes it obvious.",
+    ),
   questions: z
     .array(
       z.object({
@@ -176,8 +187,8 @@ export async function generatePiece(args: {
 
   getDb()
     .prepare(
-      `INSERT INTO pieces (id, user_id, language, format, topic, level, title, body, glossary, questions, report, model, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO pieces (id, user_id, language, format, topic, level, title, body, glossary, questions, speakers, report, model, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -190,6 +201,7 @@ export async function generatePiece(args: {
       JSON.stringify(piece!.paragraphs),
       JSON.stringify(piece!.glossary),
       JSON.stringify(piece!.questions),
+      JSON.stringify(piece!.speakers ?? []),
       JSON.stringify(report!),
       modelId,
       new Date().toISOString(),
@@ -209,6 +221,7 @@ export interface StoredPiece {
   paragraphs: string[];
   glossary: { word: string; meaning: string }[];
   questions: { question: string; options: string[]; answer: number }[];
+  speakers: Speaker[];
   report: DifficultyReport;
   createdAt: string;
 }
@@ -230,6 +243,8 @@ export function getPiece(id: string): StoredPiece | null {
     paragraphs: JSON.parse(row.body as string),
     glossary: JSON.parse(row.glossary as string),
     questions: JSON.parse(row.questions as string),
+    // Pieces predating the speakers column carry an empty list.
+    speakers: JSON.parse((row.speakers as string) ?? "[]"),
     report: JSON.parse(row.report as string),
     createdAt: row.created_at as string,
   };
