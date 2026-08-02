@@ -59,7 +59,18 @@ const CANDIDATES = [
 
 /** `LANGUAGE=zh-CN npm run bench` benchmarks generation for another language. */
 const LANGUAGE = getLanguage(process.env.LANGUAGE ?? DEFAULT_LANGUAGE);
-const params = paramsFor(44.5, LANGUAGE); // a mid-B1 profile
+
+/**
+ * `LEVEL=75 npm run bench` benchmarks a different profile.
+ *
+ * Configurable because the default is the wrong place to look for the problem
+ * that matters. Mid-B1 is where generation already works; the standing failure
+ * is above it, where measured text lands around 1-3% out-of-band against a 7%
+ * target no matter how the prompt is framed. A benchmark pinned to 44.5 can
+ * never show whether a different model fixes that.
+ */
+const LEVEL = Number(process.env.LEVEL ?? 44.5);
+const params = paramsFor(LEVEL, LANGUAGE);
 const TOPIC = "a folk tale about a fisherman who catches a talking fish";
 
 /**

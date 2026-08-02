@@ -102,25 +102,29 @@ export function parseModelRef(entry: string): ModelRef {
 }
 
 /**
- * The default chain, most-preferred first.
+ * The default chain, most-preferred first: Google, then Anthropic, then OpenAI.
  *
- * Gemini leads on measurement: `scripts/bench-models.ts` times the real prompt
- * and schema, and gemini-3.5-flash returns a full piece in 10-12s where
- * gemini-flash-latest ranged from 16s to over two minutes under load. The other
- * two are there for when Google's daily free-tier quota is gone, and are
- * ordered cheapest-first because at this volume any of them is a rounding
- * error next to the speech bill.
+ * Gemini leads on measurement - `scripts/bench-models.ts` times the real prompt
+ * and schema - and because its free tier makes it the cheapest thing to try
+ * first. But that free tier is 20 requests per day PER MODEL, so the two Google
+ * entries are one bad afternoon apart from both being gone; everything after
+ * them exists for that moment, which has already happened twice.
  *
- * The OpenAI id is deliberately left to configuration: unlike the Anthropic
- * ids, it was not verified against a live account, and a wrong id is a 404 at
- * the worst possible moment. `npm run models` lists what a key actually grants;
- * put the chosen id in LLM_MODELS.
+ * Cheapest first within each lab. At this volume the whole chain is a rounding
+ * error next to the speech bill, so the ordering is about latency and headroom
+ * rather than cost.
+ *
+ * Every id here was listed and then actually called via `npm run models`
+ * against a live account. That matters more than it sounds: the Anthropic
+ * models endpoint reports Haiku as the dated `claude-haiku-4-5-20251001`, so
+ * the bare alias below looks wrong until you call it and it resolves.
  */
 const DEFAULT_CHAIN: ModelRef[] = [
   { provider: "google", id: "gemini-3.5-flash" },
   { provider: "google", id: "gemini-flash-latest" },
   { provider: "anthropic", id: "claude-haiku-4-5" },
   { provider: "anthropic", id: "claude-sonnet-5" },
+  { provider: "openai", id: "gpt-5-mini" },
 ];
 
 /** Every model the config asks for, before any key filtering. */
@@ -163,16 +167,20 @@ export function formatRef(ref: ModelRef): string {
 
 /**
  * Errors where retrying with a DIFFERENT model is sensible: a hit quota, an
- * overloaded lab, or the model being unavailable for this key. A genuine bad
- * request (bad prompt or schema) is not retried - it would fail on every model.
+ * empty account, an overloaded lab, or the model being unavailable for this
+ * key. A genuine bad request (bad prompt or schema) is not retried - it would
+ * fail on every model.
  *
- * The vocabulary is deliberately cross-provider: Google says
- * "RESOURCE_EXHAUSTED", Anthropic returns 529 "overloaded_error", OpenAI says
- * "insufficient_quota".
+ * The vocabulary is deliberately cross-provider, because each lab words the
+ * same condition differently. Google says "RESOURCE_EXHAUSTED", Anthropic
+ * returns 529 "overloaded_error", and OpenAI - the one that caught this out -
+ * says "You have no credits remaining", which matches none of the quota
+ * wording and would have stopped the chain dead on a provider that simply
+ * needs topping up. `scripts/check-llm-chain.ts` pins the real strings.
  */
-function shouldFallback(err: unknown): boolean {
+export function shouldFallback(err: unknown): boolean {
   const m = err instanceof Error ? err.message : String(err);
-  return /quota|rate.?limit|429|resource.?exhausted|exhausted|not found|no longer available|404|unavailable|overloaded|529|permission|403|401|authentication/i.test(
+  return /quota|rate.?limit|429|resource.?exhausted|exhausted|credit|billing|insufficient|not found|no longer available|404|unavailable|overloaded|529|permission|403|401|authentication/i.test(
     m,
   );
 }

@@ -15,6 +15,7 @@ import {
   getModelChain,
   missingKeys,
   parseModelRef,
+  shouldFallback,
   type ProviderId,
 } from "../src/server/llm";
 
@@ -154,6 +155,40 @@ check(
   acceptsTemperature({ provider: "openai", id: "gpt-x" }),
   true,
 );
+
+console.log("\n--- falling back on the right errors ---");
+
+// Real strings, observed from each provider. Each lab words the same condition
+// differently, and a phrase this list misses is a chain that stops dead on a
+// provider the next one could have covered for.
+for (const [what, message] of [
+  [
+    "google: daily free-tier quota",
+    "You exceeded your current quota, please check your plan and billing details. Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20",
+  ],
+  [
+    // Matches none of the quota vocabulary - this is the one that caught the
+    // original regex out.
+    "openai: account out of credit",
+    "You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.",
+  ],
+  ["openai: insufficient_quota", "429 insufficient_quota: You exceeded your current quota"],
+  ["anthropic: overloaded", "529 overloaded_error: Overloaded"],
+  ["anthropic: rate limited", "429 rate_limit_error: Number of requests has exceeded your rate limit"],
+  ["any: model not available for this key", "404 model not found: claude-nonexistent"],
+] as const) {
+  check(`falls back on ${what}`, shouldFallback(new Error(message)), true);
+}
+
+// A prompt or schema fault fails identically everywhere, so retrying it on the
+// next model just burns the chain and delays the real error.
+for (const [what, message] of [
+  ["invalid schema", "Invalid schema for response_format: expected an object"],
+  ["prompt too long", "prompt is too long: 250000 tokens > 200000 maximum"],
+  ["bad request", "400 invalid_request_error: messages: roles must alternate"],
+] as const) {
+  check(`does NOT fall back on ${what}`, shouldFallback(new Error(message)), false);
+}
 
 console.log(failures ? `\n${failures} failing` : "\nthe model chain behaves as expected");
 process.exit(failures ? 1 : 0);
