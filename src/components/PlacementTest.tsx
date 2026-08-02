@@ -200,9 +200,10 @@ export function PlacementTest({ languages }: { languages: LanguageChoice[] }) {
             Which of these can you read comfortably?
           </h1>
           <p className="mt-2 max-w-xl text-muted">
-            They get harder going down, and they’re all about the same thing.
-            Pick the last one you could follow without stopping — you don’t need
-            every word, just the sense of it.
+            They get harder going down, and each is about something different —
+            so you can’t guess a hard one from an easy one. Pick the last you
+            could follow without stopping; you don’t need every word, just the
+            sense of it.
           </p>
         </div>
 

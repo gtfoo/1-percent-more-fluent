@@ -19,7 +19,8 @@
     "smoke:dialogue": "bash scripts/smoke-dialogue.sh",
     "inspect": "bash scripts/inspect-db.sh",
     "standalone": "bash scripts/try-standalone.sh",
-    "tls": "bash scripts/diagnose-tls.sh"
+    "tls": "bash scripts/diagnose-tls.sh",
+    "samples:write": "tsx scripts/write-samples.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.103",

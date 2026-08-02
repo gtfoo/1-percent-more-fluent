@@ -1,3 +1,49 @@
 {
-  "samples": []
+  "samples": [
+    {
+      "level": 10,
+      "topic": "a quiet day at home with family",
+      "label": "HSK 2",
+      "vocabBand": 723,
+      "text": "我是学生。我家有四个人。我爸爸妈妈都很好，我还有一个哥哥。今天我不去学校，我在家。我想看电视，可是我没有时间。我要帮我妈妈，她说她很累。我说没关系，我可以做。我哥哥不在家，他和朋友在外面。晚上他回家，我们都很高兴。我觉得这样的一天很好。",
+      "outOfBandRate": 0.1111111111111111,
+      "passes": true
+    },
+    {
+      "level": 28,
+      "topic": "a neighbour's dog that keeps getting out",
+      "label": "HSK 3",
+      "vocabBand": 1405,
+      "text": "我们旁边住着一个老人，他有一只狗。那只狗很喜欢跑出来。上个月，它又跑到我们家门口了。我看见它在吃东西，就叫了老人。他很快就来了，说他也没有办法。他的门太旧，狗每次都能出来。后来他找人把门做好了。现在那只狗还是每天在外面玩，可是它不能再进来了。",
+      "outOfBandRate": 0.10144927536231885,
+      "passes": true
+    },
+    {
+      "level": 47,
+      "topic": "a family bakery closing after forty years",
+      "label": "HSK 4",
+      "vocabBand": 2831,
+      "text": "街角那家面包店开了四十年，上个月关门了。老板年纪大了，想回老家休息。虽然很多老客人来跟他说再见，但是他还是决定不做了。他说现在的年轻人喜欢去大超市买东西，很少有人走进这样的小店。关门那天，他把最后一批面包送给了邻居。大家吃着面包，心里都有点难过。",
+      "outOfBandRate": 0.1,
+      "passes": true
+    },
+    {
+      "level": 66,
+      "topic": "how a city changed after an old railway was removed",
+      "label": "HSK 6",
+      "vocabBand": 5706,
+      "text": "那条旧铁路被拆掉以后，我们这座城市完全变了样子。以前火车经过的地方，现在建成了一个很长的公园。每天早上都有人在那里跑步，晚上老人们坐在长椅上聊天。孩子们跑得很快，笑声传得很远。住在附近的居民说，空气比从前干净多了，晚上也睡得更好。",
+      "outOfBandRate": 0.09230769230769231,
+      "passes": true
+    },
+    {
+      "level": 85,
+      "topic": "two friends arguing about moving abroad",
+      "label": "HSK 7+",
+      "vocabBand": 11501,
+      "text": "李明打算移民，这个决定让他的老朋友张伟十分不解。张伟认为，他们是从小一起长大的，连最困难的日子都熬过来了，如今却要各奔东西。李明解释说，他并不是一时冲动才做出这个选择的，而是考虑了整整两年。他说，人总要为自己的将来负责。张伟沉默了很久，最后只说了一句：无论你走多远，这里永远是你的家。",
+      "outOfBandRate": 0.060240963855421686,
+      "passes": true
+    }
+  ]
 }
