@@ -107,6 +107,13 @@ WantedBy=multi-user.target
 Check `PORT=3100` is not already taken — `ss -ltnp | grep 3100`. Carpark SG is
 on this box too.
 
+**Two deploys can collide.** GitHub's `concurrency` group only serialises runs
+within a repository, so a push to `carpark-sg` and a push here can build on the
+droplet at the same time. Two simultaneous `npm ci` + `next build` will exhaust
+a 1GB droplet. If that happens, the symptom is a build killed by the OOM killer
+— `sudo dmesg | grep -i oom` — and the fix is either a swap file or not pushing
+to both at once.
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now fluent
@@ -136,7 +143,21 @@ route handler does byte ranges properly, which audio seeking needs.
 
 ### 5. GitHub secrets
 
-`Settings → Secrets and variables → Actions`:
+**GitHub secrets are per-repository.** The ones on `carpark-sg` are not visible
+here — `gtfoo` is a personal account, so there are no organisation secrets to
+inherit. All five have to be added again on this repo, with the same names as
+carpark uses and only `DROPLET_APP_DIR` differing in value.
+
+`Settings → Secrets and variables → Actions`, or with the CLI:
+
+```bash
+gh auth login
+gh secret set DROPLET_HOST    -R gtfoo/1-percent-more-fluent
+gh secret set DROPLET_USER    -R gtfoo/1-percent-more-fluent
+gh secret set DROPLET_SSH_KEY -R gtfoo/1-percent-more-fluent < ~/.ssh/id_droplet
+gh secret set DROPLET_PORT    -R gtfoo/1-percent-more-fluent   # omit for 22
+gh secret set DROPLET_APP_DIR -R gtfoo/1-percent-more-fluent
+```
 
 | Secret | Value |
 |---|---|
@@ -144,7 +165,16 @@ route handler does byte ranges properly, which audio seeking needs.
 | `DROPLET_USER` | `deploy` |
 | `DROPLET_SSH_KEY` | private key whose public half is in the deploy user's `authorized_keys` |
 | `DROPLET_PORT` | SSH port, omit for 22 |
-| `FLUENT_APP_DIR` | `/home/deploy/1-percent-more-fluent` |
+| `DROPLET_APP_DIR` | `/home/deploy/1-percent-more-fluent` — the only one whose value differs from carpark's |
+
+Check them with `gh secret list -R gtfoo/1-percent-more-fluent`.
+
+### Order matters
+
+Steps 1–4 must be done **before** the first successful deploy. The workflow
+only pulls and rebuilds; it does not clone the repo, write `.env.local`, or
+create the systemd unit. Until the droplet is set up, pushes to `main` will
+show a red X in Actions — that is expected, not a broken workflow.
 
 ---
 
