@@ -14,8 +14,16 @@ WANT="${1:-}"
 DEPLOYED=$(bash ./droplet.sh 'cd /home/deploy/1-percent-more-fluent && git rev-parse --short HEAD' 2>/dev/null | tail -1)
 
 if [ -n "$WANT" ]; then
-  [ "$DEPLOYED" = "$WANT" ]
-  exit $?
+  # Says the answer out loud rather than only setting an exit code. The exit
+  # code is still correct, but it travels through several shells to reach a
+  # caller here, and `$?` read on the wrong side of that boundary is always 0 -
+  # which reads as a pass and is indistinguishable from one.
+  if [ "$DEPLOYED" = "$WANT" ]; then
+    echo "MATCH    droplet is on $WANT"
+    exit 0
+  fi
+  echo "MISMATCH droplet is on ${DEPLOYED:-<unreachable>}, wanted $WANT"
+  exit 1
 fi
 
 bash ./droplet.sh '
