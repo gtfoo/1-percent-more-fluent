@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { getOrCreateUserId, getProfile } from "@/server/user";
 import { generatePiece } from "@/server/generate";
 import { FORMATS, type Format } from "@/lib/formats";
-import { isLlmConfigured } from "@/server/llm";
+import { isLlmConfigured, keyVarFor, missingKeys } from "@/server/llm";
 import { LENGTH_WORDS, type Length } from "@/lib/level";
 import { getLanguage } from "@/lib/languages";
 
@@ -10,8 +10,16 @@ const MAX_TOPIC_CHARS = 200;
 
 export async function POST(req: NextRequest) {
   if (!isLlmConfigured()) {
+    // Name the keys the configured chain actually wants, rather than hard-coding
+    // Google's - the chain crosses providers now, and "set the Gemini key" is
+    // the wrong instruction when the chain asks for Anthropic.
+    const wanted = missingKeys().map(keyVarFor);
     return Response.json(
-      { error: "No model configured. Set GOOGLE_GENERATIVE_AI_API_KEY in .env.local." },
+      {
+        error: `No model configured. Set ${
+          wanted.length ? wanted.join(" or ") : "GOOGLE_GENERATIVE_AI_API_KEY"
+        } in .env.local.`,
+      },
       { status: 503 },
     );
   }

@@ -76,11 +76,26 @@ Create `.env.local` — it is gitignored, so it lives only on the server:
 GOOGLE_GENERATIVE_AI_API_KEY=...
 ELEVENLABS_API_KEY=...
 
+# Strongly recommended on the server. Google's free tier is 20 requests a day
+# for the whole droplet, shared by every visitor, and generation simply stops
+# when it runs out. The chain falls through to another lab instead.
+ANTHROPIC_API_KEY=...
+OPENAI_API_KEY=...
+
 # Optional, all have sensible defaults:
-# LLM_MODELS=gemini-3.5-flash,gemini-flash-latest
+# LLM_MODELS=google:gemini-3.5-flash,anthropic:claude-haiku-4-5
 # ELEVENLABS_VOICE_ID=Xb7hH8MSUJpSbSDYk0k2
 # ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 # ELEVENLABS_MAX_CHARS=6000
+```
+
+A provider with no key is dropped from the chain rather than tried, so adding
+just one of the two optional keys is fine — and adding neither leaves behaviour
+exactly as it was. After editing `.env.local`, restart the service: systemd
+reads it via `EnvironmentFile` at start, so a change does nothing until then.
+
+```bash
+sudo systemctl restart fluent
 ```
 
 Then build the word data and the app once by hand, so the first deploy is not

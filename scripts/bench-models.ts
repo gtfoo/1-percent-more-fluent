@@ -8,12 +8,20 @@
  *   npx tsx scripts/bench-models.ts [modelId ...]
  */
 import { readFileSync } from "node:fs";
-import { google } from "@ai-sdk/google";
 import { generateText, Output } from "ai";
 import { pieceSchema, buildPrompt } from "../src/server/generate";
 import { paramsFor } from "../src/lib/level";
 import { DEFAULT_LANGUAGE, getLanguage } from "../src/lib/languages";
 import { measure, BUDGET_SLACK } from "../src/server/difficulty";
+import {
+  acceptsTemperature,
+  formatRef,
+  getConfiguredChain,
+  hasKey,
+  keyVarFor,
+  parseModelRef,
+  type ModelRef,
+} from "../src/server/llm";
 
 function loadEnv(path = ".env.local") {
   try {
@@ -27,6 +35,20 @@ function loadEnv(path = ".env.local") {
 }
 loadEnv();
 
+// Imported lazily, after loadEnv: the AI SDK providers read their key at module
+// scope, so importing them before .env.local is applied gets an unset key.
+async function modelFor(ref: ModelRef) {
+  switch (ref.provider) {
+    case "google":
+      return (await import("@ai-sdk/google")).google(ref.id);
+    case "anthropic":
+      return (await import("@ai-sdk/anthropic")).anthropic(ref.id);
+    case "openai":
+      return (await import("@ai-sdk/openai")).openai(ref.id);
+  }
+}
+
+/** Benchmarked with no arguments. Bare ids are Google, per parseModelRef. */
 const CANDIDATES = [
   "gemini-flash-latest",
   "gemini-2.5-flash",
@@ -44,24 +66,31 @@ const TOPIC = "a folk tale about a fisherman who catches a talking fish";
  * Runs the same two-attempt loop the app uses, so the numbers reflect what a
  * reader actually waits for - not just a single call.
  */
-async function bench(id: string) {
+async function bench(ref: ModelRef) {
+  const id = formatRef(ref);
+  if (!hasKey(ref.provider)) {
+    console.log(`${id.padEnd(34)} skipped, no ${keyVarFor(ref.provider)}`);
+    return;
+  }
+
   const started = Date.now();
   let corrections: string[] | undefined;
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const { output } = await generateText({
-        model: google(id),
+        model: await modelFor(ref),
         prompt: buildPrompt("story", TOPIC, "short", params, corrections),
         output: Output.object({ schema: pieceSchema(params.language.name) }),
-        temperature: 0.8,
+        // Matches generateStructured: the newer Anthropic models 400 on it.
+        temperature: acceptsTemperature(ref) ? 0.8 : undefined,
         maxRetries: 0,
       });
       const report = measure(output.paragraphs.join("\n\n"), params);
       const elapsed = ((Date.now() - started) / 1000).toFixed(1);
 
       console.log(
-        `${id.padEnd(22)} try${attempt} ${elapsed.padStart(6)}s  ` +
+        `${id.padEnd(34)} try${attempt}${elapsed.padStart(6)}s  ` +
           `${String(report.totalWords).padStart(4)}w  ` +
           `${(report.outOfBandRate * 100).toFixed(1).padStart(5)}% out-of-band  ` +
           `sent=${report.meanSentenceWords.toFixed(1).padStart(5)}  ` +
@@ -73,7 +102,7 @@ async function bench(id: string) {
       corrections = report.problems;
     } catch (err) {
       console.log(
-        `${id.padEnd(22)} try${attempt} ${((Date.now() - started) / 1000).toFixed(1)}s  ERROR: ${
+        `${id.padEnd(34)} try${attempt}${((Date.now() - started) / 1000).toFixed(1)}s  ERROR: ${
           err instanceof Error ? err.message.split("\n")[0]!.slice(0, 80) : String(err)
         }`,
       );
@@ -83,11 +112,17 @@ async function bench(id: string) {
 }
 
 async function main() {
-  const ids = process.argv.slice(2).length ? process.argv.slice(2) : CANDIDATES;
+  const args = process.argv.slice(2);
+  // `--chain` benchmarks exactly what the app would run, in order.
+  const refs =
+    args[0] === "--chain"
+      ? getConfiguredChain()
+      : (args.length ? args : CANDIDATES).map(parseModelRef);
+
   console.log(
     `Prompt: short story, level ${params.level.toFixed(0)} (${params.label}), band ${params.vocabBand}, budget ${(params.newWordBudget * 100).toFixed(0)}% (fail above ${(params.newWordBudget * BUDGET_SLACK * 100).toFixed(0)}%)\n`,
   );
-  for (const id of ids) await bench(id);
+  for (const ref of refs) await bench(ref);
 }
 
 main().catch((e) => {

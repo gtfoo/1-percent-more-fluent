@@ -14,6 +14,7 @@
     "bench": "tsx scripts/bench-models.ts",
     "language": "tsx scripts/check-language.ts",
     "dialogue": "tsx scripts/check-dialogue.ts",
+    "chain": "tsx scripts/check-llm-chain.ts",
     "alignment": "tsx scripts/check-alignment.ts",
     "placement": "tsx scripts/check-placement.ts",
     "calibration": "tsx scripts/check-calibration.ts",
@@ -27,7 +28,9 @@
     "production": "bash scripts/check-production.sh"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.104",
     "@ai-sdk/google": "^3.0.103",
+    "@ai-sdk/openai": "^3.0.90",
     "ai": "^6.0.238",
     "better-sqlite3": "^12.11.1",
     "next": "16.2.10",
