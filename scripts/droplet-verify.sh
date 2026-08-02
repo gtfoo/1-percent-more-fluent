@@ -1,27 +1,43 @@
 #!/usr/bin/env bash
-# Confirm the running droplet process resolved its persistent paths correctly.
-# This is the check that matters: a wrong DATA_DIR is silent until a deploy
-# wipes everything.
+# End-to-end verification of the deployed service: persistence, reboot-safety,
+# the deploy user's restart permission, and the public URL.
 set -u
-cd "$(dirname "$0")" || exit 1
+IP="${DROPLET_IP:-167.71.196.128}"
+OPTS="-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new"
 
-bash ./droplet.sh '
+ssh $OPTS -i ~/.ssh/carpark_deploy "deploy@$IP" 'bash -s' <<'REMOTE'
+set -uo pipefail
 cd /home/deploy/1-percent-more-fluent
 
-echo "=== force a database write (unknown cookie makes getUserId query) ==="
-curl -s -o /dev/null -w "  status %{http_code}\n" -H "Cookie: fluent_uid=probe" http://127.0.0.1:3100/
+echo "=== service ==="
+echo "  active:  $(systemctl is-active fluent)"
+echo "  enabled: $(systemctl is-enabled fluent)   <- survives reboot"
+echo "  restarts: $(systemctl show fluent -p NRestarts --value)"
 
-echo "=== where did the database land ==="
-find /home/deploy/1-percent-more-fluent -name "*.sqlite*" 2>/dev/null | sed "s|^|  |"
+echo
+echo "=== persistent paths (the thing that silently breaks) ==="
+PID=$(systemctl show fluent -p MainPID --value)
+tr "\0" "\n" < /proc/$PID/environ 2>/dev/null | grep -E "^(DATA_DIR|PORT|NODE_ENV)=" | sed "s|^|  |"
+echo "  database:"
+find /home/deploy/1-percent-more-fluent -name "fluent.sqlite" 2>/dev/null | sed "s|^|    |"
+echo "  stray copy inside build output (must be empty):"
+find .next/standalone -name "*.sqlite*" 2>/dev/null | sed "s|^|    |"
 
-echo "=== inside the build output? (must be empty) ==="
-find .next/standalone -name "*.sqlite*" -o -name "audio" -type d 2>/dev/null | sed "s|^|  |"
-
-echo "=== environment the process actually has ==="
-PID=$(pgrep -f "standalone/server.j[s]" | head -1)
-if [ -n "$PID" ]; then
-  tr "\0" "\n" < /proc/$PID/environ | grep -E "^(DATA_DIR|AUDIO_DIR|PORT|NODE_ENV|HOSTNAME)=" | sed "s|^|  |"
+echo
+echo "=== can the deploy user restart it? (GitHub Actions needs this) ==="
+if sudo -n systemctl restart fluent 2>/dev/null; then
+  sleep 5
+  echo "  restart via sudo: OK, now $(systemctl is-active fluent)"
 else
-  echo "  process not found"
+  echo "  restart via sudo: DENIED - Actions cannot deploy" >&2
 fi
-'
+
+echo
+echo "=== through caddy, from the box ==="
+curl -s -o /dev/null -m 15 -w "  https local: %{http_code}\n" https://1-percent-more-fluent.gtfoo.com/
+REMOTE
+
+echo
+echo "=== from here, over the public internet ==="
+curl -s -o /dev/null -m 20 -w "  https public: %{http_code}\n" https://1-percent-more-fluent.gtfoo.com/
+curl -s -m 20 https://1-percent-more-fluent.gtfoo.com/setup | grep -o "What are you learning?\|Simplified Chinese\|Spanish" | sort -u | sed 's|^|  |'

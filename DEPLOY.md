@@ -221,6 +221,34 @@ sudo journalctl -u fluent -f
 
 ## Troubleshooting
 
+### The service restart-loops on `EADDRINUSE`
+
+```bash
+systemctl show fluent -p NRestarts --value   # climbing = looping
+journalctl -u fluent -n 20 --no-pager
+```
+
+Something else holds port 3100. **Do not try to kill it by command-line
+pattern** — Next rewrites its process title to `next-server (v16.2.10)` once
+running, so `pkill -f standalone/server.js` matches nothing and appears to
+succeed. Kill by port, and stop systemd first so it is not racing you for the
+socket:
+
+```bash
+systemctl stop fluent
+for pid in $(ss -ltnp | grep ':3100 ' | grep -oP 'pid=\K[0-9]+' | sort -u); do kill -9 "$pid"; done
+systemctl reset-failed fluent
+systemctl start fluent
+```
+
+Then confirm it is genuinely stable rather than merely up — `NRestarts` must
+not move:
+
+```bash
+systemctl show fluent -p NRestarts --value; sleep 15; systemctl show fluent -p NRestarts --value
+```
+
+
 ### `ERR_SSL_PROTOCOL_ERROR`
 
 Run `bash scripts/diagnose-tls.sh` from anywhere. It probes the target, a

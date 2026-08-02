@@ -24,10 +24,14 @@ nvm use 20 >/dev/null 2>&1
 
 LOG=/tmp/fluent-dev.log
 
-# Kill only this project's server, matched by its own binary path. The bracket
-# stops the pattern matching this script's own command line - without it pkill
-# finds itself and terminates the shell that invoked it.
-pkill -f "$PROJECT/node_modules/.bin/nex[t]" >/dev/null 2>&1
+# Kill by PORT rather than by command-line pattern. Two traps here, both hit:
+# Next rewrites its process title to "next-server (vX)" once running, so a
+# pattern matching the launch command silently matches nothing; and a pattern
+# broad enough to catch it also matches this script's own command line, so
+# pkill terminates the shell that invoked it.
+for pid in $(ss -ltnp 2>/dev/null | grep ":$PORT " | grep -oP 'pid=\K[0-9]+' | sort -u); do
+  kill -9 "$pid" 2>/dev/null || true
+done
 sleep 1
 
 # Turbopack's incremental cache does not survive being killed mid-write, and a
