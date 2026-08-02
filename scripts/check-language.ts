@@ -47,6 +47,18 @@ const FIXTURES: Record<string, Fixture> = {
       "alucinando", "presidir", "cortejo", "yacimiento",
     ],
   },
+  "zh-CN": {
+    // Full-width punctuation, no spaces: the round-trip check is doing real
+    // work here in a way it barely is for Spanish.
+    text: "他犹豫了一下。我们知道什么时候去北京大学学习中文！你呢？",
+    sentences: 3,
+    band: 3_000,
+    // Compounds the segmenter emits as one token but the frequency list stores
+    // in pieces - the exact case baseForms exists to handle. 什么时候 is absent
+    // from the list; 什么 (12) and 时候 (110) are both near the top of it.
+    known: ["什么时候", "北京大学", "为什么", "知道", "什么", "时候"],
+    rare: ["犹豫", "慷慨", "赠送", "经文"],
+  },
 };
 
 let failures = 0;
@@ -58,7 +70,8 @@ function check(ok: boolean, label: string, detail = "") {
 
 function bestRank(word: string, code: string): number | null {
   let best: number | null = null;
-  for (const form of LANGUAGES[code]!.baseForms(word)) {
+  const forms = LANGUAGES[code]!.baseForms(word, (f) => rankOf(f, code) !== null);
+  for (const form of forms) {
     const rank = rankOf(form, code);
     if (rank !== null && (best === null || rank < best)) best = rank;
   }

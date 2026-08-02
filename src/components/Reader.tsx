@@ -365,7 +365,10 @@ export function Reader({
         </p>
       )}
 
-      <div className="prose-reading space-y-6">
+      <div
+        className="prose-reading space-y-6"
+        style={{ fontFamily: language.fontStack }}
+      >
         {layout.map((block, i) => {
           const paragraph = piece.paragraphs[i]!;
           return (

@@ -36,7 +36,7 @@ function loadEnv(path = ".env.local") {
 }
 loadEnv();
 
-const OUT_DIR = join("src", "data", "es");
+const OUT_DIR = join("src", "data", LANGUAGE.code);
 
 /**
  * Evenly spread across the scale so each sample is clearly a step up, and each
@@ -61,7 +61,9 @@ const TARGET_WORDS = 60;
 const MAX_ATTEMPTS = 3;
 
 const SampleSchema = z.object({
-  text: z.string().describe("A single paragraph of Spanish. No title, no notes."),
+  text: z
+    .string()
+    .describe(`A single paragraph of ${LANGUAGE.name}. No title, no notes.`),
 });
 
 async function buildOne(level: number, topic: string) {
@@ -72,12 +74,12 @@ async function buildOne(level: number, topic: string) {
     const { object } = await generateStructured({
       schema: SampleSchema,
       system:
-        "You write graded reading samples for learners of Spanish. Natural, idiomatic Spanish that stays strictly inside the difficulty budget you are given.",
+        `You write graded reading samples for learners of ${LANGUAGE.name}. Natural, idiomatic ${LANGUAGE.name} that stays strictly inside the difficulty budget you are given.`,
       prompt: [
-        `Write ONE paragraph of about ${TARGET_WORDS} words in Spanish about ${topic}.`,
+        `Write ONE paragraph of about ${TARGET_WORDS} words in ${LANGUAGE.name} about ${topic}.`,
         "",
         `Difficulty budget:`,
-        `- Vocabulary: draw from the ${params.vocabBand.toLocaleString()} most common Spanish words. At most ${Math.round(params.newWordBudget * 100)}% may fall outside that set.`,
+        `- Vocabulary: draw from the ${params.vocabBand.toLocaleString()} most common ${LANGUAGE.name} words. At most ${Math.round(params.newWordBudget * 100)}% may fall outside that set.`,
         `- Sentences: average about ${params.sentenceWords} words.`,
         `- Grammar: restrict yourself to ${params.allowedGrammar.join("; ")}.`,
         "- Prefer the plainer everyday synonym whenever there is a choice.",

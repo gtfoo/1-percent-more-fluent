@@ -17,6 +17,11 @@ import esPlacement from "@/data/es/placement.json";
 import esAnchors from "@/data/es/anchors.json";
 import esSamples from "@/data/es/samples.json";
 
+import zhFrequency from "@/data/zh-CN/frequency.json";
+import zhPlacement from "@/data/zh-CN/placement.json";
+import zhAnchors from "@/data/zh-CN/anchors.json";
+import zhSamples from "@/data/zh-CN/samples.json";
+
 export interface PlacementBand {
   minRank: number;
   maxRank: number;
@@ -42,6 +47,12 @@ const DATA: Record<string, LanguageData> = {
     bands: esPlacement.bands as PlacementBand[],
     anchors: esAnchors.anchors as { fromRank: number; words: string[] }[],
     samples: esSamples.samples as GradedSample[],
+  },
+  "zh-CN": {
+    words: zhFrequency.words as string[],
+    bands: zhPlacement.bands as PlacementBand[],
+    anchors: zhAnchors.anchors as { fromRank: number; words: string[] }[],
+    samples: zhSamples.samples as GradedSample[],
   },
 };
 

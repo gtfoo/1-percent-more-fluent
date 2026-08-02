@@ -7,11 +7,13 @@
  */
 import type { Language } from "./types";
 import { spanish } from "./es";
+import { simplifiedChinese } from "./zh-CN";
 
 export type { Language, Token, GrammarGate } from "./types";
 
 export const LANGUAGES: Record<string, Language> = {
   [spanish.code]: spanish,
+  [simplifiedChinese.code]: simplifiedChinese,
 };
 
 export const DEFAULT_LANGUAGE = spanish.code;

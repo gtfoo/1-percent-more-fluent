@@ -256,12 +256,20 @@ export function getPiece(id: string): StoredPiece | null {
   };
 }
 
-export function listPieces(userId: string, limit = 20) {
+/**
+ * What this learner has read IN THIS LANGUAGE.
+ *
+ * Filtering by language is not cosmetic: a level means something different in
+ * each one, so listing a Spanish piece while the profile is on Chinese labelled
+ * it "HSK 6". Each language keeps its own history, which is also what the setup
+ * screen promises.
+ */
+export function listPieces(userId: string, language: string, limit = 20) {
   const rows = getDb()
     .prepare(
-      "SELECT id, title, format, topic, level, created_at FROM pieces WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+      "SELECT id, title, format, topic, level, created_at FROM pieces WHERE user_id = ? AND language = ? ORDER BY created_at DESC LIMIT ?",
     )
-    .all(userId, limit) as {
+    .all(userId, language, limit) as {
     id: string;
     title: string;
     format: Format;

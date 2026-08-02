@@ -15,21 +15,31 @@ interface Result {
   testLevel: number;
   readbackLevel: number | null;
   level: number;
-  cefr: string;
+  label: string;
 }
 
-type Step = "words" | "readback" | "done";
+export interface LanguageChoice {
+  code: string;
+  name: string;
+  fontStack: string;
+}
+
+type Step = "language" | "words" | "readback" | "done";
 
 /** Chosen when even the easiest sample is out of reach, or none of them are. */
 const BELOW_EASIEST = 0;
 const ABOVE_HARDEST = 95;
 
-export function PlacementTest() {
+export function PlacementTest({ languages }: { languages: LanguageChoice[] }) {
   const router = useRouter();
+  const [language, setLanguage] = useState<LanguageChoice>(languages[0]!);
   const [items, setItems] = useState<string[] | null>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [known, setKnown] = useState<Set<string>>(new Set());
-  const [step, setStep] = useState<Step>("words");
+  // Skip straight past the choice when there is only one language to choose.
+  const [step, setStep] = useState<Step>(
+    languages.length > 1 ? "language" : "words",
+  );
   const [result, setResult] = useState<Result | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +49,7 @@ export function PlacementTest() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/placement")
+    fetch(`/api/placement?language=${encodeURIComponent(language.code)}`)
       .then((r) => r.json())
       .then((d: { items: string[]; samples: Sample[] }) => {
         if (cancelled) return;
@@ -52,7 +62,7 @@ export function PlacementTest() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, language.code]);
 
   function toggle(word: string) {
     setKnown((prev) => {
@@ -63,7 +73,13 @@ export function PlacementTest() {
     });
   }
 
-  async function submit(readbackLevel: number) {
+  /**
+   * `readbackLevel` is null when the read-back step was skipped - which happens
+   * for a language whose graded samples have not been generated yet. The word
+   * test alone is a weaker estimate, but a weaker estimate beats a blank screen,
+   * and the API already treats null as "no read-back evidence".
+   */
+  async function submit(readbackLevel: number | null) {
     if (!items) return;
     setSubmitting(true);
     setError(null);
@@ -71,7 +87,12 @@ export function PlacementTest() {
       const res = await fetch("/api/placement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shown: items, known: [...known], readbackLevel }),
+        body: JSON.stringify({
+          shown: items,
+          known: [...known],
+          readbackLevel,
+          language: language.code,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "failed");
       setResult(await res.json());
@@ -85,13 +106,47 @@ export function PlacementTest() {
 
   if (error && !items) return <p className="text-warn">{error}</p>;
 
+  // --- Step 0: which language ---------------------------------------------
+  if (step === "language") {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            What are you learning?
+          </h1>
+          <p className="mt-2 max-w-xl text-muted">
+            Each language keeps its own level, so switching later doesn’t lose
+            where you got to.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {languages.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => {
+                setLanguage(l);
+                setKnown(new Set());
+                setItems(null);
+                setStep("words");
+              }}
+              className="rounded-xl border border-border bg-surface px-5 py-4 text-lg hover:border-accent"
+              style={{ fontFamily: l.fontStack }}
+            >
+              {l.name}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // --- Step 3: the result -------------------------------------------------
   if (step === "done" && result) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            You’re around <span className="text-accent">{result.cefr}</span>
+            You’re around <span className="text-accent">{result.label}</span>
           </h1>
           <p className="mt-2 text-muted">
             The word test put you at roughly{" "}
@@ -161,7 +216,12 @@ export function PlacementTest() {
 
         {samples.map((sample, i) => (
           <div key={sample.level} className="rounded-xl border border-border bg-surface">
-            <p className="prose-reading px-5 py-4 !text-lg">{sample.text}</p>
+            <p
+              className="prose-reading px-5 py-4 !text-lg"
+              style={{ fontFamily: language.fontStack }}
+            >
+              {sample.text}
+            </p>
             <button
               onClick={() => submit(sample.level)}
               disabled={submitting}
@@ -196,7 +256,7 @@ export function PlacementTest() {
         </h1>
         <p className="mt-2 max-w-xl text-muted">
           Tap every word whose meaning you could give. Skip the ones you can’t.
-          Some of them are invented words that only look Spanish — that’s
+          Some of them are invented words that only look like {language.name} — that’s
           deliberate, and it’s what makes the estimate honest, so don’t guess.
         </p>
       </div>
@@ -219,7 +279,7 @@ export function PlacementTest() {
                       ? "border-accent bg-accent text-white"
                       : "border-border bg-surface hover:border-accent"
                   }`}
-                  style={{ fontFamily: "var(--font-reading), Georgia, serif" }}
+                  style={{ fontFamily: language.fontStack }}
                 >
                   {word}
                 </button>
@@ -229,10 +289,11 @@ export function PlacementTest() {
 
           <div className="flex items-center gap-4 border-t border-border pt-5">
             <button
-              onClick={() => setStep("readback")}
-              className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
+              onClick={() => (samples.length ? setStep("readback") : submit(null))}
+              disabled={submitting}
+              className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              Next
+              {samples.length ? "Next" : submitting ? "Scoring…" : "Done"}
             </button>
             <span className="text-sm text-muted">
               {known.size} of {items.length} marked

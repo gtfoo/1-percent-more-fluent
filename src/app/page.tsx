@@ -37,7 +37,7 @@ export default async function Home() {
 
   const language = getLanguage(profile.language);
   const params = paramsFor(profile.level, language);
-  const recent = listPieces(profile.userId);
+  const recent = listPieces(profile.userId, language.code);
   const spent = charactersSpent();
 
   return (
@@ -45,7 +45,7 @@ export default async function Home() {
       <section className="rounded-xl border border-border bg-surface px-5 py-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
-            <p className="text-sm text-muted">Your level</p>
+            <p className="text-sm text-muted">{language.name}</p>
             <p className="text-2xl font-semibold">
               {params.label}{" "}
               <span className="text-base font-normal text-muted">

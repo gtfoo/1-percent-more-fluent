@@ -77,8 +77,9 @@ export const MIN_WORDS_FOR_FLOOR = 120;
  */
 function bestRank(word: string, params: LevelParams): number | null {
   let best: number | null = null;
-  for (const form of params.language.baseForms(word)) {
-    const rank = rankOf(form, params.language.code);
+  const code = params.language.code;
+  for (const form of params.language.baseForms(word, (f) => rankOf(f, code) !== null)) {
+    const rank = rankOf(form, code);
     if (rank !== null && (best === null || rank < best)) best = rank;
   }
   return best;

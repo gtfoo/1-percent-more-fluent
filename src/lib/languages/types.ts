@@ -54,15 +54,21 @@ export interface Language {
    * This is the load-bearing abstraction. A frequency list holds surface forms,
    * so taken literally an inflection of a common verb reads as a rare word,
    * which both overstates difficulty and pushes the generator into stilted
-   * prose. Spanish answers this by stripping inflectional endings; Chinese will
-   * answer it by decomposing a compound the segmenter produced but the list
+   * prose. Spanish answers this by stripping inflectional endings; Chinese
+   * answers it by decomposing a compound its segmenter produced but the list
    * lacks. Same contract, unrelated implementations.
+   *
+   * `isKnown` reports whether a candidate form appears in the corpus at all.
+   * Splitting a Chinese compound requires consulting a lexicon - greedy
+   * longest-match is only meaningful against one - and the language modules
+   * deliberately hold no data, so the caller supplies the lookup. Languages
+   * that do not need it, like Spanish, ignore it.
    *
    * Implementations should err towards returning MORE candidates: a word
    * wrongly judged known costs the reader one tap, while a word wrongly judged
    * rare distorts every generation.
    */
-  baseForms(word: string): string[];
+  baseForms(word: string, isKnown: (form: string) => boolean): string[];
 
   /** Constructions permitted at each level, cumulative from `minLevel` up. */
   grammar: GrammarGate[];

@@ -40,7 +40,12 @@ interface Learner {
   /** Per band, deepest-first indexing matches BANDS order. */
   realRate: (bandIndex: number) => number;
   pseudoRate: (bandIndex: number) => number;
-  expect: string[];
+  /**
+   * Expected level range, not a label. Labels are per-language - CEFR for
+   * Spanish, HSK for Chinese - but the scorer is not, so asserting on the
+   * underlying 0-100 level is what actually tests the scoring.
+   */
+  expect: [min: number, max: number];
 }
 
 const LAST = () => BANDS.length - 1;
@@ -50,40 +55,44 @@ const LEARNERS: Learner[] = [
     name: "absolute beginner",
     realRate: (i) => (i === 0 ? 0.4 : 0),
     pseudoRate: () => 0,
-    expect: ["A1"],
+    expect: [0, 12],
   },
   {
-    name: "cognate guesser (no real Spanish)",
-    // Weak everywhere real vocabulary is needed, but strong on the rare
-    // Latinate bands - and over-claims the catch trials there for the same
-    // reason, which is exactly what the per-band correction is meant to catch.
+    // The failure this scorer exists to catch, and the shape is the same in
+    // every language even though the cause differs: someone who recognises the
+    // PARTS of a word and claims the whole. In Spanish that is Latinate
+    // cognates in the rare bands; in Chinese it is a compound of two familiar
+    // characters. Both show up as strength in the deep bands with a weak middle
+    // - and both over-claim the catch trials there, which is exactly what the
+    // per-band correction subtracts back out.
+    name: "over-claimer (knows the parts, not the word)",
     realRate: (i) => (i <= 1 ? 0.4 : i >= LAST() - 1 ? 0.8 : 0.2),
     pseudoRate: (i) => (i >= LAST() - 1 ? 0.5 : 0.1),
-    expect: ["A1", "A2"],
+    expect: [0, 35],
   },
   {
-    name: "genuine A2",
+    name: "genuine elementary",
     realRate: (i) => [1, 0.9, 0.7, 0.45, 0.2, 0.1, 0, 0][i] ?? 0,
     pseudoRate: () => 0,
-    expect: ["A2"],
+    expect: [25, 45],
   },
   {
-    name: "genuine B1",
+    name: "genuine intermediate",
     realRate: (i) => [1, 1, 0.9, 0.8, 0.6, 0.35, 0.15, 0.05][i] ?? 0,
     pseudoRate: () => 0,
-    expect: ["B1"],
+    expect: [45, 68],
   },
   {
-    name: "genuine B2/C1",
+    name: "genuine advanced",
     realRate: (i) => [1, 1, 1, 1, 0.9, 0.8, 0.6, 0.4][i] ?? 0,
     pseudoRate: () => 0,
-    expect: ["B2", "C1"],
+    expect: [72, 95],
   },
   {
     name: "near-native",
     realRate: () => 1,
     pseudoRate: () => 0,
-    expect: ["C1", "C2"],
+    expect: [95, 100],
   },
   {
     name: "clicks everything",
@@ -91,7 +100,7 @@ const LEARNERS: Learner[] = [
     // answers carry no information.
     realRate: () => 1,
     pseudoRate: () => 1,
-    expect: ["A1"],
+    expect: [0, 12],
   },
 ];
 
@@ -113,15 +122,16 @@ for (const learner of LEARNERS) {
 
   const result = score(shown, known, LANGUAGE.code);
   const level = levelForVocab(result.vocabEstimate);
-  const cefr = labelFor(level, LANGUAGE);
-  const ok = learner.expect.includes(cefr);
+  const label = labelFor(level, LANGUAGE);
+  const [min, max] = learner.expect;
+  const ok = level >= min && level <= max;
   if (!ok) failures++;
 
   console.log(
-    `${ok ? "ok  " : "FAIL"} ${learner.name.padEnd(34)} ` +
+    `${ok ? "ok  " : "FAIL"} ${learner.name.padEnd(44)} ` +
       `${String(result.vocabEstimate).padStart(6)} words  ` +
-      `level ${level.toFixed(0).padStart(3)}  ${cefr}` +
-      `${ok ? "" : `  (expected ${learner.expect.join("/")})`}`,
+      `level ${level.toFixed(0).padStart(3)}  ${label.padEnd(6)}` +
+      `${ok ? "" : `  (expected level ${min}-${max})`}`,
   );
   console.log(
     `     credited per band: ${result.perBand

@@ -1,10 +1,11 @@
 /**
- * Build the Spanish frequency data the app needs, from hermitdave/FrequencyWords
+ * Build the per-language word data the app needs, from hermitdave/FrequencyWords
  * (OpenSubtitles 2018 counts, MIT-licensed).
  *
- *   npm run wordlist
+ *   npm run wordlist                 # Spanish
+ *   LANGUAGE=zh-CN npm run wordlist  # Simplified Chinese
  *
- * Produces two files under src/data/es/:
+ * Produces three files under src/data/<code>/:
  *
  *   frequency.json  - the ranked word list. Index 0 is the most common word.
  *                     This is the ruler everything else measures against: the
@@ -12,133 +13,86 @@
  *                     list", and the verifier checks generated text against it.
  *
  *   placement.json  - the yes/no vocabulary test: real words sampled from each
- *                     frequency band, plus pseudowords used as catch trials to
- *                     correct for over-claiming.
+ *                     frequency band, plus per-band pseudowords used as catch
+ *                     trials to correct for over-claiming.
  *
- * Why OpenSubtitles: it is free, large, and conversational, which matches what
- * a learner actually wants to read and hear. It is *word forms*, not lemmas -
- * that is fine here, because we compare against surface forms too.
+ *   anchors.json    - dictionary-vetted words just past a set of band edges,
+ *                     shown to the model when a generation comes out too easy.
+ *
+ * The interesting per-language differences are all in STRATEGIES below. Two of
+ * them genuinely cannot be shared:
+ *
+ *  - VETTING. Spanish has a 636k-form open dictionary to check candidates
+ *    against; for Chinese there is no equally reachable one, so a single
+ *    build-time model call vets the sampled items instead. Cheap, run once.
+ *
+ *  - PSEUDOWORDS. Substituting a vowel is meaningless without an alphabet. The
+ *    Chinese analogue is a compound of two real characters that is not a real
+ *    word - and it happens to catch the exact over-claim that matters there:
+ *    "I know both characters, so I must know the word."
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { z } from "zod";
+import { existsSync, readFileSync } from "node:fs";
+import { generateStructured } from "../src/server/llm";
 
-const SOURCE =
-  "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/es/es_50k.txt";
+function loadEnv(path = ".env.local") {
+  try {
+    for (const line of readFileSync(path, "utf8").split("\n")) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (m && process.env[m[1]!] === undefined) process.env[m[1]!] = m[2]!;
+    }
+  } catch {
+    /* ambient env */
+  }
+}
+loadEnv();
 
-/**
- * A ~636k-form Spanish dictionary, used only to vet test items. The frequency
- * corpus is subtitles, so it is full of proper nouns ("mary", "john") that look
- * like ordinary mid-frequency vocabulary but test nothing. Requiring a
- * dictionary hit removes them - and, applied in reverse, guarantees that a
- * generated pseudoword is not just an obscure real word.
- *
- * This list preserves n-tilde but carries no accents, so comparisons against it
- * fold accents away first.
- */
-const DICTIONARY =
-  "https://raw.githubusercontent.com/words/an-array-of-spanish-words/master/index.json";
+// --- Shared shape -----------------------------------------------------------
 
-const OUT_DIR = join("src", "data", "es");
-
-// Built with `new RegExp` so the source file stays plain ASCII - combining
-// marks are invisible in an editor and easy to corrupt.
-const COMBINING_MARKS = new RegExp("[\\u0300-\\u036f]", "g");
-const DECOMPOSED_N_TILDE = new RegExp("n\\u0303", "g");
-
-/**
- * Strip accents while preserving n-tilde, which is a distinct letter in Spanish
- * rather than an accented `n` - and which the dictionary keeps.
- */
-function fold(word: string): string {
-  return word
-    .normalize("NFD")
-    .replace(DECOMPOSED_N_TILDE, "ñ")
-    .replace(COMBINING_MARKS, "");
+interface Ranked {
+  word: string;
+  rank: number;
 }
 
-/** Letters that can appear in a Spanish word. */
-const SPANISH = new RegExp("^[a-z\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa\\u00fc\\u00f1]+$");
-/** k and w only show up in loanwords and names - poor test items. */
-const LOANWORD_LETTERS = /[kw]/;
+interface Strategy {
+  code: string;
+  name: string;
+  frequencyUrl: string;
+  /** Corpus entries that are not plausible words at all. */
+  isValidWord(word: string): boolean;
+  /** Prepare anything the later steps need (a dictionary, say). */
+  prepare(): Promise<void>;
+  /** Words worth putting in front of a learner as a test item. */
+  isTestable(word: string): boolean;
+  /** Final vetting of sampled items; may drop proper nouns and junk. */
+  vetItems(words: string[]): Promise<Set<string>>;
+  /**
+   * Candidate non-words built from this pool, for catch trials. Synchronous and
+   * over-generous: everything is vetted together afterwards, in one pass, so
+   * that a language needing a model call makes one rather than one per band.
+   */
+  makePseudowordCandidates(
+    donors: Ranked[],
+    corpus: Set<string>,
+    count: number,
+    seen: Set<string>,
+  ): string[];
+  /** Drop any candidate that turns out to be a real word. */
+  vetPseudowords(candidates: string[]): Promise<Set<string>>;
+}
 
-// --- Placement test bands ---------------------------------------------------
-// Geometric, because vocabulary knowledge falls off geometrically with rank:
-// the gap between rank 100 and 200 matters as much as 6,000 to 12,000.
-//
-// Capped at 20,000 rather than the full 50,000 corpus. Past roughly 20k the
-// OpenSubtitles tail stops predicting anything useful about a learner - it is
-// technical vocabulary, transliterations and noise - while carrying enormous
-// weight in a band-area estimate. The old top band alone spanned 30,000 words,
-// 60% of the whole scale, decided by five test items.
-const TEST_MAX_RANK = 20_000;
+/** Band edges. Geometric: knowledge falls off geometrically with rank. */
+const BANDS = [120, 300, 700, 1_500, 3_000, 6_000, 11_000, 20_000];
+const TEST_MAX_RANK = BANDS[BANDS.length - 1]!;
 
-const BANDS: { maxRank: number }[] = [
-  { maxRank: 120 },
-  { maxRank: 300 },
-  { maxRank: 700 },
-  { maxRank: 1_500 },
-  { maxRank: 3_000 },
-  { maxRank: 6_000 },
-  { maxRank: 11_000 },
-  { maxRank: TEST_MAX_RANK },
-];
-
-/** Real words offered per band; the test samples 5 of these at runtime. */
-const WORDS_PER_BAND = 8;
-
-/**
- * Pseudowords offered per band; the test samples 2. Crucially these are built
- * from donors *inside the same band*, because the thing they are there to
- * measure varies by band.
- *
- * Rare Spanish words are disproportionately Latinate, so they are MORE
- * transparent to an English speaker, not less - "epinefrina", "presidir",
- * "humanamente", "cafeteria" are all readable with no Spanish at all. Drawing
- * every catch trial from mid-frequency words (as before) measured over-claiming
- * on ordinary vocabulary and then applied that single correction to the tail,
- * where the bias is completely different. Per-band catch trials let the
- * false-alarm correction subtract each band's own cognate inflation.
- */
-const PSEUDOWORDS_PER_BAND = 5;
-
-/** Band edges for which register anchors are emitted; see `anchors` below. */
-const ANCHOR_EDGES = [500, 1000, 2000, 3000, 5000, 8000, 12000, 20000];
+const WORDS_PER_BAND = 8; // the test samples 5 of these at runtime
+const PSEUDOWORDS_PER_BAND = 5; // ...and 2 of these
+const ANCHOR_EDGES = [500, 1_000, 2_000, 3_000, 5_000, 8_000, 12_000, 20_000];
 const ANCHOR_WORDS = 18;
 
-const VOWELS = ["a", "e", "i", "o", "u"];
-
-/**
- * Turn a real word into a plausible non-word by swapping one interior vowel.
- * Vowel substitution preserves Spanish syllable structure, so the result still
- * *looks* and *sounds* Spanish - which is the point. A learner who claims to
- * know "trabejo" is over-claiming, and we can measure by how much.
- */
-function pseudoword(
-  word: string,
-  corpus: Set<string>,
-  dictionary: Set<string>,
-): string | null {
-  const positions: number[] = [];
-  for (let i = 1; i < word.length - 1; i++) {
-    if (VOWELS.includes(word[i]!)) positions.push(i);
-  }
-
-  for (const i of positions) {
-    for (const v of VOWELS) {
-      if (v === word[i]) continue;
-      const candidate = word.slice(0, i) + v + word.slice(i + 1);
-      // Reject anything either source recognises. The corpus catches common
-      // inflections we might invent by accident (cambio -> cambia); the
-      // dictionary catches rare-but-real words a strong learner would know.
-      if (corpus.has(candidate)) continue;
-      if (dictionary.has(fold(candidate))) continue;
-      return candidate;
-    }
-  }
-  return null;
-}
-
-/** Deterministic pick so the data file is stable across rebuilds. */
+/** Deterministic pick so the data files are stable across rebuilds. */
 function evenlySpaced<T>(items: T[], n: number): T[] {
   if (items.length <= n) return items;
   const step = items.length / n;
@@ -152,114 +106,361 @@ async function fetchText(url: string, label: string): Promise<string> {
   return res.text();
 }
 
+// --- Spanish ----------------------------------------------------------------
+
+const COMBINING_MARKS = new RegExp("[\\u0300-\\u036f]", "g");
+const DECOMPOSED_N_TILDE = new RegExp("n\\u0303", "g");
+const SPANISH_WORD = new RegExp(
+  "^[a-z\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa\\u00fc\\u00f1]+$",
+);
+const LOANWORD_LETTERS = /[kw]/;
+const VOWELS = ["a", "e", "i", "o", "u"];
+
+/** Strip accents but keep n-tilde: a distinct letter, and the dictionary has it. */
+function fold(word: string): string {
+  return word
+    .normalize("NFD")
+    .replace(DECOMPOSED_N_TILDE, "ñ")
+    .replace(COMBINING_MARKS, "");
+}
+
+let spanishDictionary = new Set<string>();
+
+const spanish: Strategy = {
+  code: "es",
+  name: "Spanish",
+  frequencyUrl:
+    "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/es/es_50k.txt",
+
+  isValidWord: (word) => SPANISH_WORD.test(word),
+
+  async prepare() {
+    // A ~636k-form dictionary. The frequency corpus is subtitles, so it is full
+    // of proper nouns ("mary", "john") that look like ordinary mid-frequency
+    // vocabulary but test nothing.
+    const raw = await fetchText(
+      "https://raw.githubusercontent.com/words/an-array-of-spanish-words/master/index.json",
+      "Spanish dictionary",
+    );
+    spanishDictionary = new Set(
+      (JSON.parse(raw) as string[]).map((w) => w.toLowerCase()),
+    );
+    console.log(`  ${spanishDictionary.size.toLocaleString()} dictionary forms.`);
+  },
+
+  isTestable: (word) =>
+    word.length >= 3 &&
+    word.length <= 14 &&
+    !LOANWORD_LETTERS.test(word) &&
+    spanishDictionary.has(fold(word)),
+
+  // Already dictionary-vetted by isTestable; nothing further to do.
+  vetItems: async (words) => new Set(words),
+
+  makePseudowordCandidates(donors, corpus, count, seen) {
+    const out: string[] = [];
+    for (const donor of evenlySpaced(donors, count * 8)) {
+      if (out.length >= count) break;
+      const fake = substituteVowel(donor.word, corpus);
+      if (fake && !seen.has(fake)) {
+        seen.add(fake);
+        out.push(fake);
+      }
+    }
+    return out;
+  },
+
+  // Already checked against a 636k-form dictionary during generation.
+  vetPseudowords: async (candidates) => new Set(candidates),
+};
+
+/**
+ * Turn a real word into a plausible non-word by swapping one interior vowel.
+ * Vowel substitution preserves Spanish syllable structure, so the result still
+ * looks and sounds Spanish - which is the point.
+ */
+function substituteVowel(word: string, corpus: Set<string>): string | null {
+  for (let i = 1; i < word.length - 1; i++) {
+    if (!VOWELS.includes(word[i]!)) continue;
+    for (const v of VOWELS) {
+      if (v === word[i]) continue;
+      const candidate = word.slice(0, i) + v + word.slice(i + 1);
+      if (corpus.has(candidate)) continue;
+      if (spanishDictionary.has(fold(candidate))) continue;
+      return candidate;
+    }
+  }
+  return null;
+}
+
+// --- Simplified Chinese -----------------------------------------------------
+
+const HAN = new RegExp("^[\\u4e00-\\u9fff]+$");
+
+const chinese: Strategy = {
+  code: "zh-CN",
+  name: "Simplified Chinese",
+  frequencyUrl:
+    "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/zh_cn/zh_cn_50k.txt",
+
+  // The list is already word-segmented, so entries are words, not characters.
+  isValidWord: (word) => HAN.test(word),
+
+  async prepare() {},
+
+  /**
+   * Two characters is the sweet spot. Single characters make poor test items -
+   * the commonest are grammatical particles, and a learner "knowing" one says
+   * little - while four or more are usually set phrases or names.
+   */
+  isTestable: (word) => word.length >= 2 && word.length <= 3,
+
+  vetItems: (words) =>
+    vetWithModel(
+      words,
+      "Simplified Chinese",
+      "Mark a word to DROP if it is: a personal name, a place name, a brand, a transliteration of a foreign name; written with any Traditional character rather than Simplified; a multi-word phrase or sentence fragment rather than a single word.",
+    ),
+
+  /**
+   * Swap ONE character of a real two-character word for a character taken from
+   * another real word.
+   *
+   * This mirrors the Spanish approach - minimally mutate something real - and
+   * matters for the same reason. Pairing arbitrary characters produced things
+   * like the obviously-fake compounds, because it kept reaching for grammatical
+   * particles; keeping the donor's first character means the result still looks
+   * like a compound somebody might have coined.
+   *
+   * It also catches the over-claim that actually matters in Chinese: "I
+   * recognise both characters, so I must know the word" - the direct analogue
+   * of cognate over-claiming in Spanish.
+   */
+  makePseudowordCandidates(donors, corpus, count, seen) {
+    const pairs = donors.filter((d) => d.word.length === 2);
+    if (pairs.length < 2) return [];
+
+    // Second characters of other real words: content characters, by
+    // construction, rather than particles.
+    const seconds = [...new Set(pairs.map((d) => d.word[1]!))];
+    const out: string[] = [];
+
+    for (const donor of evenlySpaced(pairs, count * 6)) {
+      if (out.length >= count) break;
+      const head = donor.word[0]!;
+      for (let k = 0; k < seconds.length; k++) {
+        // Offset the pick per donor so the set does not collapse onto one tail.
+        const tail = seconds[(k + out.length * 5 + 3) % seconds.length]!;
+        if (tail === donor.word[1] || tail === head) continue;
+        const candidate = `${head}${tail}`;
+        if (corpus.has(candidate) || seen.has(candidate)) continue;
+        seen.add(candidate);
+        out.push(candidate);
+        break;
+      }
+    }
+    return out;
+  },
+
+  // Absence from a 50k list is decent evidence but not proof.
+  vetPseudowords: (candidates) =>
+    vetWithModel(
+      candidates,
+      "Simplified Chinese",
+      "These are meant to be INVENTED non-words. Mark one to DROP if it is in fact a real Chinese word, a name, a common set phrase, or uses a Traditional character.",
+    ),
+};
+
+/**
+ * Ask the model which candidates to keep.
+ *
+ * Used where an open dictionary is not available. Batched into one call per
+ * build, and it fails OPEN - if the model is unavailable the candidates are
+ * kept rather than the build breaking, since a slightly noisy test item is a
+ * far smaller problem than no data at all.
+ */
+async function vetWithModel(
+  candidates: string[],
+  language: string,
+  instruction: string,
+): Promise<Set<string>> {
+  if (!candidates.length) return new Set();
+  console.log(`  vetting ${candidates.length} ${language} candidates ...`);
+
+  try {
+    const { object } = await generateStructured({
+      schema: z.object({
+        drop: z
+          .array(z.string())
+          .describe("Exactly the input items that should be dropped."),
+      }),
+      system: `You are a careful lexicographer of ${language}.`,
+      prompt: [
+        instruction,
+        "",
+        "Return only the items to drop, copied exactly. Return an empty array if none.",
+        "",
+        candidates.join("\n"),
+      ].join("\n"),
+      temperature: 0,
+    });
+
+    const drop = new Set(object.drop.map((w) => w.trim()));
+    console.log(`  dropped ${drop.size}: ${[...drop].slice(0, 12).join(", ")}`);
+    return new Set(candidates.filter((c) => !drop.has(c)));
+  } catch (err) {
+    console.warn(
+      `  vetting unavailable (${err instanceof Error ? err.message.slice(0, 80) : err}); keeping all`,
+    );
+    return new Set(candidates);
+  }
+}
+
+// --- Build ------------------------------------------------------------------
+
+const STRATEGIES: Record<string, Strategy> = {
+  es: spanish,
+  "zh-CN": chinese,
+};
+
 async function main() {
-  const [raw, dictRaw] = await Promise.all([
-    fetchText(SOURCE, "frequency list"),
-    fetchText(DICTIONARY, "dictionary"),
-  ]);
+  const code = process.env.LANGUAGE ?? "es";
+  const strategy = STRATEGIES[code];
+  if (!strategy) {
+    throw new Error(
+      `No build strategy for "${code}". Known: ${Object.keys(STRATEGIES).join(", ")}`,
+    );
+  }
+  console.log(`Building ${strategy.name} (${strategy.code})\n`);
+
+  const raw = await fetchText(strategy.frequencyUrl, "frequency list");
+  await strategy.prepare();
 
   // Each line is "word count", most frequent first.
   const words: string[] = [];
   for (const line of raw.split("\n")) {
     const word = line.split(" ")[0]?.trim().toLowerCase();
-    if (!word || !SPANISH.test(word)) continue;
+    if (!word || !strategy.isValidWord(word)) continue;
     words.push(word);
   }
   const corpus = new Set(words);
   console.log(`Kept ${words.length.toLocaleString()} frequency-ranked words.`);
 
-  const dictionary = new Set(
-    (JSON.parse(dictRaw) as string[]).map((w) => w.toLowerCase()),
-  );
-  console.log(`Dictionary: ${dictionary.size.toLocaleString()} forms.`);
-
-  // --- Test items. Skip rank 1-50: everyone knows "que" and "de", and an item
-  // nobody ever gets wrong carries no information about the learner.
+  // Skip rank 1-50: everyone knows them, and an item nobody ever gets wrong
+  // carries no information about the learner.
   const testable = words
     .map((word, i) => ({ word, rank: i + 1 }))
-    .filter(
-      ({ word, rank }) =>
-        rank > 50 &&
-        word.length >= 3 &&
-        word.length <= 14 &&
-        !LOANWORD_LETTERS.test(word) &&
-        dictionary.has(fold(word)),
-    );
-  console.log(`${testable.length.toLocaleString()} words eligible as test items.`);
+    .filter(({ word, rank }) => rank > 50 && strategy.isTestable(word));
+  console.log(`${testable.length.toLocaleString()} eligible as test items.`);
 
+  // Everything a learner or the model will actually SEE gets vetted, in one
+  // pass rather than per band. Anchors matter as much as test items here: they
+  // are quoted into the generation prompt as examples of the right register, so
+  // a proper noun or a Traditional character among them actively teaches the
+  // model the wrong thing.
+  const sampled = BANDS.flatMap((maxRank, i) => {
+    const minRank = i === 0 ? 51 : BANDS[i - 1]! + 1;
+    return evenlySpaced(
+      testable.filter((t) => t.rank >= minRank && t.rank <= maxRank),
+      WORDS_PER_BAND,
+    );
+  });
+  const anchorCandidates = ANCHOR_EDGES.flatMap((fromRank) =>
+    evenlySpaced(
+      testable.filter((t) => t.rank > fromRank && t.rank <= fromRank * 2),
+      ANCHOR_WORDS,
+    ),
+  );
+  const vetted = await strategy.vetItems([
+    ...new Set([...sampled, ...anchorCandidates].map((t) => t.word)),
+  ]);
+
+  // Catch trials come from each band's own donors - what counts as an
+  // over-claim varies by band, so the correction has to be measured locally.
+  // Over-generate, then vet the whole lot in ONE pass: a language that needs a
+  // model call for this should make one, not one per band.
   const seenPseudo = new Set<string>();
-
-  const bands = BANDS.map((band, i) => {
-    const minRank = i === 0 ? 51 : BANDS[i - 1]!.maxRank + 1;
-    const inBand = testable.filter(
-      (t) => t.rank >= minRank && t.rank <= band.maxRank,
-    );
-
-    // Catch trials come from this band's own donors. Narrow bands at the top of
-    // the list can run dry, so widen the donor range until enough are found -
-    // still far closer in register than a single global pool.
-    const pseudowords: string[] = [];
+  const OVERSAMPLE = 2;
+  const candidatesByBand = BANDS.map((maxRank, i) => {
+    const minRank = i === 0 ? 51 : BANDS[i - 1]! + 1;
+    let candidates: string[] = [];
     for (const factor of [1, 2, 4]) {
-      if (pseudowords.length >= PSEUDOWORDS_PER_BAND) break;
+      if (candidates.length >= PSEUDOWORDS_PER_BAND * OVERSAMPLE) break;
       const donors = testable.filter(
-        (t) => t.rank >= minRank / factor && t.rank <= band.maxRank * factor,
+        (t) => t.rank >= minRank / factor && t.rank <= maxRank * factor,
       );
-      for (const donor of evenlySpaced(donors, PSEUDOWORDS_PER_BAND * 8)) {
-        if (pseudowords.length >= PSEUDOWORDS_PER_BAND) break;
-        const fake = pseudoword(donor.word, corpus, dictionary);
-        if (fake && !seenPseudo.has(fake)) {
-          seenPseudo.add(fake);
-          pseudowords.push(fake);
-        }
-      }
+      candidates = candidates.concat(
+        strategy.makePseudowordCandidates(
+          donors,
+          corpus,
+          PSEUDOWORDS_PER_BAND * OVERSAMPLE - candidates.length,
+          seenPseudo,
+        ),
+      );
     }
+    return candidates;
+  });
 
+  const keptPseudo = await strategy.vetPseudowords(candidatesByBand.flat());
+
+  const bands = BANDS.map((maxRank, i) => {
+    const minRank = i === 0 ? 51 : BANDS[i - 1]! + 1;
+    const inBand = testable.filter((t) => t.rank >= minRank && t.rank <= maxRank);
     return {
       minRank,
-      maxRank: band.maxRank,
-      words: evenlySpaced(inBand, WORDS_PER_BAND).map((t) => t.word),
-      pseudowords,
+      maxRank,
+      words: evenlySpaced(inBand, WORDS_PER_BAND)
+        .map((t) => t.word)
+        .filter((w) => vetted.has(w)),
+      pseudowords: candidatesByBand[i]!
+        .filter((c) => keptPseudo.has(c))
+        .slice(0, PSEUDOWORDS_PER_BAND),
     };
   });
 
   for (const b of bands) {
-    const width = b.maxRank - b.minRank + 1;
-    console.log(`  band ${b.minRank}-${b.maxRank} (width ${width})`);
+    console.log(`  band ${b.minRank}-${b.maxRank} (width ${b.maxRank - b.minRank + 1})`);
     console.log(`    real:   ${b.words.join(", ")}`);
     console.log(`    catch:  ${b.pseudowords.join(", ")}`);
   }
 
-  // --- Register anchors. When generated text comes back too EASY for its
-  // level, the difficulty checker has to show the model what the edge of the
-  // reader's range sounds like - "be harder" on its own does not work, because
-  // the model has no idea where the band ends.
-  //
-  // These must be dictionary-vetted for the same reason test items are. Sampled
-  // raw, the corpus tail hands over "your", "sebastian" and "ningun" - English
-  // contamination, proper nouns and misspellings - which calibrate nothing.
+  // Register anchors: what "just past the band" sounds like, for the model.
   const anchors = ANCHOR_EDGES.map((fromRank) => ({
     fromRank,
     words: evenlySpaced(
-      testable.filter((t) => t.rank > fromRank && t.rank <= fromRank * 2 && t.word.length >= 4),
+      testable.filter((t) => t.rank > fromRank && t.rank <= fromRank * 2),
       ANCHOR_WORDS,
-    ).map((t) => t.word),
+    )
+      .map((t) => t.word)
+      .filter((w) => vetted.has(w)),
   }));
-
   for (const a of anchors) {
     console.log(`  anchors past ${a.fromRank}: ${a.words.slice(0, 8).join(", ")}`);
   }
 
-  await mkdir(OUT_DIR, { recursive: true });
+  const outDir = join("src", "data", strategy.code);
+  await mkdir(outDir, { recursive: true });
   await writeFile(
-    join(OUT_DIR, "frequency.json"),
-    JSON.stringify({ source: SOURCE, words }),
+    join(outDir, "frequency.json"),
+    JSON.stringify({ source: strategy.frequencyUrl, words }),
   );
-  await writeFile(join(OUT_DIR, "anchors.json"), JSON.stringify({ anchors }, null, 2));
   await writeFile(
-    join(OUT_DIR, "placement.json"),
+    join(outDir, "placement.json"),
     JSON.stringify({ maxRank: TEST_MAX_RANK, bands }, null, 2),
   );
-  console.log(`Wrote ${OUT_DIR}/frequency.json and placement.json`);
+  await writeFile(join(outDir, "anchors.json"), JSON.stringify({ anchors }, null, 2));
+
+  // Seed an empty samples.json if there is not one already. src/server/frequency
+  // imports it statically, so a language whose data directory lacks the file
+  // cannot be loaded at all - including by `npm run samples`, which is what
+  // fills it. Never clobber real samples: they cost model calls to produce.
+  const samplesPath = join(outDir, "samples.json");
+  if (!existsSync(samplesPath)) {
+    await writeFile(samplesPath, JSON.stringify({ samples: [] }, null, 2));
+    console.log(`Seeded empty ${samplesPath} - run \`LANGUAGE=${strategy.code} npm run samples\` to fill it.`);
+  }
+
+  console.log(`\nWrote ${outDir}/{frequency,placement,anchors}.json`);
 }
 
 main().catch((err) => {

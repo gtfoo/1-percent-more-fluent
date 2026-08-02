@@ -87,6 +87,7 @@ function basesFor(stem: string): string[] {
   return [stem, `${stem}ar`, `${stem}er`, `${stem}ir`, `${stem}o`, `${stem}a`, `${stem}e`];
 }
 
+/** Spanish strips endings rather than consulting a lexicon, so `isKnown` is unused. */
 function baseForms(word: string): string[] {
   const forms = new Set<string>([word]);
 

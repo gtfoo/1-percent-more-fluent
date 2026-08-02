@@ -148,9 +148,32 @@ use, plus remaining quota.
 ## Adding a language
 
 Everything language-specific lives behind one interface. Adding a language is
-two things: a module in `src/lib/languages/` and a data entry in
-`src/server/frequency.ts`. The generator, reader, difficulty checker and
-placement test do not change.
+a module in `src/lib/languages/`, a build strategy in
+`scripts/build-wordlist.ts`, and a data entry in `src/server/frequency.ts`.
+The generator, reader, difficulty checker and placement test do not change.
+
+```bash
+LANGUAGE=zh-CN npm run wordlist   # free: frequency list, test items, anchors
+LANGUAGE=zh-CN npm run samples    # costs model calls: the graded read-back set
+```
+
+Run them in that order — `wordlist` seeds an empty `samples.json`, which
+`frequency.ts` imports statically and therefore needs to exist before anything,
+including `samples`, can load. Until the samples are generated the placement
+test simply skips the read-back step rather than showing a blank screen.
+
+Two things genuinely could not be shared with Spanish, and they are the
+interesting part of `build-wordlist.ts`:
+
+- **Vetting.** Spanish has a 636k-form open dictionary to check candidates
+  against. There is no equally reachable Chinese one, so a single build-time
+  model call vets the sampled items instead — dropping proper nouns, phrases,
+  and Traditional characters that the Simplified corpus is contaminated with.
+- **Pseudowords.** Substituting a vowel is meaningless without an alphabet. The
+  Chinese analogue swaps one character of a real two-character word for a
+  character from another — and it happens to catch the exact over-claim that
+  matters there: *"I know both characters, so I must know the word."* Which is
+  the same shape as cognate over-claiming in Spanish, from a different cause.
 
 The load-bearing part of the interface is **`baseForms`**. A frequency list
 holds surface forms, so taken literally an inflection of a common verb reads as
@@ -215,9 +238,15 @@ scripts/          data building and measurement, not part of the app
 
 ## Known limitations
 
-- **Spanish is the only language implemented so far**, though the seams are in
-  place. The frequency list, morphology rules and placement test are
-  all per-language.
+- **Simplified Chinese is word-band only.** Reading difficulty in Chinese is
+  driven by characters as much as by words, and word rank alone mis-estimates
+  it in both directions: `中文` sits at rank 11,048 yet any beginner reads it
+  (中 and 文 are among the commonest characters), while `犹豫` at rank 6,080 is
+  genuinely hard. The calibration loop absorbs some of this. The cheap partial
+  fix needs no new data — derive character frequencies by summing word counts
+  per character from the same list, and discount an out-of-band word whose
+  characters are all common. The seam for it is marked in `zh-CN.ts`.
+- **No pinyin annotation.** The gloss card gives meaning, not pronunciation.
 - **The morphology is a heuristic, not a lemmatiser.** It strips productive
   endings and undoes stem-changing diphthongs. It errs towards "known", which
   is the safe direction — a word wrongly called known costs one tap, a word
