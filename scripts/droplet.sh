@@ -15,8 +15,13 @@ SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-n
 for key in ~/.ssh/carpark_deploy ~/.ssh/id_ed25519; do
   [ -f "$key" ] || continue
   for user in deploy gtfoo root ubuntu; do
+    # -n is load-bearing: without it this probe reads stdin and hands it to the
+    # remote `true`, which throws it away. Anything piped INTO droplet.sh is
+    # then already gone by the time the real command runs - and the symptom is
+    # a command that succeeds having received nothing, which is exactly how a
+    # key appeared to deploy and had not.
     # shellcheck disable=SC2086
-    if ssh $SSH_OPTS -i "$key" "$user@$IP" true 2>/dev/null; then
+    if ssh -n $SSH_OPTS -i "$key" "$user@$IP" true 2>/dev/null; then
       echo "### connected as $user with $(basename "$key")" >&2
       if [ -n "$CMD" ]; then
         # shellcheck disable=SC2086
