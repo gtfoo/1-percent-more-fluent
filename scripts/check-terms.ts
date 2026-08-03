@@ -129,6 +129,33 @@ console.log("\n--- measurement ---");
   );
 }
 
+console.log("\n--- character names are not vocabulary ---");
+{
+  // Observed for real: a Chinese payment conversation failed at 14.5% where the
+  // flagged words were the halves of the two speakers' names.
+  const params = paramsFor(45, getLanguage("zh-CN"));
+  const text = "王伟：李华，我想问一下，我们要怎么给钱？\n\n李华：我们先签合同。";
+
+  const asVocab = measure(text, params);
+  const asNames = measure(text, params, [], ["王伟", "李华"]);
+
+  ok(
+    "names counted as words inflate the rate",
+    asNames.outOfBandRate < asVocab.outOfBandRate,
+    `${(asVocab.outOfBandRate * 100).toFixed(1)}% -> ${(asNames.outOfBandRate * 100).toFixed(1)}%`,
+  );
+  ok(
+    "a name is never handed back as a word to replace",
+    !asNames.outOfBand.some((w) => "王伟李华".includes(w)),
+    asNames.outOfBand.join(", "),
+  );
+  ok(
+    "names do not consume the term budget",
+    asNames.termWords === 0,
+    `termWords=${asNames.termWords}`,
+  );
+}
+
 console.log("\n--- the guards on declaring a term ---");
 {
   const params = paramsFor(20, getLanguage("es"));

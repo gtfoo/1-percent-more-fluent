@@ -20,7 +20,7 @@ import { measure, type DifficultyReport } from "./difficulty";
 import { getDb } from "./db";
 import { seedGlossary } from "./gloss";
 import type { Format } from "@/lib/formats";
-import type { Speaker } from "@/lib/dialogue";
+import { splitTurns, type Speaker } from "@/lib/dialogue";
 import type { TopicTerm } from "@/lib/terms";
 
 /**
@@ -206,10 +206,25 @@ export async function generatePiece(args: {
 
     piece = result.object;
     modelId = result.modelId;
+
+    // Measure what the reader actually reads as prose. For a conversation that
+    // is the turns WITHOUT their "Name:" prefixes - the prefix is a label,
+    // rendered separately and never spoken, so counting it as vocabulary is
+    // measuring the wrong string. The names are then passed separately, which
+    // also covers them used as vocatives inside a line.
+    const speakers = piece.speakers ?? [];
+    const isConversation = args.format === "conversation";
+    const prose = isConversation
+      ? splitTurns(piece.paragraphs, speakers)
+          .map((t) => t.text)
+          .join("\n\n")
+      : piece.paragraphs.join("\n\n");
+
     report = measure(
-      piece.paragraphs.join("\n\n"),
+      prose,
       params,
       (piece.terms ?? []).map((t) => t.term),
+      speakers.map((s) => s.name),
     );
     if (report.passes) break;
 

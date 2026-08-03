@@ -123,16 +123,29 @@ export function measure(
   text: string,
   params: LevelParams,
   terms: string[] = [],
+  names: string[] = [],
 ): DifficultyReport {
   const language = params.language;
   const placed = language.wordsWithOffsets(text);
   const totalWords = placed.length;
 
   const spans = termSpans(text, terms);
-  // Split before ranking: a protected word must not reach `beyond`, or it
-  // would be listed back to the model as something to replace.
-  const free = placed.filter((w) => !isProtected(spans, w.at, w.length));
-  const termWords = totalWords - free.length;
+  // Character names are not vocabulary. A learner does not need to "know" that
+  // a person in the story is called 王伟 any more than an English reader needs
+  // to know "Siobhan", and the frequency list has no useful rank for either -
+  // so measured as words they read as maximally rare and push the text over
+  // budget on nothing. Observed: a payment conversation failed at 14.5% where
+  // the flagged words were the halves of the two speakers' names.
+  //
+  // Kept separate from terms rather than folded in: these are exempt because
+  // they are not vocabulary at all, whereas a term is vocabulary the piece is
+  // deliberately teaching. Only terms count toward the term budget.
+  const nameSpans = termSpans(text, names);
+  const free = placed.filter(
+    (w) =>
+      !isProtected(spans, w.at, w.length) && !isProtected(nameSpans, w.at, w.length),
+  );
+  const termWords = placed.filter((w) => isProtected(spans, w.at, w.length)).length;
   const termRate = totalWords ? termWords / totalWords : 0;
 
   const beyond = new Map<string, number>();
