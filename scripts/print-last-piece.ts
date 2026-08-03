@@ -6,10 +6,17 @@ import { BUDGET_SLACK, BUDGET_FLOOR } from "../src/server/difficulty";
 const db = new Database("data/fluent.sqlite", { readonly: true });
 const row = db
   .prepare(
-    "SELECT title, level, model, language, report FROM pieces ORDER BY created_at DESC LIMIT 1",
+    "SELECT title, level, model, language, terms, report FROM pieces ORDER BY created_at DESC LIMIT 1",
   )
   .get() as
-  | { title: string; level: number; model: string; language: string; report: string }
+  | {
+      title: string;
+      level: number;
+      model: string;
+      language: string;
+      terms: string | null;
+      report: string;
+    }
   | undefined;
 
 if (!row) {
@@ -33,5 +40,18 @@ console.log(
     `window ${(floor * 100).toFixed(1)}%-${(ceiling * 100).toFixed(1)}%  ` +
     `${inWindow ? "INSIDE" : "OUTSIDE"}  passes=${report.passes}`,
 );
+// The terms are what the piece set out to teach, so they are the first thing
+// worth eyeballing: whether they are the words you would actually need to use
+// the topic with someone, or merely words related to it.
+const terms = JSON.parse(row.terms ?? "[]") as { term: string; meaning: string }[];
+if (terms.length) {
+  console.log(
+    `  ${terms.length} key terms, ${(report.termRate * 100 || 0).toFixed(0)}% of the text:`,
+  );
+  for (const t of terms) console.log(`    ${t.term} - ${t.meaning}`);
+} else {
+  console.log("  no key terms (generated before topic terms, or none declared)");
+}
+
 if (report.problems?.length) console.log(`  problems: ${report.problems.join(" | ")}`);
 process.exit(inWindow ? 0 : 1);

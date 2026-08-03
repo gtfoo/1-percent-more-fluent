@@ -13,6 +13,7 @@
     "models": "tsx scripts/probe-llm.ts",
     "bench": "tsx scripts/bench-models.ts",
     "language": "tsx scripts/check-language.ts",
+    "terms": "tsx scripts/check-terms.ts",
     "dialogue": "tsx scripts/check-dialogue.ts",
     "chain": "tsx scripts/check-llm-chain.ts",
     "alignment": "tsx scripts/check-alignment.ts",

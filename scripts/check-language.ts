@@ -101,6 +101,34 @@ for (const [code, language] of Object.entries(LANGUAGES)) {
   // --- words and sentences ---
   const words = language.words(fixture.text);
   check(words.length > 0, "words() finds words", `${words.length} words`);
+
+  // --- offsets agree with words(), and actually point at the right text ---
+  // Difficulty measurement uses the offsets to decide whether a word sits
+  // inside a protected topic term, while frequency lookup uses the normalised
+  // form. If the two walks ever disagree, terms silently stop being protected.
+  const placed = language.wordsWithOffsets(fixture.text);
+  const sameList =
+    placed.length === words.length && placed.every((p, i) => p.text === words[i]);
+  check(
+    sameList,
+    "wordsWithOffsets() matches words() exactly",
+    sameList ? "" : `${placed.length} vs ${words.length}`,
+  );
+
+  const misplaced = placed.find(
+    (p) =>
+      language.normalizeWord(fixture.text.slice(p.at, p.at + p.length)) !==
+      language.normalizeWord(p.text),
+  );
+  check(
+    !misplaced,
+    "every offset points at its own word in the raw text",
+    misplaced
+      ? `${JSON.stringify(misplaced.text)} at ${misplaced.at} is ${JSON.stringify(
+          fixture.text.slice(misplaced.at, misplaced.at + misplaced.length),
+        )}`
+      : "",
+  );
   const sentences = language.sentences(fixture.text);
   check(
     sentences.length === fixture.sentences,

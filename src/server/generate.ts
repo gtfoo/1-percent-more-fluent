@@ -21,6 +21,7 @@ import { getDb } from "./db";
 import { seedGlossary } from "./gloss";
 import type { Format } from "@/lib/formats";
 import type { Speaker } from "@/lib/dialogue";
+import type { TopicTerm } from "@/lib/terms";
 
 /**
  * Built per language rather than declared once: the field descriptions carry
@@ -35,6 +36,20 @@ export const pieceSchema = (language: string) => z.object({
     .describe(
       "The body, one string per paragraph. For a conversation, one string per turn, each prefixed with the speaker's name and a colon.",
     ),
+  terms: z
+    .array(
+      z.object({
+        term: z
+          .string()
+          .describe(
+            `The key term in ${language}, spelled EXACTLY as it appears in the text.`,
+          ),
+        meaning: z.string().describe("A short English gloss."),
+      }),
+    )
+    .describe(
+      "The 6-12 terms this topic cannot be discussed without, in the language. These are exempt from the vocabulary limit - they are the point of the piece - so choose the words a reader would actually need to use the topic with someone else, and make sure every one of them appears in the text.",
+    ),
   glossary: z
     .array(
       z.object({
@@ -42,7 +57,9 @@ export const pieceSchema = (language: string) => z.object({
         meaning: z.string().describe("A short English gloss."),
       }),
     )
-    .describe("Every word in the text a learner at this level is unlikely to know."),
+    .describe(
+      "Every OTHER word in the text a learner at this level is unlikely to know. Do not repeat the key terms here.",
+    ),
   speakers: z
     .array(
       z.object({
@@ -109,7 +126,12 @@ export function buildPrompt(
     topic,
     `TOPIC>>>`,
     "",
-    `Difficulty budget:`,
+    // Stated before the budget, because it changes how the budget reads: the
+    // model has to know the terminology is wanted before it is told to keep
+    // rare words down, or it quietly writes around the topic instead.
+    `First choose the 6-12 key terms this topic genuinely cannot be discussed without, and build the piece around them. Pick what someone would actually need to say to another person about this subject, not what is merely related to it. They do NOT count against the vocabulary limit below - explaining them is the point - but each one must appear in the text and be listed in the terms field.`,
+    "",
+    `Difficulty budget (the key terms above are exempt from all of it):`,
     // The budget is a TARGET, not a cap. Framed as "at most X%" the model
     // optimises for safety and lands around 1% - which reads fluently, teaches
     // nothing, and drives the level upward because the reader looks nothing up.
@@ -184,7 +206,11 @@ export async function generatePiece(args: {
 
     piece = result.object;
     modelId = result.modelId;
-    report = measure(piece.paragraphs.join("\n\n"), params);
+    report = measure(
+      piece.paragraphs.join("\n\n"),
+      params,
+      (piece.terms ?? []).map((t) => t.term),
+    );
     if (report.passes) break;
 
     corrections = report.problems;
@@ -200,8 +226,8 @@ export async function generatePiece(args: {
 
   getDb()
     .prepare(
-      `INSERT INTO pieces (id, user_id, language, format, topic, level, title, body, glossary, questions, speakers, report, model, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO pieces (id, user_id, language, format, topic, level, title, body, glossary, questions, speakers, terms, report, model, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -215,6 +241,7 @@ export async function generatePiece(args: {
       JSON.stringify(piece!.glossary),
       JSON.stringify(piece!.questions),
       JSON.stringify(piece!.speakers ?? []),
+      JSON.stringify(piece!.terms ?? []),
       JSON.stringify(report!),
       modelId,
       new Date().toISOString(),
@@ -235,6 +262,7 @@ export interface StoredPiece {
   glossary: { word: string; meaning: string }[];
   questions: { question: string; options: string[]; answer: number }[];
   speakers: Speaker[];
+  terms: TopicTerm[];
   report: DifficultyReport;
   createdAt: string;
 }
@@ -256,8 +284,9 @@ export function getPiece(id: string): StoredPiece | null {
     paragraphs: JSON.parse(row.body as string),
     glossary: JSON.parse(row.glossary as string),
     questions: JSON.parse(row.questions as string),
-    // Pieces predating the speakers column carry an empty list.
+    // Pieces predating these columns carry an empty list.
     speakers: JSON.parse((row.speakers as string) ?? "[]"),
+    terms: JSON.parse((row.terms as string) ?? "[]"),
     report: JSON.parse(row.report as string),
     createdAt: row.created_at as string,
   };

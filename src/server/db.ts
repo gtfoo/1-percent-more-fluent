@@ -95,6 +95,9 @@ export function getDb(): Database.Database {
   `);
 
   addColumn("pieces", "speakers", "TEXT NOT NULL DEFAULT '[]'");
+  // Pieces generated before topic terms existed simply have none, which reads
+  // as "nothing protected" - exactly how they were measured at the time.
+  addColumn("pieces", "terms", "TEXT NOT NULL DEFAULT '[]'");
 
   return db;
 }

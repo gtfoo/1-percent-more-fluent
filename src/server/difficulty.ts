@@ -12,6 +12,7 @@
  * both overstates difficulty and pushes the generator into stilted Spanish.
  */
 import type { LevelParams } from "@/lib/level";
+import { isProtected, missingTerms, termSpans } from "@/lib/terms";
 import { rankOf, registerAnchors } from "./frequency";
 
 export interface DifficultyReport {
@@ -24,7 +25,34 @@ export interface DifficultyReport {
   passes: boolean;
   /** Human-readable failures, fed back to the model on a retry. */
   problems: string[];
+  /** Word occurrences covered by a declared topic term. */
+  termWords: number;
+  /** Their share of the text - the guard against a piece that is all jargon. */
+  termRate: number;
+  /** Declared terms that never appear in the text. */
+  missingTerms: string[];
 }
+
+/**
+ * The most distinct topic terms a piece may claim.
+ *
+ * Terms are exempt from the difficulty budget, so this is the ceiling on how
+ * much of the text can escape measurement. It is also a content judgement: a
+ * short piece introducing more than a dozen new domain words is a glossary
+ * someone has punctuated, not something a learner can absorb in one sitting.
+ */
+export const MAX_TERMS = 12;
+
+/**
+ * ...and the most of the TEXT they may account for.
+ *
+ * MAX_TERMS caps distinct terms, not occurrences, so without this a model can
+ * satisfy every rule and still hand back a piece that is a quarter jargon by
+ * repeating twelve terms relentlessly. Repetition is how terminology sticks, so
+ * this sits well above natural usage - it exists to catch padding, not to
+ * discourage reuse.
+ */
+export const MAX_TERM_RATE = 0.25;
 
 /**
  * How far past the budget we tolerate before regenerating.
@@ -85,14 +113,31 @@ function bestRank(word: string, params: LevelParams): number | null {
   return best;
 }
 
-export function measure(text: string, params: LevelParams): DifficultyReport {
+/**
+ * `terms` are the topic terms the piece declared. They are excluded from the
+ * difficulty budget - see src/lib/terms.ts for why that is the whole point -
+ * but they still count toward the word total, because the reader does read
+ * them.
+ */
+export function measure(
+  text: string,
+  params: LevelParams,
+  terms: string[] = [],
+): DifficultyReport {
   const language = params.language;
-  const all = language.words(text);
-  const totalWords = all.length;
+  const placed = language.wordsWithOffsets(text);
+  const totalWords = placed.length;
+
+  const spans = termSpans(text, terms);
+  // Split before ranking: a protected word must not reach `beyond`, or it
+  // would be listed back to the model as something to replace.
+  const free = placed.filter((w) => !isProtected(spans, w.at, w.length));
+  const termWords = totalWords - free.length;
+  const termRate = totalWords ? termWords / totalWords : 0;
 
   const beyond = new Map<string, number>();
   const seen = new Map<string, number | null>();
-  for (const word of all) {
+  for (const { text: word } of free) {
     if (!seen.has(word)) seen.set(word, bestRank(word, params));
     const rank = seen.get(word)!;
     // Outside the top 50k entirely is treated as maximally rare.
@@ -105,8 +150,10 @@ export function measure(text: string, params: LevelParams): DifficultyReport {
     .map(([word]) => word);
 
   // Rate is over token occurrences, not distinct words: a rare word repeated
-  // eight times is one thing to learn, not eight obstacles.
-  const outOfBandTokens = all.filter((w) => beyond.has(w)).length;
+  // eight times is one thing to learn, not eight obstacles. The denominator is
+  // still the whole text - the question is what share of what the reader reads
+  // is unexplained, and a glossed term is not unexplained.
+  const outOfBandTokens = free.filter((w) => beyond.has(w.text)).length;
   const outOfBandRate = totalWords ? outOfBandTokens / totalWords : 0;
 
   const sentenceLengths = language
@@ -146,6 +193,30 @@ export function measure(text: string, params: LevelParams): DifficultyReport {
     );
   }
 
+  // --- The topic terms themselves ------------------------------------------
+  // Declaring a term buys it an exemption from the budget, so the declaration
+  // has to be honest. Both checks below are about that bargain.
+
+  const absent = missingTerms(text, terms);
+  if (absent.length) {
+    problems.push(
+      `You listed ${absent.length} key term(s) that never appear in the text: ${absent.join(", ")}. Either use each one in the text - a term the reader never meets teaches them nothing - or drop it from the list.`,
+    );
+  }
+
+  const distinct = new Set(terms.map((t) => t.trim()).filter(Boolean));
+  if (distinct.size > MAX_TERMS) {
+    problems.push(
+      `${distinct.size} key terms is too many for one piece (limit ${MAX_TERMS}). Keep the ones the topic genuinely cannot be discussed without, and cut the rest.`,
+    );
+  }
+
+  if (termRate > MAX_TERM_RATE) {
+    problems.push(
+      `${(termRate * 100).toFixed(0)}% of the text is key terms (limit ${(MAX_TERM_RATE * 100).toFixed(0)}%). Keep the terms, but put more ordinary language around them so the piece reads as prose rather than as a definition list.`,
+    );
+  }
+
   return {
     totalWords,
     outOfBand,
@@ -154,5 +225,8 @@ export function measure(text: string, params: LevelParams): DifficultyReport {
     longestSentenceWords,
     passes: problems.length === 0,
     problems,
+    termWords,
+    termRate,
+    missingTerms: absent,
   };
 }

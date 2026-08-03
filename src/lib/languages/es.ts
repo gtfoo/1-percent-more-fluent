@@ -5,7 +5,7 @@
  * src/server/morphology.ts; the behaviour is unchanged and the checks in
  * `npm run morphology` guard that.
  */
-import type { GrammarGate, Language, Token } from "./types";
+import type { GrammarGate, Language, PlacedWord, Token } from "./types";
 
 // --- Text -------------------------------------------------------------------
 // Built with `new RegExp` so this file stays plain ASCII: combining marks and
@@ -34,9 +34,19 @@ function tokenize(text: string): Token[] {
   return tokens;
 }
 
+function wordsWithOffsets(text: string): PlacedWord[] {
+  const out: PlacedWord[] = [];
+  for (const m of text.matchAll(WORD_RE)) {
+    // Accents are kept - they distinguish words. `length` comes from the raw
+    // match, not the lowercased text, because it is what topic-term spans are
+    // measured against.
+    out.push({ text: m[0].toLowerCase(), at: m.index, length: m[0].length });
+  }
+  return out;
+}
+
 function words(text: string): string[] {
-  // Accents are kept - they distinguish words.
-  return (text.match(WORD_RE) ?? []).map((w) => w.toLowerCase());
+  return wordsWithOffsets(text).map((w) => w.text);
 }
 
 function normalizeWord(word: string): string {
@@ -150,6 +160,7 @@ export const spanish: Language = {
   name: "Spanish",
   tokenize,
   words,
+  wordsWithOffsets,
   sentences,
   normalizeWord,
   baseForms,

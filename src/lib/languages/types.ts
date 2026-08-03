@@ -18,6 +18,16 @@ export interface Token {
   isWord: boolean;
 }
 
+/** A word, normalised for lookup, plus where it came from in the raw text. */
+export interface PlacedWord {
+  /** Normalised, exactly as `words()` would return it. */
+  text: string;
+  /** Index of the word in the ORIGINAL string, not the normalised one. */
+  at: number;
+  /** Length in the ORIGINAL string; normalising can change the length. */
+  length: number;
+}
+
 export interface GrammarGate {
   minLevel: number;
   /** Described in English, because it goes straight into the generation prompt. */
@@ -40,6 +50,18 @@ export interface Language {
 
   /** Just the word forms, normalised for lookup. */
   words(text: string): string[];
+
+  /**
+   * The same words, each with where it sits in the ORIGINAL string.
+   *
+   * `words()` must be exactly `wordsWithOffsets().map(w => w.text)` - implement
+   * one in terms of the other rather than writing the walk twice. The contract
+   * test asserts it, because the two drifting apart is silent: `text` is the
+   * normalised form used for frequency lookup, while `at`/`length` index the
+   * raw string, and difficulty measurement now needs both at once to tell
+   * whether a word falls inside a protected topic term.
+   */
+  wordsWithOffsets(text: string): PlacedWord[];
 
   /** Split into sentences, on whatever punctuation the language actually uses. */
   sentences(text: string): string[];

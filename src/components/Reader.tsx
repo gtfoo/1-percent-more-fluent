@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getLanguage } from "@/lib/languages";
 import { splitTurns, type Speaker } from "@/lib/dialogue";
+import { mergeTermTokens, termSpans, type TopicTerm } from "@/lib/terms";
 
 interface Gloss {
   word: string;
@@ -26,6 +27,8 @@ export interface ReaderPiece {
   paragraphs: string[];
   speakers: Speaker[];
   questions: { question: string; options: string[]; answer: number }[];
+  /** The topic terms this piece is about. Glossed from here, never fetched. */
+  terms: TopicTerm[];
   totalWords: number;
   outOfBandRate: number;
   passes: boolean;
@@ -134,10 +137,19 @@ export function Reader({
     // them by character offset without walking the blocks.
     const words: { at: number; end: number }[] = [];
 
+    const termStrings = piece.terms.map((t) => t.term);
+
     const place = (text: string, base: number, speaker: string | null) => {
       const tokens: PlacedToken[] = [];
       let local = 0;
-      for (const token of language.tokenize(text)) {
+      // Merged BEFORE offsets are assigned, so a term is one tappable unit.
+      // Merging joins adjacent tokens only, so the running offset - and the
+      // audio alignment derived from it - is unaffected.
+      const merged = mergeTermTokens(
+        language.tokenize(text),
+        termSpans(text, termStrings),
+      );
+      for (const token of merged) {
         const at = base + local;
         if (token.isWord) {
           tokens.push({ ...token, at, wordIndex: words.length });
@@ -164,7 +176,7 @@ export function Reader({
     }
 
     return { blocks, words };
-  }, [piece.paragraphs, piece.speakers, isConversation, language]);
+  }, [piece.paragraphs, piece.speakers, piece.terms, isConversation, language]);
 
   /**
    * Follow the audio at frame rate.
@@ -245,7 +257,40 @@ export function Reader({
     return () => cancelAnimationFrame(raf);
   }, [audioUrl, syncToAudio]);
 
+  /**
+   * The key a tapped token is stored and looked up under.
+   *
+   * A declared term keeps its own spelling rather than being normalised: a
+   * multi-word term like "tipo de cambio" is not a single word, and
+   * `normalizeWord` would mangle it.
+   */
+  function glossKeyFor(raw: string): string {
+    const term = termFor(raw);
+    return term ? term.term : language.normalizeWord(raw);
+  }
+
+  function termFor(raw: string): TopicTerm | undefined {
+    const needle = raw.trim().toLowerCase();
+    return piece.terms.find((t) => t.term.trim().toLowerCase() === needle);
+  }
+
   async function lookUp(raw: string, sentence: string) {
+    // A declared topic term already carries its meaning, so tapping one costs
+    // no API call. It also stays out of the lookup rate, which is the point:
+    // the reader is MEANT not to know these words, so tapping one is not
+    // evidence the piece was pitched too hard, and counting it would push the
+    // level down for reading exactly what was asked for.
+    const term = termFor(raw);
+    if (term) {
+      setSelected(term.term);
+      setGlosses((prev) =>
+        prev.has(term.term)
+          ? prev
+          : new Map(prev).set(term.term, { word: term.term, meaning: term.meaning }),
+      );
+      return;
+    }
+
     const word = language.normalizeWord(raw);
     if (!word) return;
     setSelected(word);
@@ -450,8 +495,9 @@ export function Reader({
               )}
               {block.tokens.map((token, j) => {
                 if (!token.isWord) return <span key={j}>{token.text}</span>;
-                const key = language.normalizeWord(token.text);
+                const key = glossKeyFor(token.text);
                 const isLookedUp = glosses.has(key);
+                const isTerm = Boolean(termFor(token.text));
                 const w = token.wordIndex!;
                 return (
                   <span
@@ -465,7 +511,9 @@ export function Reader({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") lookUp(token.text, paragraph);
                     }}
-                    className={`word${isLookedUp ? " looked-up" : ""}`}
+                    className={`word${isLookedUp ? " looked-up" : ""}${
+                      isTerm ? " term" : ""
+                    }`}
                   >
                     {token.text}
                   </span>

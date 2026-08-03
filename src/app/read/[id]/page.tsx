@@ -23,6 +23,7 @@ export default async function ReadPage({
         paragraphs: piece.paragraphs,
         speakers: piece.speakers,
         questions: piece.questions,
+        terms: piece.terms,
         totalWords: piece.report.totalWords,
         outOfBandRate: piece.report.outOfBandRate,
         passes: piece.report.passes,

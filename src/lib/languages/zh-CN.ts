@@ -5,7 +5,7 @@
  * the abstraction earn its keep: no whitespace, no inflection, and difficulty
  * driven as much by characters as by words.
  */
-import type { GrammarGate, Language, Token } from "./types";
+import type { GrammarGate, Language, PlacedWord, Token } from "./types";
 
 // Built with `new RegExp` so this file stays plain ASCII where it can.
 const HAN = new RegExp("[\\u4e00-\\u9fff]");
@@ -39,10 +39,20 @@ function tokenize(text: string): Token[] {
   return tokens;
 }
 
+function wordsWithOffsets(text: string): PlacedWord[] {
+  const out: PlacedWord[] = [];
+  for (const s of segment(text)) {
+    // Same test as tokenize, for the same reason.
+    if (!(Boolean(s.isWordLike) && HAN.test(s.segment))) continue;
+    // Nothing to fold here, so the raw segment IS the lookup form - which is
+    // why `at` and `length` describe it exactly.
+    out.push({ text: s.segment, at: s.index, length: s.segment.length });
+  }
+  return out;
+}
+
 function words(text: string): string[] {
-  return tokenize(text)
-    .filter((t) => t.isWord)
-    .map((t) => t.text);
+  return wordsWithOffsets(text).map((w) => w.text);
 }
 
 /** No case and no accents to fold; strip anything that is not Han. */
@@ -141,6 +151,7 @@ export const simplifiedChinese: Language = {
   name: "Simplified Chinese",
   tokenize,
   words,
+  wordsWithOffsets,
   sentences,
   normalizeWord,
   baseForms,
