@@ -489,10 +489,21 @@ export function Reader({
           ) : (
             <>
               <div className="space-y-6">
-                <h2 className="text-xl font-semibold">¿Entendiste?</h2>
+                {/* Was hard-coded "¿Entendiste?" from when the app was
+                    Spanish-only, so a Chinese learner was asked in Spanish.
+                    The heading is chrome, like the button above it, so it is
+                    English; the questions and options are generated in the
+                    target language and are marked as such below. */}
+                <h2 className="text-xl font-semibold">Did you follow it?</h2>
                 {piece.questions.map((q, qi) => (
                   <fieldset key={qi} className="space-y-2">
-                    <legend className="font-medium">{q.question}</legend>
+                    <legend
+                      className="font-medium"
+                      lang={language.code}
+                      style={{ fontFamily: language.fontStack }}
+                    >
+                      {q.question}
+                    </legend>
                     {q.options.map((opt, oi) => (
                       <label
                         key={oi}
@@ -511,7 +522,12 @@ export function Reader({
                           }
                           className="mt-1.5 accent-[var(--accent)]"
                         />
-                        <span>{opt}</span>
+                        <span
+                          lang={language.code}
+                          style={{ fontFamily: language.fontStack }}
+                        >
+                          {opt}
+                        </span>
                       </label>
                     ))}
                   </fieldset>
