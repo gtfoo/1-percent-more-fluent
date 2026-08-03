@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FORMATS, type Format } from "@/lib/formats";
 import type { Length } from "@/lib/level";
+import { SUGGESTIONS } from "@/lib/suggestions";
 
 const FORMAT_LABELS: Record<Format, { label: string; hint: string }> = {
   story: { label: "Story", hint: "folklore, a small mystery, something that happened" },
@@ -78,6 +79,34 @@ export function Compose({ ttsReady }: { ttsReady: boolean }) {
           placeholder={FORMAT_LABELS[format].hint}
           className="mt-2 w-full rounded-lg border border-border bg-surface px-4 py-3 outline-none focus:border-accent"
         />
+
+        {/* Starting points. They fill the box rather than generating straight
+            away, so the text stays editable - the point is as much to show what
+            a good topic looks like as to save typing. Hidden once something is
+            typed, since by then they are only in the way. */}
+        {!topic.trim() && (
+          <div className="mt-3">
+            <p className="text-sm text-muted">Or start from one of these:</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  onClick={() => {
+                    setTopic(s.topic);
+                    // The format is part of the idea: an interview is a
+                    // conversation, an explainer of a mechanism is an article.
+                    setFormat(s.format);
+                  }}
+                  title={s.topic}
+                  className="rounded-full border border-border px-3 py-1.5 text-sm text-muted transition-colors hover:border-accent hover:text-accent"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-4">
