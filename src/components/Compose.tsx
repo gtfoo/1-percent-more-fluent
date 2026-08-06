@@ -88,16 +88,11 @@ export function Compose({ ttsReady }: { ttsReady: boolean }) {
           <div className="mt-3">
             <p className="text-sm text-muted">Or start from one of these:</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {SUGGESTIONS.map((s) => (
+              {SUGGESTIONS[format].map((s) => (
                 <button
                   key={s.label}
                   type="button"
-                  onClick={() => {
-                    setTopic(s.topic);
-                    // The format is part of the idea: an interview is a
-                    // conversation, an explainer of a mechanism is an article.
-                    setFormat(s.format);
-                  }}
+                  onClick={() => setTopic(s.topic)}
                   title={s.topic}
                   className="rounded-full border border-border px-3 py-1.5 text-sm text-muted transition-colors hover:border-accent hover:text-accent"
                 >
