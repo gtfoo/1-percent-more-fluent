@@ -23,6 +23,19 @@ jobs:
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           port: ${{ secrets.DROPLET_PORT || 22 }}
+          # The action's default is 10 minutes, and a deploy has outgrown it:
+          # `npm ci` alone took 8 on a 1 vCPU droplet, because better-sqlite3 is
+          # compiled from source and two more provider SDKs joined the tree. The
+          # build was then killed partway through.
+          #
+          # That failure is worse than it sounds. deploy.sh removes .next BEFORE
+          # building, so a killed build leaves no output at all - the service
+          # keeps serving from the process already in memory, reports healthy,
+          # and would only have fallen over on its next restart.
+          #
+          # The droplet also hosts other apps, so a build can queue behind
+          # someone else's native compile. 25 minutes is slack for both.
+          command_timeout: 25m
           script: |
             set -e
             cd "${{ secrets.DROPLET_APP_DIR }}"
