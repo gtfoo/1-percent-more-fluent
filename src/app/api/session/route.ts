@@ -25,11 +25,6 @@ const IMPLAUSIBLY_FAST_WPM = 300;
  */
 export async function POST(req: NextRequest) {
   const userId = await getOrCreateUserId();
-  const profile = getProfile(userId);
-  if (!profile) {
-    return Response.json({ error: "no profile" }, { status: 409 });
-  }
-
   const body = (await req.json()) as {
     pieceId?: string;
     rating?: string;
@@ -39,6 +34,14 @@ export async function POST(req: NextRequest) {
 
   const piece = body.pieceId ? getPiece(body.pieceId) : null;
   if (!piece) return Response.json({ error: "unknown piece" }, { status: 404 });
+
+  // The profile for the PIECE's language, not the active one. Finishing a
+  // Spanish story after switching to Chinese must move the Spanish level - the
+  // evidence is about the text that was actually read.
+  const profile = getProfile(userId, piece.language);
+  if (!profile) {
+    return Response.json({ error: "no profile" }, { status: 409 });
+  }
 
   const rating = RATINGS.includes(body.rating as SelfRating)
     ? (body.rating as SelfRating)
@@ -84,7 +87,7 @@ export async function POST(req: NextRequest) {
     sessionCount,
     pieceUndershot,
   });
-  setLevel(userId, after);
+  setLevel(userId, after, piece.language);
 
   getDb()
     .prepare(

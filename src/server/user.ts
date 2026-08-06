@@ -76,12 +76,72 @@ export async function getUserId(): Promise<string | null> {
   return known ? id : null;
 }
 
-export function getProfile(userId: string): Profile | null {
+/** Every language this learner has placed in, most recently used first. */
+export function getProfiles(userId: string): Profile[] {
+  const rows = getDb()
+    .prepare(
+      "SELECT user_id, language, level, vocab_estimate, placed_at FROM profiles WHERE user_id = ? ORDER BY updated_at DESC",
+    )
+    .all(userId) as {
+    user_id: string;
+    language: string;
+    level: number;
+    vocab_estimate: number | null;
+    placed_at: string | null;
+  }[];
+
+  return rows.map((row) => ({
+    userId: row.user_id,
+    language: row.language,
+    level: row.level,
+    vocabEstimate: row.vocab_estimate,
+    placedAt: row.placed_at,
+  }));
+}
+
+/** The learner's currently selected language, or null if they have not placed. */
+export function getActiveLanguage(userId: string): string | null {
+  const row = getDb()
+    .prepare("SELECT active_language FROM users WHERE id = ?")
+    .get(userId) as { active_language: string | null } | undefined;
+  return row?.active_language ?? null;
+}
+
+/**
+ * Switch which language the learner is reading.
+ *
+ * Only ever points at a language they have already placed in - the level is
+ * per-language now, so pointing at an unplaced one would leave them with no
+ * level at all rather than with a default.
+ */
+export function setActiveLanguage(userId: string, language: string): boolean {
+  const placed = getDb()
+    .prepare("SELECT 1 FROM profiles WHERE user_id = ? AND language = ?")
+    .get(userId, language);
+  if (!placed) return false;
+
+  getDb()
+    .prepare("UPDATE users SET active_language = ? WHERE id = ?")
+    .run(language, userId);
+  return true;
+}
+
+/**
+ * The profile in force: the named language, or whichever one is active.
+ *
+ * Falls back to the most recently updated profile when nothing is marked
+ * active, which covers a learner whose row predates the active_language column
+ * and never explicitly chose.
+ */
+export function getProfile(userId: string, language?: string): Profile | null {
+  const wanted = language ?? getActiveLanguage(userId);
+  if (!wanted) return getProfiles(userId)[0] ?? null;
+
   const row = getDb()
     .prepare(
-      "SELECT user_id, language, level, vocab_estimate, placed_at FROM profiles WHERE user_id = ?",
+      "SELECT user_id, language, level, vocab_estimate, placed_at FROM profiles WHERE user_id = ? AND language = ?",
     )
-    .get(userId) as
+    .get(userId, wanted) as
     | {
         user_id: string;
         language: string;
@@ -91,7 +151,9 @@ export function getProfile(userId: string): Profile | null {
       }
     | undefined;
 
-  if (!row) return null;
+  // An active language pointing at a profile that is gone should not read as
+  // "never placed" while other languages still exist.
+  if (!row) return getProfiles(userId)[0] ?? null;
   return {
     userId: row.user_id,
     language: row.language,
@@ -118,10 +180,12 @@ export function setPlacement(
   const now = new Date().toISOString();
   getDb()
     .prepare(
+      // Conflict is on the PAIR now: re-placing in Spanish resets Spanish and
+      // leaves Chinese untouched, where before it overwrote the single row and
+      // the other language simply ceased to exist.
       `INSERT INTO profiles (user_id, language, level, vocab_estimate, placed_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?)
-       ON CONFLICT(user_id) DO UPDATE SET
-         language = excluded.language,
+       ON CONFLICT(user_id, language) DO UPDATE SET
          level = excluded.level,
          vocab_estimate = excluded.vocab_estimate,
          placed_at = excluded.placed_at,
@@ -132,11 +196,19 @@ export function setPlacement(
   return { userId, language, level, vocabEstimate, placedAt: now };
 }
 
-/** Apply a calibration nudge after a reading session. */
-export function setLevel(userId: string, level: number): void {
+/**
+ * Apply a calibration nudge after a reading session.
+ *
+ * `language` is required. Scoped to one profile because there are several now:
+ * without the clause this updated every row for the user, so finishing a
+ * Chinese piece silently moved their Spanish level by the same amount. Pass the
+ * language of the PIECE that was read, not the active one - they can differ if
+ * the reader switched languages before finishing something.
+ */
+export function setLevel(userId: string, level: number, language: string): void {
   getDb()
     .prepare(
-      "UPDATE profiles SET level = ?, updated_at = ? WHERE user_id = ?",
+      "UPDATE profiles SET level = ?, updated_at = ? WHERE user_id = ? AND language = ?",
     )
-    .run(level, new Date().toISOString(), userId);
+    .run(level, new Date().toISOString(), userId, language);
 }

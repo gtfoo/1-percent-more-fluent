@@ -19,15 +19,18 @@ export function getDb(): Database.Database {
       created_at TEXT NOT NULL
     );
 
-    -- One row per learner. 'level' is the continuous 0-100 estimate that
-    -- drives every generation; see src/lib/level.ts.
+    -- One row per learner PER LANGUAGE. 'level' is the continuous 0-100
+    -- estimate that drives every generation; see src/lib/level.ts. Learning two
+    -- languages means two independent levels, which is the only honest model:
+    -- being B2 in Spanish says nothing about your Chinese.
     CREATE TABLE IF NOT EXISTS profiles (
-      user_id        TEXT PRIMARY KEY,
-      language       TEXT NOT NULL DEFAULT 'es',
+      user_id        TEXT NOT NULL,
+      language       TEXT NOT NULL,
       level          REAL NOT NULL,
       vocab_estimate INTEGER,
       placed_at      TEXT,
-      updated_at     TEXT NOT NULL
+      updated_at     TEXT NOT NULL,
+      PRIMARY KEY (user_id, language)
     );
 
     -- Generated pieces. Kept forever: they are the expensive artefact, they are
@@ -99,7 +102,60 @@ export function getDb(): Database.Database {
   // as "nothing protected" - exactly how they were measured at the time.
   addColumn("pieces", "terms", "TEXT NOT NULL DEFAULT '[]'");
 
+  // Which language the learner is currently reading. Null until they place.
+  addColumn("users", "active_language", "TEXT");
+
+  migrateProfilesToPerLanguage();
+
   return db;
+}
+
+/**
+ * Give every learner one profile PER LANGUAGE, instead of one profile.
+ *
+ * `profiles` was keyed on user_id alone, so a learner could only ever hold one
+ * language: switching from Spanish to Chinese overwrote the row, and a level
+ * built over weeks of reading was gone. That made switching something you could
+ * only do once, which is why there was no button for it.
+ *
+ * SQLite cannot alter a primary key, so this is the standard rebuild: create
+ * the new shape, copy every row across, swap the names. Existing rows carry
+ * their own language, so each learner keeps exactly what they had - it simply
+ * becomes the first of several rather than the only one.
+ */
+function migrateProfilesToPerLanguage(): void {
+  const columns = db!.prepare("PRAGMA table_info(profiles)").all() as {
+    name: string;
+    pk: number;
+  }[];
+
+  // Already migrated: both columns are part of the key.
+  const keyed = columns.filter((c) => c.pk > 0).map((c) => c.name);
+  if (keyed.includes("language")) return;
+
+  db!.exec(`
+    BEGIN;
+    CREATE TABLE profiles_new (
+      user_id        TEXT NOT NULL,
+      language       TEXT NOT NULL,
+      level          REAL NOT NULL,
+      vocab_estimate INTEGER,
+      placed_at      TEXT,
+      updated_at     TEXT NOT NULL,
+      PRIMARY KEY (user_id, language)
+    );
+    INSERT INTO profiles_new (user_id, language, level, vocab_estimate, placed_at, updated_at)
+      SELECT user_id, language, level, vocab_estimate, placed_at, updated_at FROM profiles;
+
+    -- Whatever they were reading stays what they are reading.
+    UPDATE users
+       SET active_language = (SELECT language FROM profiles WHERE profiles.user_id = users.id)
+     WHERE active_language IS NULL;
+
+    DROP TABLE profiles;
+    ALTER TABLE profiles_new RENAME TO profiles;
+    COMMIT;
+  `);
 }
 
 /**

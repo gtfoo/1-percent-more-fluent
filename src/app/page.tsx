@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getUserId, getProfile } from "@/server/user";
+import { getUserId, getProfile, getProfiles } from "@/server/user";
 import { listPieces } from "@/server/generate";
 import { isTtsConfigured, charactersSpent } from "@/server/tts";
 import { labelFor, paramsFor } from "@/lib/level";
 import { getLanguage } from "@/lib/languages";
 import { Compose } from "@/components/Compose";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 export default async function Home() {
   const userId = await getUserId();
@@ -40,12 +41,22 @@ export default async function Home() {
   const recent = listPieces(profile.userId, language.code);
   const spent = charactersSpent();
 
+  // Every language this learner has placed in, for the switcher. Each keeps its
+  // own level, so the label shown next to each is that language's, not this one's.
+  const placed = getProfiles(profile.userId).map((p) => {
+    const l = getLanguage(p.language);
+    return { code: p.language, name: l.name, label: labelFor(p.level, l) };
+  });
+
   return (
     <div className="space-y-10">
       <section className="rounded-xl border border-border bg-surface px-5 py-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
-            <p className="text-sm text-muted">{language.name}</p>
+            <LanguageSwitcher
+              current={{ code: language.code, name: language.name, label: params.label }}
+              placed={placed}
+            />
             <p className="text-2xl font-semibold">
               {params.label}{" "}
               <span className="text-base font-normal text-muted">

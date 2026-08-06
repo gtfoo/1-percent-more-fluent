@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   }
 
   const after = overrideLevel(profile.level, direction);
-  setLevel(userId, after);
+  setLevel(userId, after, profile.language);
 
   const params = paramsFor(after, getLanguage(profile.language));
   return Response.json({
