@@ -49,34 +49,42 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers,
   session: { strategy: "jwt" },
   pages: { signIn: "/signin", verifyRequest: "/signin/check-email" },
-  callbacks: {
-    /**
-     * Take the reading history with you.
-     *
-     * This runs once the link has actually been followed, at which point there
-     * is both a signed-in account and, usually, a cookie identity in the same
-     * browser holding everything read so far. See claim.ts.
-     */
-    async signIn({ user, email }) {
-      // The email provider calls this TWICE: once to ask for the link to be
-      // sent, and again when it is followed. Only the second is a sign-in, and
-      // claiming on the first would move a reader's history on the say-so of
-      // anyone who could type their address.
-      if (email?.verificationRequest) return true;
-      if (!user?.id) return true;
-
+  /**
+   * Take the reading history with you.
+   *
+   * An EVENT, not the signIn callback, and the difference is load-bearing. The
+   * callback runs while Auth.js is deciding whether to allow the sign-in, and
+   * for an address it has never seen the `user` it hands you is a placeholder -
+   * `getUserByEmail() ?? { id: crypto.randomUUID(), ... }` - whose id is not in
+   * the database yet. The row is created afterwards, by handleLoginOrRegister.
+   *
+   * So claiming from the callback silently did nothing on a FIRST sign-in,
+   * while working perfectly on every later one: the claim refuses to move data
+   * onto a user that does not exist, which is exactly the safety check that
+   * turned a corruption bug into a no-op. The first sign-in is the one that
+   * matters most, and it was the one losing everything.
+   *
+   * The event fires only after the account really exists. The send-the-link
+   * step does not fire it at all - that path calls the signIn CALLBACK with
+   * `email.verificationRequest` and no event - so there is no need to guard
+   * against claiming on the strength of someone merely typing an address.
+   */
+  events: {
+    async signIn({ user }) {
+      if (!user?.id) return;
       try {
         const anonId = (await cookies()).get(USER_COOKIE)?.value;
         if (anonId) claimAnonymousData(anonId, user.id);
       } catch (err) {
-        // Never block a sign-in over this. Failing to merge leaves the reader
-        // with an empty account and their history still safe on the cookie,
-        // which is recoverable; refusing the sign-in is not.
+        // Never break a sign-in over this. A failed merge leaves the reader
+        // with an empty account and their history still sitting safely on the
+        // cookie, which is recoverable; a failed sign-in is not.
         console.error("could not claim anonymous history", err);
       }
-      return true;
     },
+  },
 
+  callbacks: {
     /**
      * Carry the reader id and a token version in the JWT. The version is
      * compared against the database on every request, which is what makes

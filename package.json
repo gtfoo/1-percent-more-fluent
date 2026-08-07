@@ -19,6 +19,8 @@
     "auth": "tsx scripts/check-auth.ts",
     "auth:page": "bash scripts/check-auth-page.sh",
     "auth:configured": "bash scripts/check-auth-configured.sh",
+    "auth:flow": "tsx scripts/check-signin-flow.ts",
+    "auth:env": "bash scripts/check-auth-env.sh",
     "words": "bash scripts/check-words-page.sh",
     "dialogue": "tsx scripts/check-dialogue.ts",
     "chain": "tsx scripts/check-llm-chain.ts",
