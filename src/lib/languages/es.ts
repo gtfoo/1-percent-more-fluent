@@ -165,6 +165,7 @@ export const spanish: Language = {
   normalizeWord,
   baseForms,
   grammar: GRAMMAR,
+  pronunciation: null,
   registerExamples:
     '"decir" not "manifestar", "ver" not "contemplar", "casa" not "vivienda"',
   levelLabel: (vocabSize) =>

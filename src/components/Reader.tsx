@@ -6,12 +6,11 @@ import { getLanguage } from "@/lib/languages";
 import { splitTurns, type Speaker } from "@/lib/dialogue";
 import { mergeTermTokens, termSpans, type TopicTerm } from "@/lib/terms";
 
-interface Gloss {
-  word: string;
-  meaning: string;
-  lemma?: string;
-  partOfSpeech?: string;
-}
+// `import type`, so this is erased at compile time and no server code - or the
+// better-sqlite3 binary behind it - reaches the client bundle. The shape was
+// duplicated here before, and duplicating it is how the reader silently stopped
+// showing a field the server had started returning.
+import type { Gloss } from "@/server/gloss";
 
 interface Alignment {
   characters: string[];
@@ -62,8 +61,22 @@ export function Reader({
   ttsReady: boolean;
 }) {
   const [glosses, setGlosses] = useState<Map<string, Gloss>>(new Map());
-  const [selected, setSelected] = useState<string | null>(null);
+  /**
+   * A RANGE of words, not a single one.
+   *
+   * Chinese is why. The segmenter decides where words end, and it is often
+   * wrong for the learner's purpose - it splits a compound they wanted whole,
+   * or joins two they wanted apart. On a phone there is no way to argue with
+   * it: native text selection works character by character and fights the
+   * scroll, so tapping is all you get. Holding a range and letting the reader
+   * grow it a word at a time gives them the say without a gesture.
+   */
+  const [selection, setSelection] = useState<{ start: number; end: number } | null>(
+    null,
+  );
   const [glossLoading, setGlossLoading] = useState(false);
+  const [wordAudio, setWordAudio] = useState<string | null>(null);
+  const [wordAudioBusy, setWordAudioBusy] = useState(false);
 
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [alignment, setAlignment] = useState<Alignment | null>(null);
@@ -128,19 +141,25 @@ export function Reader({
    * so its offsets come from `splitTurns` - which is why that split is shared
    * with the server rather than reimplemented here.
    */
-  const { blocks: layout, words } = useMemo(() => {
+  const {
+    blocks: layout,
+    words,
+    sourceText,
+  } = useMemo(() => {
     // Written as plain loops rather than nested `map` closures: accumulating an
     // offset inside a callback reads as mutation-after-render to the compiler,
     // even though it all happens in one pass.
     const blocks: { speaker: string | null; tokens: PlacedToken[] }[] = [];
     // Word tokens only, in render order, so the highlight can binary-search
-    // them by character offset without walking the blocks.
-    const words: { at: number; end: number }[] = [];
+    // them by character offset without walking the blocks. `block` is what
+    // stops a selection being extended across a paragraph or a speaker turn.
+    const words: { at: number; end: number; block: number }[] = [];
 
     const termStrings = piece.terms.map((t) => t.term);
 
     const place = (text: string, base: number, speaker: string | null) => {
       const tokens: PlacedToken[] = [];
+      const block = blocks.length;
       let local = 0;
       // Merged BEFORE offsets are assigned, so a term is one tappable unit.
       // Merging joins adjacent tokens only, so the running offset - and the
@@ -153,7 +172,7 @@ export function Reader({
         const at = base + local;
         if (token.isWord) {
           tokens.push({ ...token, at, wordIndex: words.length });
-          words.push({ at, end: at + token.text.length });
+          words.push({ at, end: at + token.text.length, block });
         } else {
           tokens.push({ ...token, at });
         }
@@ -163,10 +182,12 @@ export function Reader({
     };
 
     if (isConversation) {
-      for (const turn of splitTurns(piece.paragraphs, piece.speakers)) {
-        place(turn.text, turn.offset, turn.speaker);
-      }
-      return { blocks, words };
+      const turns = splitTurns(piece.paragraphs, piece.speakers);
+      for (const turn of turns) place(turn.text, turn.offset, turn.speaker);
+      // The exact string every `at` above indexes into. Slicing it is how a
+      // multi-word selection recovers its ORIGINAL text - spaces, punctuation
+      // and all - rather than gluing token strings back together and guessing.
+      return { blocks, words, sourceText: turns.map((t) => t.text).join("") };
     }
 
     let base = 0;
@@ -175,7 +196,7 @@ export function Reader({
       base += text.length + JOINER.length;
     }
 
-    return { blocks, words };
+    return { blocks, words, sourceText: piece.paragraphs.join(JOINER) };
   }, [piece.paragraphs, piece.speakers, piece.terms, isConversation, language]);
 
   /**
@@ -274,7 +295,58 @@ export function Reader({
     return piece.terms.find((t) => t.term.trim().toLowerCase() === needle);
   }
 
-  async function lookUp(raw: string, sentence: string) {
+  /** The exact original text a selection covers, punctuation and spaces intact. */
+  function textOf(range: { start: number; end: number }): string {
+    return sourceText.slice(words[range.start]!.at, words[range.end]!.end);
+  }
+
+  /** Which sentence a selection sits in, for disambiguating the lookup. */
+  function sentenceOf(range: { start: number; end: number }): string {
+    const block = layout[words[range.start]!.block];
+    return block ? block.tokens.map((t) => t.text).join("") : sourceText;
+  }
+
+  /**
+   * Grow or shrink the selection by one word.
+   *
+   * Bounded twice. To the block it started in, so a selection cannot run from
+   * one speaker's turn into another's. And to the sentence: extending across a
+   * full stop produced "钥匙。可是" - two words from different sentences with the
+   * punctuation still in the middle - which is not a phrase anyone would want
+   * defined.
+   */
+  function extend(side: "left" | "right", by: 1 | -1) {
+    if (!selection) return;
+    const { start, end } = selection;
+    const block = words[start]!.block;
+
+    // Whatever sits between two words, which is where a sentence ends. A UI
+    // guard rather than a parser: both scripts' terminators, kept here because
+    // being slightly wrong just means one extra tap.
+    const breaks = (a: number, b: number) =>
+      /[.!?…。！？；\n]/.test(sourceText.slice(words[a]!.end, words[b]!.at));
+
+    let next = selection;
+    if (side === "left") {
+      const i = start - by;
+      if (i < 0 || i > end || words[i]!.block !== block) return;
+      if (by > 0 && breaks(i, start)) return;
+      next = { start: i, end };
+    } else {
+      const i = end + by;
+      if (i >= words.length || i < start || words[i]!.block !== block) return;
+      if (by > 0 && breaks(end, i)) return;
+      next = { start, end: i };
+    }
+
+    setSelection(next);
+    setWordAudio(null);
+    void lookUpRange(next);
+  }
+
+  async function lookUpRange(range: { start: number; end: number }) {
+    const raw = textOf(range);
+
     // A declared topic term already carries its meaning, so tapping one costs
     // no API call. It also stays out of the lookup rate, which is the point:
     // the reader is MEANT not to know these words, so tapping one is not
@@ -282,18 +354,21 @@ export function Reader({
     // level down for reading exactly what was asked for.
     const term = termFor(raw);
     if (term) {
-      setSelected(term.term);
       setGlosses((prev) =>
         prev.has(term.term)
           ? prev
-          : new Map(prev).set(term.term, { word: term.term, meaning: term.meaning }),
+          : new Map(prev).set(term.term, {
+              word: term.term,
+              meaning: term.meaning,
+              // It came with the piece; nothing was looked up to get it.
+              cached: true,
+            }),
       );
       return;
     }
 
-    const word = language.normalizeWord(raw);
+    const word = glossKeyFor(raw);
     if (!word) return;
-    setSelected(word);
 
     if (glosses.has(word)) return;
     setGlossLoading(true);
@@ -301,14 +376,18 @@ export function Reader({
       const res = await fetch("/api/gloss", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ word, sentence, pieceId: piece.id }),
+        body: JSON.stringify({ word: raw, sentence: sentenceOf(range), pieceId: piece.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "lookup failed");
       setGlosses((prev) => new Map(prev).set(word, data as Gloss));
     } catch {
       setGlosses((prev) =>
-        new Map(prev).set(word, { word, meaning: "Couldn’t look that one up." }),
+        new Map(prev).set(word, {
+          word,
+          meaning: "Couldn’t look that one up.",
+          cached: false,
+        }),
       );
     } finally {
       setGlossLoading(false);
@@ -377,7 +456,50 @@ export function Reader({
     }
   }
 
-  const activeGloss = selected ? glosses.get(selected) : undefined;
+  const selectedText = selection ? textOf(selection) : null;
+  const activeGloss = selectedText
+    ? glosses.get(glossKeyFor(selectedText))
+    : undefined;
+
+  /** Start a new selection at one word. */
+  function selectWord(i: number) {
+    const range = { start: i, end: i };
+    setSelection(range);
+    setWordAudio(null);
+    void lookUpRange(range);
+  }
+
+  /**
+   * Speak just the selection.
+   *
+   * Deliberately a separate endpoint from the piece narration, and deliberately
+   * takes the piece id: the site is open, so an endpoint that will synthesise
+   * arbitrary text is somebody else's free TTS. The server checks the text
+   * actually occurs in that piece before spending anything.
+   */
+  async function speakSelection() {
+    if (!selectedText) return;
+    if (wordAudio) {
+      void new Audio(wordAudio).play();
+      return;
+    }
+    setWordAudioBusy(true);
+    try {
+      const res = await fetch("/api/tts/word", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pieceId: piece.id, text: selectedText }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "speech failed");
+      setWordAudio(data.url);
+      void new Audio(data.url).play();
+    } catch {
+      /* The card stays usable without audio; no need to shout about it. */
+    } finally {
+      setWordAudioBusy(false);
+    }
+  }
 
   async function adjustLevel(direction: "easier" | "harder") {
     try {
@@ -483,7 +605,8 @@ export function Reader({
         style={{ fontFamily: language.fontStack }}
       >
         {layout.map((block, i) => {
-          const paragraph = piece.paragraphs[i]!;
+          // The paragraph text is no longer needed here: the gloss lookup takes
+          // its context from the selection's own block.
           return (
             <p key={i}>
               {/* The name is a label, not prose: it is never spoken aloud and
@@ -499,6 +622,8 @@ export function Reader({
                 const isLookedUp = glosses.has(key);
                 const isTerm = Boolean(termFor(token.text));
                 const w = token.wordIndex!;
+                const inSelection =
+                  selection !== null && w >= selection.start && w <= selection.end;
                 return (
                   <span
                     key={j}
@@ -507,13 +632,13 @@ export function Reader({
                     }}
                     role="button"
                     tabIndex={0}
-                    onClick={() => lookUp(token.text, paragraph)}
+                    onClick={() => selectWord(w)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") lookUp(token.text, paragraph);
+                      if (e.key === "Enter") selectWord(w);
                     }}
                     className={`word${isLookedUp ? " looked-up" : ""}${
                       isTerm ? " term" : ""
-                    }`}
+                    }${inSelection ? " selected" : ""}`}
                   >
                     {token.text}
                   </span>
@@ -649,26 +774,45 @@ export function Reader({
       {error && <p className="text-warn">{error}</p>}
 
       {/* --- Gloss sheet ---------------------------------------------------- */}
-      {selected && (
+      {selection && selectedText && (
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface">
-          <div className="mx-auto flex w-full max-w-3xl items-start justify-between gap-6 px-5 py-4">
-            <div>
-              {/* The sheet is fixed-position, so it sits outside the prose
-                  block and does not inherit its language or font. The headword
-                  is target-language; the meaning below it is English. */}
-              <p
-                className="text-lg font-semibold"
-                lang={language.code}
-                style={{ fontFamily: language.fontStack }}
-              >
-                {selected}
-                {activeGloss?.lemma && activeGloss.lemma !== selected && (
-                  <span className="ml-2 font-normal text-muted">
-                    ({activeGloss.lemma})
-                  </span>
+          <div className="mx-auto flex w-full max-w-3xl items-start justify-between gap-4 px-5 py-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                {/* The sheet is fixed-position, so it sits outside the prose
+                    block and does not inherit its language or font. The headword
+                    is target-language; everything under it is English. */}
+                <p
+                  className="text-lg font-semibold"
+                  lang={language.code}
+                  style={{ fontFamily: language.fontStack }}
+                >
+                  {selectedText}
+                </p>
+
+                {/* Without this a Chinese learner can read a word and still be
+                    unable to say it, which is most of what they wanted it for. */}
+                {activeGloss?.pronunciation && (
+                  <p className="text-muted">{activeGloss.pronunciation}</p>
                 )}
-              </p>
-              <p className="text-muted">
+
+                {ttsReady && (
+                  <button
+                    onClick={speakSelection}
+                    disabled={wordAudioBusy}
+                    aria-label={`Listen to ${selectedText}`}
+                    className="rounded-full border border-border px-2.5 py-0.5 text-sm text-muted hover:border-accent hover:text-accent disabled:opacity-40"
+                  >
+                    {wordAudioBusy ? "…" : "🔊"}
+                  </button>
+                )}
+
+                {activeGloss?.lemma && activeGloss.lemma !== selectedText && (
+                  <span className="text-sm text-muted">({activeGloss.lemma})</span>
+                )}
+              </div>
+
+              <p className="mt-1 text-muted">
                 {glossLoading && !activeGloss
                   ? "Looking up…"
                   : (activeGloss?.meaning ?? "")}
@@ -678,9 +822,42 @@ export function Reader({
                   </span>
                 )}
               </p>
+
+              {/* Grow the selection a word at a time. The segmenter's idea of
+                  where a word ends is often not the learner's, and on a phone
+                  there is no other way to disagree with it. */}
+              <div className="mt-2 flex items-center gap-1 text-sm">
+                <span className="mr-1 text-muted">Select more:</span>
+                <button
+                  onClick={() => extend("left", 1)}
+                  aria-label="Add the word before"
+                  className="rounded border border-border px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
+                >
+                  ◀
+                </button>
+                <button
+                  onClick={() => extend("right", 1)}
+                  aria-label="Add the word after"
+                  className="rounded border border-border px-2 py-0.5 text-muted hover:border-accent hover:text-accent"
+                >
+                  ▶
+                </button>
+                {selection.end > selection.start && (
+                  <button
+                    onClick={() => selectWord(selection.start)}
+                    className="ml-2 text-muted underline underline-offset-4 hover:text-accent"
+                  >
+                    just one word
+                  </button>
+                )}
+              </div>
             </div>
+
             <button
-              onClick={() => setSelected(null)}
+              onClick={() => {
+                setSelection(null);
+                setWordAudio(null);
+              }}
               aria-label="Close"
               className="rounded px-2 py-1 text-muted hover:text-foreground"
             >

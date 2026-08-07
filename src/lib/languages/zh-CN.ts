@@ -156,6 +156,9 @@ export const simplifiedChinese: Language = {
   normalizeWord,
   baseForms,
   grammar: GRAMMAR,
+  // Characters carry no sound, so without this a learner can read a word and
+  // still be unable to say it to anyone - which is most of the point.
+  pronunciation: "Hanyu Pinyin with tone marks, spaced by syllable, e.g. yào shi",
   registerExamples:
     '"想" not "欲", "所以" not "故而", "开始" not "着手" - everyday spoken vocabulary over written or classical register',
   levelLabel: (vocabSize) => HSK_THRESHOLDS.find((t) => vocabSize < t.max)!.label,

@@ -13,25 +13,55 @@
 import { z } from "zod";
 import { generateStructured } from "./llm";
 import { getDb } from "./db";
-import { getLanguage } from "@/lib/languages";
+import { getLanguage, type Language } from "@/lib/languages";
 
-const GlossSchema = z.object({
+/**
+ * Built per language, so a language that needs no transcription is never asked
+ * for one. Spanish spelling already says how to say it; Chinese characters say
+ * nothing at all.
+ */
+const BASE = {
   lemma: z.string().describe("The dictionary form of the word."),
   partOfSpeech: z.string().describe("Noun, verb, adjective, etc. In English."),
   meaning: z.string().describe("A short English gloss, under 12 words."),
-});
+};
+
+// Two concrete schemas rather than one with a conditional field: spreading a
+// maybe-present key into z.object widens the inferred type to unknown, which
+// then has to be cast back at the call site.
+const PLAIN = z.object(BASE);
+const withPronunciation = (how: string) =>
+  z.object({ ...BASE, pronunciation: z.string().describe(how) });
 
 /**
  * `lemma` and `partOfSpeech` are optional because entries seeded from a piece's
  * own glossary carry only a meaning - they came free with the text and are not
- * worth a second model call to enrich.
+ * worth a second model call to enrich. `pronunciation` is optional because most
+ * languages do not need one.
  */
 export interface Gloss {
   word: string;
   meaning: string;
   lemma?: string;
   partOfSpeech?: string;
+  pronunciation?: string;
   cached: boolean;
+}
+
+/**
+ * The key a lookup is cached under.
+ *
+ * `normalizeWord` assumes a single word - it strips everything outside the
+ * language's alphabet, which mangles a phrase like "tipo de cambio" into
+ * something that will never be found again. Selections can span several words
+ * now, so a phrase is keyed on its own collapsed, lowercased text instead.
+ */
+function cacheKey(language: Language, text: string): string {
+  const trimmed = text.trim();
+  if (language.words(trimmed).length > 1) {
+    return trimmed.toLowerCase().replace(/\s+/g, " ");
+  }
+  return language.normalizeWord(trimmed);
 }
 
 function readCache(language: string, word: string): Gloss | null {
@@ -54,7 +84,7 @@ function readCache(language: string, word: string): Gloss | null {
  */
 export function seedGlossary(
   code: string,
-  entries: { word: string; meaning: string }[],
+  entries: { word: string; meaning: string; pronunciation?: string }[],
 ): void {
   const language = getLanguage(code);
   const stmt = getDb().prepare(
@@ -63,9 +93,20 @@ export function seedGlossary(
   );
   const now = new Date().toISOString();
   for (const entry of entries) {
-    const key = language.normalizeWord(entry.word);
+    const key = cacheKey(language, entry.word);
     if (!key || !entry.meaning) continue;
-    stmt.run(language.code, key, JSON.stringify({ meaning: entry.meaning }), now);
+    // Carried through rather than dropped: these seeded entries answer most
+    // taps, so a pronunciation that stops here is one the reader almost never
+    // sees - only the rarer words that miss the cache would have shown it.
+    stmt.run(
+      language.code,
+      key,
+      JSON.stringify({
+        meaning: entry.meaning,
+        ...(entry.pronunciation ? { pronunciation: entry.pronunciation } : {}),
+      }),
+      now,
+    );
   }
 }
 
@@ -75,18 +116,20 @@ export async function glossWord(
   code: string,
 ): Promise<Gloss> {
   const language = getLanguage(code);
-  const key = language.normalizeWord(word);
+  const key = cacheKey(language, word);
   if (!key) throw new Error("empty word");
 
   const hit = readCache(language.code, key);
   if (hit) return hit;
 
   const { object } = await generateStructured({
-    schema: GlossSchema,
+    schema: language.pronunciation
+      ? withPronunciation(language.pronunciation)
+      : PLAIN,
     system:
-      "You are a bilingual dictionary. Answer with the plain dictionary meaning of the word. Be terse.",
+      "You are a bilingual dictionary. Answer with the plain dictionary meaning of the word or phrase. Be terse.",
     prompt: [
-      `${language.name} word: ${key}`,
+      `${language.name}: ${key}`,
       // The sentence disambiguates homographs even though we cache the result
       // context-free; it costs nothing to pass and improves the common case.
       `It appeared in this sentence: ${sentence}`,

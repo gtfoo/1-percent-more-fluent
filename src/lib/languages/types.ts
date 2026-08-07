@@ -70,6 +70,19 @@ export interface Language {
   normalizeWord(word: string): string;
 
   /**
+   * How to write this language's pronunciation, or null if it does not need one.
+   *
+   * Null for Spanish: the spelling already tells you how to say it, so a
+   * transcription would be noise. Chinese is the opposite - characters carry no
+   * sound at all, and a learner who cannot pronounce 钥匙 cannot say it to
+   * anyone, which is the entire point of learning it.
+   *
+   * The string is an instruction to the model, so it says which system and what
+   * it should look like.
+   */
+  pronunciation: string | null;
+
+  /**
    * Every form of `word` worth looking up in the frequency list, including the
    * word itself.
    *

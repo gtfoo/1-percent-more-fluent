@@ -28,7 +28,30 @@ import type { TopicTerm } from "@/lib/terms";
  * the language name, and they are a meaningful part of the instruction the
  * model actually follows.
  */
-export const pieceSchema = (language: string) => z.object({
+/**
+ * `language` is the Language, not just its name, because the schema now depends
+ * on more than the label: a language with no pronunciation system must not be
+ * asked for one, and a learner of a language that HAS one needs it on every
+ * glossed word - not only the words rare enough to trigger a live lookup.
+ */
+export const pieceSchema = (lang: Language | string) => {
+  const language = typeof lang === "string" ? lang : lang.name;
+  const pronunciation = typeof lang === "string" ? null : lang.pronunciation;
+  // Always declared, never conditionally spread. A maybe-present key inside
+  // z.object infers as `unknown`, which then will not assign anywhere - so the
+  // field is always there and it is the INSTRUCTION that varies. A language
+  // with no transcription system is told to omit it, which costs a few tokens
+  // and keeps one schema instead of a union of two.
+  const pron = {
+    pronunciation: z
+      .string()
+      .optional()
+      .describe(
+        pronunciation ?? "Leave this out; this language does not use a transcription.",
+      ),
+  };
+
+  return z.object({
   title: z.string().describe(`A short title, in ${language}.`),
   paragraphs: z
     .array(z.string())
@@ -45,6 +68,7 @@ export const pieceSchema = (language: string) => z.object({
             `The key term in ${language}, spelled EXACTLY as it appears in the text.`,
           ),
         meaning: z.string().describe("A short English gloss."),
+        ...pron,
       }),
     )
     .describe(
@@ -55,6 +79,7 @@ export const pieceSchema = (language: string) => z.object({
       z.object({
         word: z.string().describe(`The ${language} word, as it appears in the text.`),
         meaning: z.string().describe("A short English gloss."),
+        ...pron,
       }),
     )
     .describe(
@@ -79,7 +104,8 @@ export const pieceSchema = (language: string) => z.object({
       }),
     )
     .describe("Exactly three comprehension questions."),
-});
+  });
+};
 
 export type Piece = z.infer<ReturnType<typeof pieceSchema>>;
 
@@ -196,7 +222,7 @@ export async function generatePiece(args: {
   while (attempts < MAX_ATTEMPTS) {
     attempts++;
     const result = await generateStructured({
-      schema: pieceSchema(language.name),
+      schema: pieceSchema(language),
       system: system(language.name),
       prompt: buildPrompt(args.format, args.topic, args.length, params, corrections),
       // Some warmth, or every story about "a trip to the market" is the same
