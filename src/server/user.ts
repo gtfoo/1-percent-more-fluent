@@ -1,3 +1,4 @@
+import { UI_COOKIE, parseUiPreference, type UiPreference } from "@/lib/ui";
 import { cookies } from "next/headers";
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
@@ -74,6 +75,17 @@ export async function getUserId(): Promise<string | null> {
   if (!id) return null;
   const known = getDb().prepare("SELECT 1 FROM users WHERE id = ?").get(id);
   return known ? id : null;
+}
+
+/**
+ * Which language the learner wants the INTERFACE in, if they have said.
+ *
+ * A cookie rather than a profile column: it is a display preference, it should
+ * survive being set before any profile exists, and it needs no migration.
+ */
+export async function getUiPreference(): Promise<UiPreference> {
+  const jar = await cookies();
+  return parseUiPreference(jar.get(UI_COOKIE)?.value);
 }
 
 /** Every language this learner has placed in, most recently used first. */

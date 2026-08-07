@@ -11,6 +11,7 @@ import { mergeTermTokens, termSpans, type TopicTerm } from "@/lib/terms";
 // duplicated here before, and duplicating it is how the reader silently stopped
 // showing a field the server had started returning.
 import type { Gloss } from "@/server/gloss";
+import type { UiStrings } from "@/lib/ui-strings";
 
 interface Alignment {
   characters: string[];
@@ -56,9 +57,11 @@ interface PlacedToken {
 export function Reader({
   piece,
   ttsReady,
+  t,
 }: {
   piece: ReaderPiece;
   ttsReady: boolean;
+  t: UiStrings;
 }) {
   const [glosses, setGlosses] = useState<Map<string, Gloss>>(new Map());
   /**
@@ -385,7 +388,7 @@ export function Reader({
       setGlosses((prev) =>
         new Map(prev).set(word, {
           word,
-          meaning: "Couldn’t look that one up.",
+          meaning: t.lookupFailed,
           cached: false,
         }),
       );
@@ -412,7 +415,7 @@ export function Reader({
       setAudioUrl(data.url);
       setAlignment(data.alignment ?? null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load audio.");
+      setError(err instanceof Error ? err.message : t.couldNotLoadAudio);
     } finally {
       setAudioBusy(false);
     }
@@ -452,7 +455,7 @@ export function Reader({
       if (!res.ok) throw new Error(data.error ?? "could not save");
       setResult(data as SessionResult);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save.");
+      setError(err instanceof Error ? err.message : t.couldNotSave);
     }
   }
 
@@ -514,7 +517,7 @@ export function Reader({
         `Level moved to ${data.label} (about ${data.vocabBand.toLocaleString()} words). The next piece will be ${direction}.`,
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not adjust level.");
+      setError(err instanceof Error ? err.message : t.couldNotAdjust);
     }
   }
 
@@ -539,12 +542,12 @@ export function Reader({
           className="rounded-lg border border-accent px-4 py-2 text-sm font-medium text-accent hover:bg-accent-soft disabled:opacity-40"
         >
           {audioBusy
-            ? "Preparing…"
+            ? t.preparing
             : !audioUrl
-              ? "Listen"
+              ? t.listen
               : playing
-                ? "Pause"
-                : "Play"}
+                ? t.pause
+                : t.play}
         </button>
         {!ttsReady && (
           <span className="text-sm text-muted">
@@ -570,18 +573,18 @@ export function Reader({
         {/* The escape hatch. Available before finishing, because the moment you
             realise a piece is mispitched is the moment you stop reading it. */}
         <div className="ml-auto flex items-center gap-2 text-sm">
-          <span className="text-muted">Mispitched?</span>
+          <span className="text-muted">{t.mispitched}</span>
           <button
             onClick={() => adjustLevel("easier")}
             className="rounded-lg border border-border px-3 py-1.5 hover:border-accent"
           >
-            Too hard
+            {t.tooHard}
           </button>
           <button
             onClick={() => adjustLevel("harder")}
             className="rounded-lg border border-border px-3 py-1.5 hover:border-accent"
           >
-            Too easy
+            {t.tooEasy}
           </button>
         </div>
       </div>
@@ -590,7 +593,7 @@ export function Reader({
         <p className="rounded-lg border border-border bg-accent-soft px-4 py-3 text-sm">
           {override}{" "}
           <Link href="/" className="underline underline-offset-4">
-            Write me another
+            {t.writeAnother}
           </Link>
         </p>
       )}
@@ -657,7 +660,7 @@ export function Reader({
               onClick={() => setFinishing(true)}
               className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
             >
-              I’ve finished reading
+              {t.finishedReading}
             </button>
           ) : (
             <>
@@ -667,7 +670,7 @@ export function Reader({
                     The heading is chrome, like the button above it, so it is
                     English; the questions and options are generated in the
                     target language and are marked as such below. */}
-                <h2 className="text-xl font-semibold">Did you follow it?</h2>
+                <h2 className="text-xl font-semibold">{t.didYouFollow}</h2>
                 {piece.questions.map((q, qi) => (
                   <fieldset key={qi} className="space-y-2">
                     <legend
@@ -708,12 +711,12 @@ export function Reader({
               </div>
 
               <div className="space-y-3">
-                <h2 className="text-xl font-semibold">How did that feel?</h2>
+                <h2 className="text-xl font-semibold">{t.howDidThatFeel}</h2>
                 <div className="flex flex-wrap gap-2">
                   {[
-                    { value: "too-easy", label: "Too easy" },
-                    { value: "just-right", label: "Just right" },
-                    { value: "too-hard", label: "Too hard" },
+                    { value: "too-easy", label: t.tooEasy },
+                    { value: "just-right", label: t.justRight },
+                    { value: "too-hard", label: t.tooHard },
                   ].map((r) => (
                     <button
                       key={r.value}
@@ -814,7 +817,7 @@ export function Reader({
 
               <p className="mt-1 text-muted">
                 {glossLoading && !activeGloss
-                  ? "Looking up…"
+                  ? t.lookingUp
                   : (activeGloss?.meaning ?? "")}
                 {activeGloss?.partOfSpeech && (
                   <span className="ml-2 text-sm italic">
@@ -827,7 +830,7 @@ export function Reader({
                   where a word ends is often not the learner's, and on a phone
                   there is no other way to disagree with it. */}
               <div className="mt-2 flex items-center gap-1 text-sm">
-                <span className="mr-1 text-muted">Select more:</span>
+                <span className="mr-1 text-muted">{t.selectMore}</span>
                 <button
                   onClick={() => extend("left", 1)}
                   aria-label="Add the word before"
@@ -847,7 +850,7 @@ export function Reader({
                     onClick={() => selectWord(selection.start)}
                     className="ml-2 text-muted underline underline-offset-4 hover:text-accent"
                   >
-                    just one word
+                    {t.justOneWord}
                   </button>
                 )}
               </div>
@@ -858,7 +861,7 @@ export function Reader({
                 setSelection(null);
                 setWordAudio(null);
               }}
-              aria-label="Close"
+              aria-label={t.close}
               className="rounded px-2 py-1 text-muted hover:text-foreground"
             >
               ✕

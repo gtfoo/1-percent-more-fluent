@@ -6,6 +6,7 @@
  * driven as much by characters as by words.
  */
 import type { GrammarGate, Language, PlacedWord, Token } from "./types";
+import { UI_ZH_CN, FORMAT_ZH_CN } from "./ui-zh-CN";
 
 // Built with `new RegExp` so this file stays plain ASCII where it can.
 const HAN = new RegExp("[\\u4e00-\\u9fff]");
@@ -159,6 +160,12 @@ export const simplifiedChinese: Language = {
   // Characters carry no sound, so without this a learner can read a word and
   // still be unable to say it to anyone - which is most of the point.
   pronunciation: "Hanyu Pinyin with tone marks, spaced by syllable, e.g. yào shi",
+  ui: UI_ZH_CN,
+  uiFormat: FORMAT_ZH_CN,
+  // Around HSK 4, and later than Spanish on purpose: there is no alphabet to
+  // fall back on, so a character you do not know is opaque rather than merely
+  // unfamiliar - guessing a button label from its shape is not an option.
+  uiFromLevel: 45,
   registerExamples:
     '"想" not "欲", "所以" not "故而", "开始" not "着手" - everyday spoken vocabulary over written or classical register',
   levelLabel: (vocabSize) => HSK_THRESHOLDS.find((t) => vocabSize < t.max)!.label,

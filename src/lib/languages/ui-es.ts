@@ -1,0 +1,58 @@
+import type { UiFormatters, UiStrings } from "../ui-strings";
+
+/** Server-only, because these are functions. See UiFormatters. */
+export const FORMAT_ES: UiFormatters = {
+  aboutWords: (band) => `· unas ${band} palabras`,
+  // Word order moves - Spanish puts the percentage phrase differently - which is
+  // exactly why these are functions rather than templates with numbered slots.
+  aimingFor: (sentenceWords, newWordPercent) =>
+    `Busca frases de unas ${sentenceWords} palabras y un ${newWordPercent}% de vocabulario nuevo`,
+};
+
+/** The interface in Spanish. A translation of EN in src/lib/ui-strings.ts. */
+export const UI_ES: UiStrings = {
+  uiLanguageNote: "Spanish",
+
+  retakeLevel: "Volver a medir mi nivel",
+
+  whatToRead: "¿Qué te apetece leer?",
+  topicLabel: "¿Sobre qué quieres leer?",
+  orStartFrom: "O empieza por una de estas:",
+  formatStory: "Relato",
+  formatArticle: "Artículo",
+  formatConversation: "Conversación",
+  lengthShort: "Corto",
+  lengthMedium: "Medio",
+  lengthLong: "Largo",
+  writeIt: "Escríbelo",
+  writing: "Escribiendo…",
+  writingNote:
+    "Lo escribe, lo compara con tu nivel y reescribe lo que resulte demasiado difícil. Suele tardar entre 20 y 40 segundos.",
+
+  everythingRead: "Todo lo que has leído",
+
+  listen: "Escuchar",
+  preparing: "Preparando…",
+  play: "Reproducir",
+  pause: "Pausa",
+  finishedReading: "He terminado de leer",
+  didYouFollow: "¿Lo entendiste?",
+  howDidThatFeel: "¿Qué tal te resultó?",
+  tooEasy: "Muy fácil",
+  justRight: "En su punto",
+  tooHard: "Muy difícil",
+  mispitched: "¿Mal ajustado?",
+  selectMore: "Ampliar:",
+  justOneWord: "solo una palabra",
+  lookingUp: "Buscando…",
+  close: "Cerrar",
+  writeAnother: "Escríbeme otro",
+  seeResult: "Ver qué tal fue",
+
+  somethingWentWrong: "Algo salió mal.",
+  couldNotLoadAudio: "No se pudo cargar el audio.",
+  couldNotSave: "No se pudo guardar.",
+  couldNotAdjust: "No se pudo ajustar el nivel.",
+  generationFailed: "No se pudo generar el texto.",
+  lookupFailed: "No se pudo buscar esa palabra.",
+};

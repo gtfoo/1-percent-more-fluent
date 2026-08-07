@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { getUserId, getProfile, getProfiles } from "@/server/user";
+import { getUserId, getProfile, getProfiles, getUiPreference } from "@/server/user";
 import { listPieces } from "@/server/generate";
 import { isTtsConfigured, charactersSpentTotal } from "@/server/tts";
 import { labelFor, paramsFor } from "@/lib/level";
 import { getLanguage, LANGUAGES } from "@/lib/languages";
+import { uiFor } from "@/lib/ui";
 import { Compose } from "@/components/Compose";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
@@ -49,6 +50,8 @@ export default async function Home() {
 
   const language = getLanguage(profile.language);
   const params = paramsFor(profile.level, language);
+  // Above a level the chrome switches too; see src/lib/ui.ts.
+  const { strings: t, format: f, inTarget } = uiFor(language, profile.level, await getUiPreference());
   const recent = listPieces(profile.userId, language.code);
   // Operator information, shown to the operator only. ADMIN_USER_ID is the
   // `fluent_uid` cookie of whoever runs the site; unset means nobody sees it.
@@ -80,32 +83,32 @@ export default async function Home() {
               current={{ code: language.code, name: language.name, label: params.label }}
               placed={placed}
               available={available}
+              uiInTarget={inTarget}
             />
             <p className="text-2xl font-semibold">
               {params.label}{" "}
               <span className="text-base font-normal text-muted">
-                · about {params.vocabBand.toLocaleString()} words
+                {f.aboutWords(params.vocabBand.toLocaleString())}
               </span>
             </p>
           </div>
           <p className="text-sm text-muted">
-            Aiming for ~{params.sentenceWords}-word sentences and{" "}
-            {Math.round(params.newWordBudget * 100)}% new vocabulary
+            {f.aimingFor(params.sentenceWords, Math.round(params.newWordBudget * 100))}
           </p>
         </div>
       </section>
 
       <section>
         <h2 className="mb-4 text-xl font-semibold tracking-tight">
-          What do you feel like reading?
+          {t.whatToRead}
         </h2>
-        <Compose ttsReady={isTtsConfigured()} />
+        <Compose ttsReady={isTtsConfigured()} t={t} />
       </section>
 
       {recent.length > 0 && (
         <section>
           <h2 className="mb-4 text-xl font-semibold tracking-tight">
-            Everything you’ve read
+            {t.everythingRead}
           </h2>
           <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
             {recent.map((p) => (

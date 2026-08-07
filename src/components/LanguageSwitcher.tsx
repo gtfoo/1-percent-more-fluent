@@ -46,10 +46,13 @@ export function LanguageSwitcher({
   current,
   placed,
   available,
+  uiInTarget,
 }: {
   current: PlacedLanguage;
   placed: PlacedLanguage[];
   available: AvailableLanguage[];
+  /** Whether the interface is currently written in the language being learned. */
+  uiInTarget: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -57,13 +60,13 @@ export function LanguageSwitcher({
 
   const others = placed.filter((p) => p.code !== current.code);
 
-  async function choose(code: string) {
+  async function post(body: Record<string, string>) {
     setBusy(true);
     try {
       const res = await fetch("/api/language", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ language: code }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
       setOpen(false);
@@ -74,6 +77,8 @@ export function LanguageSwitcher({
       setBusy(false);
     }
   }
+
+  const choose = (code: string) => post({ language: code });
 
   return (
     <div className="relative">
@@ -139,9 +144,24 @@ export function LanguageSwitcher({
               </>
             )}
 
+            {/* Written in English whatever the interface is set to. This is the
+                way back out: an interface in a language you cannot yet read is
+                a room with the lights off, and the switch has to be findable
+                from inside it. */}
+            <button
+              type="button"
+              onClick={() => post({ ui: uiInTarget ? "english" : "target" })}
+              disabled={busy}
+              className="mt-1 block w-full border-t border-border px-2.5 pb-1 pt-2 text-left text-sm text-muted hover:text-accent"
+            >
+              {uiInTarget
+                ? "Show the interface in English"
+                : `Show the interface in ${current.name}`}
+            </button>
+
             <Link
               href="/setup"
-              className="mt-1 block border-t border-border px-2.5 pb-1 pt-2 text-sm text-muted hover:text-accent"
+              className="block px-2.5 py-1 text-sm text-muted hover:text-accent"
             >
               Re-take my level check
             </Link>

@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
-import { getUserId, getProfile } from "@/server/user";
+import { getUserId, getProfile, getUiPreference } from "@/server/user";
+import { getLanguage } from "@/lib/languages";
+import { uiFor } from "@/lib/ui";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,7 +32,13 @@ export default async function RootLayout({
   // Read-only: a layout cannot write cookies, so this treats "no cookie" as a
   // first-time visitor rather than creating a user for one page view.
   const userId = await getUserId();
-  const placed = userId ? getProfile(userId) !== null : false;
+  const profile = userId ? getProfile(userId) : null;
+  const placed = profile !== null;
+  // The header follows the interface language too; a lone English link above
+  // otherwise-translated chrome is the half-done look this is meant to avoid.
+  const { strings: t } = profile
+    ? uiFor(getLanguage(profile.language), profile.level, await getUiPreference())
+    : uiFor(getLanguage(null), 0, "english");
 
   return (
     <html
@@ -53,7 +61,7 @@ export default async function RootLayout({
                 href="/setup"
                 className="text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
               >
-                Re-test my level
+                {t.retakeLevel}
               </Link>
             )}
           </div>

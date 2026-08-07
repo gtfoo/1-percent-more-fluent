@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+import { UI_COOKIE, parseUiPreference } from "@/lib/ui";
 import type { NextRequest } from "next/server";
 import { getOrCreateUserId, getProfiles, setActiveLanguage } from "@/server/user";
 import { getLanguage, LANGUAGES } from "@/lib/languages";
@@ -33,7 +35,24 @@ export async function GET() {
  */
 export async function POST(req: NextRequest) {
   const userId = await getOrCreateUserId();
-  const { language } = (await req.json()) as { language?: string };
+  const { language, ui } = (await req.json()) as {
+    language?: string;
+    ui?: string;
+  };
+
+  // Which language the INTERFACE is in, which is not the same question as which
+  // language you are reading. Handled here because a Route Handler is the only
+  // place a cookie can be written.
+  if (ui !== undefined) {
+    const preference = parseUiPreference(ui);
+    const jar = await cookies();
+    jar.set(UI_COOKIE, preference, {
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+    return Response.json({ ui: preference });
+  }
 
   if (!language || !(language in LANGUAGES)) {
     return Response.json({ error: "unknown language" }, { status: 400 });

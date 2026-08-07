@@ -12,6 +12,7 @@
  * contract is stated in terms of what the app needs answered, not how a
  * particular language answers it.
  */
+import type { UiFormatters, UiStrings } from "../ui-strings";
 
 export interface Token {
   text: string;
@@ -81,6 +82,22 @@ export interface Language {
    * it should look like.
    */
   pronunciation: string | null;
+
+  /** The interface, written in this language. See src/lib/ui-strings.ts. */
+  ui: UiStrings;
+
+  /** Its interpolating strings. Server-only: functions cannot cross to a client. */
+  uiFormat: UiFormatters;
+
+  /**
+   * The level at which the interface switches to this language.
+   *
+   * Per language rather than global because the bands are not comparable: HSK 4
+   * and B1 sit at different points on the 0-100 scale, and "can read the words
+   * on a button" arrives at a different place in a language with no alphabet.
+   * The reader can always override it either way.
+   */
+  uiFromLevel: number;
 
   /**
    * Every form of `word` worth looking up in the frequency list, including the

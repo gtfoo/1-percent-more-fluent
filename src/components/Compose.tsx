@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FORMATS, type Format } from "@/lib/formats";
 import type { Length } from "@/lib/level";
 import { SUGGESTIONS } from "@/lib/suggestions";
+import type { UiStrings } from "@/lib/ui-strings";
 
 const FORMAT_LABELS: Record<Format, { label: string; hint: string }> = {
   story: { label: "Story", hint: "folklore, a small mystery, something that happened" },
@@ -12,13 +13,22 @@ const FORMAT_LABELS: Record<Format, { label: string; hint: string }> = {
   conversation: { label: "Conversation", hint: "two friends on the new Spider-Man film" },
 };
 
-const LENGTHS: { value: Length; label: string }[] = [
-  { value: "short", label: "Short" },
-  { value: "medium", label: "Medium" },
-  { value: "long", label: "Long" },
+const LENGTHS: { value: Length }[] = [
+  { value: "short" },
+  { value: "medium" },
+  { value: "long" },
 ];
 
-export function Compose({ ttsReady }: { ttsReady: boolean }) {
+/** Labels come from the string set, so they follow the interface language. */
+function formatLabel(t: UiStrings, f: Format): string {
+  return f === "story" ? t.formatStory : f === "article" ? t.formatArticle : t.formatConversation;
+}
+
+function lengthLabel(t: UiStrings, l: Length): string {
+  return l === "short" ? t.lengthShort : l === "medium" ? t.lengthMedium : t.lengthLong;
+}
+
+export function Compose({ ttsReady, t }: { ttsReady: boolean; t: UiStrings }) {
   const router = useRouter();
   const [format, setFormat] = useState<Format>("story");
   const [topic, setTopic] = useState("");
@@ -37,10 +47,10 @@ export function Compose({ ttsReady }: { ttsReady: boolean }) {
         body: JSON.stringify({ format, topic, length }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Generation failed.");
+      if (!res.ok) throw new Error(data.error ?? t.generationFailed);
       router.push(`/read/${data.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : t.somethingWentWrong);
       setBusy(false);
     }
   }
@@ -59,14 +69,14 @@ export function Compose({ ttsReady }: { ttsReady: boolean }) {
                 : "border-border bg-surface hover:border-accent"
             }`}
           >
-            {FORMAT_LABELS[f].label}
+            {formatLabel(t, f)}
           </button>
         ))}
       </div>
 
       <div>
         <label htmlFor="topic" className="block text-sm font-medium">
-          What do you want to read about?
+          {t.topicLabel}
         </label>
         <input
           id="topic"
@@ -86,7 +96,7 @@ export function Compose({ ttsReady }: { ttsReady: boolean }) {
             typed, since by then they are only in the way. */}
         {!topic.trim() && (
           <div className="mt-3">
-            <p className="text-sm text-muted">Or start from one of these:</p>
+            <p className="text-sm text-muted">{t.orStartFrom}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {SUGGESTIONS[format].map((s) => (
                 <button
@@ -117,7 +127,7 @@ export function Compose({ ttsReady }: { ttsReady: boolean }) {
                   : "border-border text-muted hover:border-accent"
               }`}
             >
-              {l.label}
+              {lengthLabel(t, l.value)}
             </button>
           ))}
         </div>
@@ -127,14 +137,13 @@ export function Compose({ ttsReady }: { ttsReady: boolean }) {
           disabled={busy || !topic.trim()}
           className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90 disabled:opacity-40"
         >
-          {busy ? "Writing…" : "Write it"}
+          {busy ? t.writing : t.writeIt}
         </button>
       </div>
 
       {busy && (
         <p className="text-sm text-muted">
-          Writing, then checking it against your level and rewriting anything
-          too hard. Usually 20–40 seconds.
+          {t.writingNote}
         </p>
       )}
       {error && <p className="text-warn">{error}</p>}

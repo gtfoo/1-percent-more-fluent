@@ -6,6 +6,7 @@
  * `npm run morphology` guard that.
  */
 import type { GrammarGate, Language, PlacedWord, Token } from "./types";
+import { UI_ES, FORMAT_ES } from "./ui-es";
 
 // --- Text -------------------------------------------------------------------
 // Built with `new RegExp` so this file stays plain ASCII: combining marks and
@@ -166,6 +167,10 @@ export const spanish: Language = {
   baseForms,
   grammar: GRAMMAR,
   pronunciation: null,
+  ui: UI_ES,
+  uiFormat: FORMAT_ES,
+  // B1: the point at which a button label is not the hard part of the page.
+  uiFromLevel: 40,
   registerExamples:
     '"decir" not "manifestar", "ver" not "contemplar", "casa" not "vivienda"',
   levelLabel: (vocabSize) =>
