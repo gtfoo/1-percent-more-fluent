@@ -15,11 +15,17 @@
  * makes signing in a claim rather than a fresh start; see claim.ts.
  */
 import { randomUUID } from "node:crypto";
-import type { Adapter, AdapterUser, VerificationToken } from "next-auth/adapters";
+import type {
+  Adapter,
+  AdapterAuthenticator,
+  AdapterUser,
+  VerificationToken,
+} from "next-auth/adapters";
 import { getDb } from "./db";
 
 export function SqliteAdapter(): Adapter {
   return {
+    ...passkeyMethods(),
     async createUser(user) {
       const id = randomUUID();
       getDb()
@@ -173,6 +179,119 @@ function toUser(row: unknown): AdapterUser | null {
     image: r.image,
     emailVerified: r.email_verified ? new Date(r.email_verified) : null,
   };
+}
+
+/**
+ * The passkey half of the adapter.
+ *
+ * Auth.js requires all five of these before it will accept a WebAuthn provider,
+ * plus createUser, getUser and linkAccount from above.
+ */
+function passkeyMethods(): Partial<Adapter> {
+  return {
+    async getAccount(providerAccountId, provider) {
+      const row = getDb()
+        .prepare(
+          `SELECT user_id, provider, provider_account_id, type FROM accounts
+            WHERE provider_account_id = ? AND provider = ?`,
+        )
+        .get(providerAccountId, provider) as
+        | { user_id: string; provider: string; provider_account_id: string; type: string }
+        | undefined;
+      if (!row) return null;
+      return {
+        userId: row.user_id,
+        provider: row.provider,
+        providerAccountId: row.provider_account_id,
+        type: row.type as "webauthn",
+      };
+    },
+
+    async getAuthenticator(credentialID) {
+      return toAuthenticator(
+        getDb()
+          .prepare("SELECT * FROM authenticators WHERE credential_id = ?")
+          .get(credentialID),
+      );
+    },
+
+    async createAuthenticator(authenticator) {
+      getDb()
+        .prepare(
+          `INSERT INTO authenticators
+             (credential_id, user_id, provider_account_id, credential_public_key,
+              counter, credential_device_type, credential_backed_up, transports, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          authenticator.credentialID,
+          authenticator.userId,
+          authenticator.providerAccountId,
+          authenticator.credentialPublicKey,
+          authenticator.counter,
+          authenticator.credentialDeviceType,
+          // SQLite has no boolean.
+          authenticator.credentialBackedUp ? 1 : 0,
+          authenticator.transports ?? null,
+          new Date().toISOString(),
+        );
+      return authenticator;
+    },
+
+    async listAuthenticatorsByUserId(userId) {
+      const rows = getDb()
+        .prepare("SELECT * FROM authenticators WHERE user_id = ? ORDER BY created_at")
+        .all(userId);
+      return rows.map((r) => toAuthenticator(r)!).filter(Boolean);
+    },
+
+    async updateAuthenticatorCounter(credentialID, newCounter) {
+      getDb()
+        .prepare("UPDATE authenticators SET counter = ? WHERE credential_id = ?")
+        .run(newCounter, credentialID);
+      const updated = toAuthenticator(
+        getDb()
+          .prepare("SELECT * FROM authenticators WHERE credential_id = ?")
+          .get(credentialID),
+      );
+      if (!updated) throw new Error(`no authenticator ${credentialID}`);
+      return updated;
+    },
+  };
+}
+
+interface AuthenticatorRow {
+  credential_id: string;
+  user_id: string;
+  provider_account_id: string;
+  credential_public_key: string;
+  counter: number;
+  credential_device_type: string;
+  credential_backed_up: number;
+  transports: string | null;
+}
+
+function toAuthenticator(row: unknown): AdapterAuthenticator | null {
+  const r = row as AuthenticatorRow | undefined;
+  if (!r) return null;
+  return {
+    credentialID: r.credential_id,
+    userId: r.user_id,
+    providerAccountId: r.provider_account_id,
+    credentialPublicKey: r.credential_public_key,
+    counter: r.counter,
+    credentialDeviceType: r.credential_device_type,
+    credentialBackedUp: Boolean(r.credential_backed_up),
+    transports: r.transports ?? undefined,
+  } as AdapterAuthenticator;
+}
+
+/** How many passkeys this reader has registered. */
+export function countPasskeys(userId: string): number {
+  const row = getDb()
+    .prepare("SELECT COUNT(*) AS n FROM authenticators WHERE user_id = ?")
+    .get(userId) as { n: number };
+  return row.n;
 }
 
 /** The token version stored against a reader, for JWT revocation. */

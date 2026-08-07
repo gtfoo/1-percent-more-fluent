@@ -17,7 +17,46 @@ fi
 
 cd "$(dirname "$0")/.." || exit 1
 
-BASE=http://127.0.0.1:3003
+# Starts its OWN server with the auth variables explicitly emptied, rather than
+# testing whatever happens to be in .env.local. Once sign-in is configured
+# locally the ambient server is configured too, and every assertion here
+# inverted - failing loudly about a state that was simply no longer being
+# tested. Next does not override variables already in the environment, so
+# exporting them empty wins over the file.
+PORT=3005
+BASE="http://127.0.0.1:$PORT"
+
+export AUTH_SECRET=""
+export AUTH_RESEND_KEY=""
+export AUTH_PASSKEYS=""
+
+# Next 16 refuses a second dev server from the same directory.
+for p in 3003 3004 "$PORT"; do
+  for pid in $(ss -ltnp 2>/dev/null | grep ":$p " | grep -oP 'pid=\K[0-9]+' | sort -u); do
+    kill -9 "$pid" 2>/dev/null || true
+  done
+done
+sleep 1
+
+LOG=/tmp/fluent-noauth-dev.log
+setsid nohup npm run dev -- -H 127.0.0.1 -p "$PORT" >"$LOG" 2>&1 < /dev/null &
+disown
+
+ready=0
+for _ in $(seq 1 60); do
+  sleep 1
+  if [ "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/" || true)" = "200" ]; then ready=1; break; fi
+done
+if [ "$ready" != "1" ]; then echo "dev server did not start"; tail -20 "$LOG"; exit 1; fi
+
+cleanup() {
+  for pid in $(ss -ltnp 2>/dev/null | grep ":$PORT " | grep -oP 'pid=\K[0-9]+' | sort -u); do
+    kill -9 "$pid" 2>/dev/null || true
+  done
+  echo
+  echo "(server on $PORT stopped - run 'bash scripts/dev.sh' for the normal one)"
+}
+trap cleanup EXIT
 UID_ES=445e3269-f599-4027-98fa-3c4498838c9a
 
 pass=0
@@ -76,7 +115,7 @@ for c in email email_verified token_version; do
   echo "$cols" | grep -q "$c" && ok "users.$c" 1 || ok "users.$c" 0
 done
 tables=$(npx tsx -e 'const {getDb}=require("./src/server/db");console.log(getDb().prepare("SELECT name FROM sqlite_master WHERE type=?").all("table").map(t=>t.name).join(","))' 2>/dev/null | tail -1)
-for t in accounts verification_tokens; do
+for t in accounts verification_tokens authenticators; do
   echo "$tables" | grep -q "$t" && ok "table $t" 1 || ok "table $t" 0
 done
 

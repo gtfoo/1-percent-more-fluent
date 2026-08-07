@@ -47,6 +47,14 @@ export const UI_ES: UiStrings = {
     "¿No llega nada? Mira en spam y comprueba que la dirección era correcta. No podemos decirte si una dirección está registrada: cualquiera podría usar esta página para averiguarlo.",
   tryAnotherAddress: "Probar con otra dirección",
 
+  passkeySignIn: "Usar una clave de acceso",
+  passkeyAdd: "Añadir una clave de acceso a este dispositivo",
+  passkeyAdded: "Añadida. La próxima vez entrarás sin correo.",
+  passkeyWorking: "Esperando a tu dispositivo…",
+  passkeyWhy:
+    "Una clave de acceso te identifica con tu huella o tu cara en lugar de un enlace por correo. Se queda en este dispositivo.",
+  orDivider: "o",
+
   yourWords: "Palabras que buscaste",
   yourWordsNote:
     "Cada palabra que tocaste mientras leías. Las que se repiten son las que vale la pena aprender.",

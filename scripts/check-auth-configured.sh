@@ -37,6 +37,10 @@ sleep 1
 AUTH_SECRET="$(openssl rand -base64 32)"
 export AUTH_SECRET
 export AUTH_RESEND_KEY="re_dummy_never_used_by_this_test"
+# Passkeys too: Auth.js refuses to boot with a WebAuthn provider unless
+# experimental.enableWebAuthn is set, so "the app still starts" is itself a
+# check worth having.
+export AUTH_PASSKEYS=1
 export AUTH_EMAIL_FROM="login@gtfoo.com"
 export AUTH_URL="$BASE"
 
@@ -64,6 +68,13 @@ pass=0
 fail=0
 ok() { if [ "$2" = "1" ]; then echo "ok   $1"; pass=$((pass+1)); else echo "FAIL $1  ${3:-}"; fail=$((fail+1)); fi }
 
+# Everything handed to a client component is serialised into the page as RSC
+# payload, inside <script> tags - and this app hands entire UiStrings objects to
+# client components. So grepping the raw HTML for a string proves nothing about
+# what was RENDERED: "not configured" is present as data on a page that renders
+# a working form. Strip the scripts first.
+rendered() { perl -0777 -pe 's/<script\b.*?<\/script>//gs' "$1"; }
+
 echo "--- the endpoints mount now ---"
 body=$(curl -s "$BASE/api/auth/providers")
 echo "$body" | grep -q resend && ok "resend is offered" 1 || ok "resend is offered" 0 "$body"
@@ -75,10 +86,11 @@ sess=$(curl -s "$BASE/api/auth/session")
 echo
 echo "--- the page offers a real form ---"
 curl -s -b "fluent_uid=$UID_ES" "$BASE/signin" > /tmp/auth-c-signin.html
+rendered /tmp/auth-c-signin.html > /tmp/auth-c-signin.rendered.html
 grep -q 'type="email"' /tmp/auth-c-signin.html && ok "email field" 1 || ok "email field" 0
 grep -q "Enviarme un enlace" /tmp/auth-c-signin.html && ok "submit button, in Spanish" 1 || ok "submit button" 0
 grep -q "caduca en 15 minutos" /tmp/auth-c-signin.html && ok "expiry stated" 1 || ok "expiry stated" 0
-grep -q "configurado en este servidor" /tmp/auth-c-signin.html \
+grep -q "configurado en este servidor" /tmp/auth-c-signin.rendered.html \
   && ok "no longer says it is unconfigured" 0 "still says unconfigured" \
   || ok "no longer says it is unconfigured" 1
 
@@ -97,6 +109,24 @@ grep -q "Iniciar sesión" /tmp/auth-c-header.html && ok "...in Spanish" 1 || ok 
 grep -q "Cerrar sesión" /tmp/auth-c-header.html \
   && ok "not offering sign-out while signed out" 0 "sign-out rendered" \
   || ok "not offering sign-out while signed out" 1
+
+echo
+echo "--- passkeys ---"
+echo "$body" | grep -q passkey && ok "the passkey provider is offered" 1 || ok "the passkey provider is offered" 0 "$body"
+grep -q "Usar una clave de acceso" /tmp/auth-c-signin.rendered.html \
+  && ok "a passkey button on the sign-in page" 1 \
+  || ok "a passkey button on the sign-in page" 0
+# The options endpoint is what the browser calls first. Signed out and with no
+# email it should decline rather than error.
+c=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/auth/webauthn-options/passkey?action=authenticate")
+[ "$c" = "200" ] && ok "options are served for authentication" 1 || ok "options are served" 0 "got $c"
+
+# The guard that matters: a passkey must never mint an account for an address
+# nobody has proved they own. Registering while signed out is refused.
+c=$(curl -s -o /dev/null -w '%{http_code}' \
+  "$BASE/api/auth/webauthn-options/passkey?action=register&email=stranger@example.com")
+[ "$c" = "400" ] && ok "registering an unknown address is refused" 1 \
+  || ok "registering an unknown address is refused" 0 "got $c, expected 400"
 
 echo
 echo "--- the app still works for someone who never signs in ---"

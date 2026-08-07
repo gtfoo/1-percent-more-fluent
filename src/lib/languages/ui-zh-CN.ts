@@ -53,6 +53,14 @@ export const UI_ZH_CN: UiStrings = {
     "没收到？看看垃圾邮件，再确认一下地址有没有写错。我们不能告诉你某个邮箱有没有注册过，否则谁都能用这个页面来试。",
   tryAnotherAddress: "换一个邮箱地址",
 
+  passkeySignIn: "用通行密钥登录",
+  passkeyAdd: "在这台设备上添加通行密钥",
+  passkeyAdded: "已添加。下次在这台设备上不用邮箱也能登录。",
+  passkeyWorking: "等你的设备确认…",
+  passkeyWhy:
+    "通行密钥用指纹或面容登录，不用等邮件里的链接。它只存在这台设备上。",
+  orDivider: "或者",
+
   yourWords: "你查过的词",
   yourWordsNote: "你读的时候点过的词都在这里。反复出现的，就是最值得记住的。",
   noWordsYet: "这里还是空的。",

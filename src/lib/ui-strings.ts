@@ -60,6 +60,13 @@ export interface UiStrings {
   checkYourEmailSpam: string;
   tryAnotherAddress: string;
 
+  passkeySignIn: string;
+  passkeyAdd: string;
+  passkeyAdded: string;
+  passkeyWorking: string;
+  passkeyWhy: string;
+  orDivider: string;
+
   // The words you looked up
   yourWords: string;
   yourWordsNote: string;
@@ -137,6 +144,14 @@ export const EN: UiStrings = {
   checkYourEmailSpam:
     "Nothing arriving? Check spam, and confirm the address was right — we can’t tell you whether an address is registered, because that would let anyone use this page to find out.",
   tryAnotherAddress: "Try a different address",
+
+  passkeySignIn: "Use a passkey",
+  passkeyAdd: "Add a passkey to this device",
+  passkeyAdded: "Added. Next time this device signs you in without email.",
+  passkeyWorking: "Waiting for your device…",
+  passkeyWhy:
+    "A passkey signs you in with your fingerprint or face instead of an emailed link. It stays on this device.",
+  orDivider: "or",
 
   yourWords: "Words you looked up",
   yourWordsNote:

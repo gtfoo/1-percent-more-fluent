@@ -157,6 +157,27 @@ function addAccounts(): void {
       expires    TEXT NOT NULL,
       PRIMARY KEY (identifier, token)
     );
+
+    -- Passkeys. One row per credential, and a reader may hold several - a
+    -- laptop and a phone are different credentials even when they sync.
+    --
+    -- Only PUBLIC keys are here. The private half never leaves the
+    -- authenticator, which is the entire point: this table being read gives an
+    -- attacker nothing to sign in with.
+    CREATE TABLE IF NOT EXISTS authenticators (
+      credential_id          TEXT PRIMARY KEY,
+      user_id                TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider_account_id    TEXT NOT NULL,
+      credential_public_key  TEXT NOT NULL,
+      -- Bumped by the authenticator on each use. A counter that goes backwards
+      -- means the credential was cloned; Auth.js checks it, we store it.
+      counter                INTEGER NOT NULL,
+      credential_device_type TEXT NOT NULL,
+      credential_backed_up   INTEGER NOT NULL,
+      transports             TEXT,
+      created_at             TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS authenticators_by_user ON authenticators(user_id);
   `);
 }
 

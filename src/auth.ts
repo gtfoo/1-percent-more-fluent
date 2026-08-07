@@ -15,6 +15,7 @@
  */
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Resend from "next-auth/providers/resend";
+import Passkey from "next-auth/providers/passkey";
 import { cookies } from "next/headers";
 import { SqliteAdapter, tokenVersion } from "@/server/auth-adapter";
 import { claimAnonymousData } from "@/server/claim";
@@ -44,9 +45,57 @@ if (process.env.AUTH_RESEND_KEY) {
   );
 }
 
+/**
+ * Passkeys, off unless asked for.
+ *
+ * Opt-in because WebAuthn is still experimental in Auth.js - it refuses to boot
+ * without `experimental.enableWebAuthn` and warns on every start - and this is
+ * an experimental feature inside a beta dependency. A flag means it can be
+ * turned off without a deploy.
+ *
+ * A passkey is a convenience, not a replacement for the link. It lives on the
+ * device, so it makes returning to a device you already use nearly instant; it
+ * does not get you onto a NEW device, which is the thing accounts exist for
+ * here. Email always works anywhere.
+ */
+const passkeysEnabled = Boolean(process.env.AUTH_PASSKEYS) && providers.length > 0;
+
+if (passkeysEnabled) {
+  providers.push(
+    Passkey({
+      /**
+       * Refuse to mint an account from a passkey alone.
+       *
+       * The default returns `{ user: { email }, exists: false }` for an address
+       * it has never seen, which registers a NEW account for it - with the
+       * email unverified, because nothing was ever sent to it. That is an
+       * account takeover waiting to happen: squat a passkey on someone's
+       * address, wait for them to sign in by magic link, and Auth.js matches
+       * them to the same row by email. Their account, your passkey.
+       *
+       * Returning null instead means registration is reachable only through the
+       * session path in webauthn-options.ts, which skips getUserInfo entirely
+       * when someone is already signed in. So a passkey can only ever be ADDED
+       * by a reader who already proved the address is theirs by receiving a
+       * link at it. Authenticating with an existing passkey stays open.
+       */
+      getUserInfo: async (options, request) => {
+        const email =
+          request.method === "POST"
+            ? (request.body?.email as string | undefined)
+            : (request.query?.email as string | undefined);
+        if (!email) return null;
+        const user = await options.adapter?.getUserByEmail?.(email);
+        return user ? { user, exists: true } : null;
+      },
+    }),
+  );
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: SqliteAdapter(),
   providers,
+  experimental: { enableWebAuthn: passkeysEnabled },
   session: { strategy: "jwt" },
   pages: { signIn: "/signin", verifyRequest: "/signin/check-email" },
   /**
@@ -122,6 +171,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
  */
 export function authConfigured(): boolean {
   return Boolean(process.env.AUTH_SECRET) && providers.length > 0;
+}
+
+/** Are passkeys on? Used to decide whether to offer them in the UI. */
+export function passkeysConfigured(): boolean {
+  return authConfigured() && passkeysEnabled;
 }
 
 /** Safe session read: null when auth is not configured, instead of throwing. */

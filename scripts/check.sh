@@ -26,6 +26,7 @@ step "profile migration" npx tsx scripts/check-migration.ts
 step "topic terms" npx tsx scripts/check-terms.ts
 step "word list" npx tsx scripts/check-vocabulary.ts
 step "sign-in and claiming" npx tsx scripts/check-auth.ts
+step "passkey storage" npx tsx scripts/check-passkeys.ts
 step "dialogue turns" npx tsx scripts/check-dialogue.ts
 step "model chain" npx tsx scripts/check-llm-chain.ts
 step "next build" npx next build

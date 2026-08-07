@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { authConfigured, currentUser, signIn } from "@/auth";
+import { authConfigured, currentUser, passkeysConfigured, signIn } from "@/auth";
+import { Passkey } from "@/components/Passkey";
 import { getUserId, getProfile, getUiPreference } from "@/server/user";
 import { getLanguage } from "@/lib/languages";
 import { uiFor } from "@/lib/ui";
@@ -63,6 +64,23 @@ export default async function SignInPage() {
           </button>
           <p className="text-sm text-muted">{t.linkExpires}</p>
         </form>
+      )}
+
+      {/* Below the email form, not above it. A passkey only works for someone
+          who already registered one on this device; email works for everybody,
+          so email is the primary path and this is the shortcut. */}
+      {ready && passkeysConfigured() && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-xs uppercase tracking-wide text-muted">
+              {t.orDivider}
+            </span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <Passkey mode="authenticate" t={t} />
+          <p className="text-sm text-muted">{t.passkeyWhy}</p>
+        </div>
       )}
     </div>
   );

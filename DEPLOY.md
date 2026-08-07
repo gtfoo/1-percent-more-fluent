@@ -95,7 +95,21 @@ OPENAI_API_KEY=...
 # AUTH_RESEND_KEY=re_...
 # AUTH_EMAIL_FROM=login@gtfoo.com
 # AUTH_URL=https://1-percent-more-fluent.gtfoo.com
+# AUTH_PASSKEYS=1                   # optional, experimental - see below
 ```
+
+Passkeys are opt-in because WebAuthn is still **experimental** in Auth.js: it
+refuses to boot without an experimental flag and warns on every start. Removing
+the line turns them off without a code change. They require HTTPS, which the
+deployed site has, and they bind to the domain — a passkey registered against
+`localhost` will not work on the deployed site and vice versa.
+
+A passkey can only ever be **added by someone already signed in**. Auth.js's
+default would register a brand-new account for any unrecognised address, with
+the email unverified because nothing was ever sent to it — so squatting a
+passkey on someone's address, then waiting for them to sign in by magic link,
+would hand you their account. The `getUserInfo` override in `src/auth.ts`
+refuses that.
 
 Two ways sign-in fails **silently**, both learned the hard way on
 `career-side-quests`:
