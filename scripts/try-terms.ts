@@ -61,9 +61,21 @@ async function main() {
   console.log(`--- the ${piece.terms.length} terms it chose ---`);
   for (const t of piece.terms) {
     // Whether a declared term is actually in the text is the contract; show it
-    // per-term rather than only in the aggregate problem list.
+    // per-term rather than only in the aggregate problem list. Pronunciation is
+    // shown because its absence is silent everywhere else - it was declared
+    // optional once and simply never produced.
     const used = piece.paragraphs.join("\n").includes(t.term);
-    console.log(`${used ? "  used  " : "  ABSENT"} ${t.term} - ${t.meaning}`);
+    const say = t.pronunciation ? ` [${t.pronunciation}]` : " [NO PRONUNCIATION]";
+    console.log(
+      `${used ? "  used  " : "  ABSENT"} ${t.term}${language.pronunciation ? say : ""} - ${t.meaning}`,
+    );
+  }
+
+  const missingPron = language.pronunciation
+    ? piece.terms.filter((t) => !t.pronunciation).length
+    : 0;
+  if (missingPron) {
+    console.log(`  ${missingPron} of ${piece.terms.length} terms came back with no pronunciation`);
   }
 
   console.log("\n--- measurement ---");
