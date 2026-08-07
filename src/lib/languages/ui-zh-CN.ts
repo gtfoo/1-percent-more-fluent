@@ -6,6 +6,8 @@ export const FORMAT_ZH_CN: UiFormatters = {
   aboutWords: (band) => `· 约 ${band} 个词`,
   aimingFor: (sentenceWords, newWordPercent) =>
     `目标是每句约 ${sentenceWords} 个词，其中 ${newWordPercent}% 是生词`,
+  // 篇 is the measure word for a piece of writing.
+  metInPieces: (n) => `这个词你在 ${n} 篇里都查过`,
 };
 
 /**
@@ -36,6 +38,13 @@ export const UI_ZH_CN: UiStrings = {
     "先写出来，再按你的水平检查一遍，把太难的地方重写。通常需要 20 到 40 秒。",
 
   everythingRead: "你读过的全部内容",
+
+  yourWords: "你查过的词",
+  yourWordsNote: "你读的时候点过的词都在这里。反复出现的，就是最值得记住的。",
+  noWordsYet: "这里还是空的。",
+  noWordsYetNote: "读的时候点一下不认识的词，它就会出现在这里，意思也已经存好了。",
+  exportWords: "导出到 Anki",
+  removeWord: "删除",
 
   listen: "听",
   preparing: "准备中…",

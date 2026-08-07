@@ -15,7 +15,11 @@ import { UI_ES, FORMAT_ES } from "./ui-es";
 const LETTER =
   "a-z\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa\\u00fc\\u00f1A-Z\\u00c1\\u00c9\\u00cd\\u00d3\\u00da\\u00dc\\u00d1";
 const WORD_RE = new RegExp(`[${LETTER}]+`, "g");
-const NON_WORD_RE = new RegExp(`[^${LETTER}]+`);
+// Global, so EVERY run of non-letters goes. Without the flag `replace` drops
+// only the first, and "tipo de cambio" normalised to "tipode cambio" - one gap
+// closed, the next left in place. Words coming from `tokenize` are already
+// clean, so this only ever showed on text that had not been through it.
+const NON_WORD_RE = new RegExp(`[^${LETTER}]+`, "g");
 
 function tokenize(text: string): Token[] {
   const tokens: Token[] = [];

@@ -46,6 +46,14 @@ export interface UiStrings {
   // Home
   everythingRead: string;
 
+  // The words you looked up
+  yourWords: string;
+  yourWordsNote: string;
+  noWordsYet: string;
+  noWordsYetNote: string;
+  exportWords: string;
+  removeWord: string;
+
   // Reader
   listen: string;
   preparing: string;
@@ -101,6 +109,15 @@ export const EN: UiStrings = {
 
   everythingRead: "Everything you’ve read",
 
+  yourWords: "Words you looked up",
+  yourWordsNote:
+    "Every word you tapped while reading. The ones that keep coming back are the ones worth learning.",
+  noWordsYet: "Nothing here yet.",
+  noWordsYetNote:
+    "Tap a word while you’re reading and it lands here, with its meaning already saved.",
+  exportWords: "Export for Anki",
+  removeWord: "Remove",
+
   listen: "Listen",
   preparing: "Preparing…",
   play: "Play",
@@ -141,10 +158,13 @@ export const EN: UiStrings = {
 export interface UiFormatters {
   aboutWords(band: string): string;
   aimingFor(sentenceWords: number, newWordPercent: number): string;
+  /** Only ever called with n > 1 - "met in 1 piece" is noise, not information. */
+  metInPieces(n: number): string;
 }
 
 export const EN_FORMAT: UiFormatters = {
   aboutWords: (band) => `· about ${band} words`,
   aimingFor: (sentenceWords, newWordPercent) =>
     `Aiming for ~${sentenceWords}-word sentences and ${newWordPercent}% new vocabulary`,
+  metInPieces: (n) => `You needed this one in ${n} different pieces`,
 };

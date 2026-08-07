@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getUserId, getProfile, getProfiles, getUiPreference } from "@/server/user";
 import { listPieces } from "@/server/generate";
+import { countVocabulary } from "@/server/vocabulary";
 import { isTtsConfigured, charactersSpentTotal } from "@/server/tts";
 import { labelFor, paramsFor } from "@/lib/level";
 import { getLanguage, LANGUAGES } from "@/lib/languages";
@@ -53,6 +54,9 @@ export default async function Home() {
   // Above a level the chrome switches too; see src/lib/ui.ts.
   const { strings: t, format: f, inTarget } = uiFor(language, profile.level, await getUiPreference());
   const recent = listPieces(profile.userId, language.code);
+  // Only linked once there is something behind the link. An empty list offered
+  // from the home page is a promise the app has not kept yet.
+  const words = countVocabulary(profile.userId, language.code);
   // Operator information, shown to the operator only. ADMIN_USER_ID is the
   // `fluent_uid` cookie of whoever runs the site; unset means nobody sees it.
   const isAdmin =
@@ -104,6 +108,18 @@ export default async function Home() {
         </h2>
         <Compose ttsReady={isTtsConfigured()} t={t} />
       </section>
+
+      {words > 0 && (
+        <section>
+          <Link
+            href="/words"
+            className="flex items-baseline justify-between gap-4 rounded-xl border border-border bg-surface px-5 py-4 hover:bg-accent-soft"
+          >
+            <span className="font-medium">{t.yourWords}</span>
+            <span className="shrink-0 text-sm text-muted">{words}</span>
+          </Link>
+        </section>
+      )}
 
       {recent.length > 0 && (
         <section>

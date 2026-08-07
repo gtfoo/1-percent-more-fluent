@@ -24,6 +24,7 @@ step "calibration" npx tsx scripts/check-calibration.ts
 step "language contract" npx tsx scripts/check-language.ts
 step "profile migration" npx tsx scripts/check-migration.ts
 step "topic terms" npx tsx scripts/check-terms.ts
+step "word list" npx tsx scripts/check-vocabulary.ts
 step "dialogue turns" npx tsx scripts/check-dialogue.ts
 step "model chain" npx tsx scripts/check-llm-chain.ts
 step "next build" npx next build

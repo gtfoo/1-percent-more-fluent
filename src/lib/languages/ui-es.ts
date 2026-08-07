@@ -7,6 +7,7 @@ export const FORMAT_ES: UiFormatters = {
   // exactly why these are functions rather than templates with numbered slots.
   aimingFor: (sentenceWords, newWordPercent) =>
     `Busca frases de unas ${sentenceWords} palabras y un ${newWordPercent}% de vocabulario nuevo`,
+  metInPieces: (n) => `Has necesitado esta palabra en ${n} textos distintos`,
 };
 
 /** The interface in Spanish. A translation of EN in src/lib/ui-strings.ts. */
@@ -30,6 +31,15 @@ export const UI_ES: UiStrings = {
     "Lo escribe, lo compara con tu nivel y reescribe lo que resulte demasiado difícil. Suele tardar entre 20 y 40 segundos.",
 
   everythingRead: "Todo lo que has leído",
+
+  yourWords: "Palabras que buscaste",
+  yourWordsNote:
+    "Cada palabra que tocaste mientras leías. Las que se repiten son las que vale la pena aprender.",
+  noWordsYet: "Aquí todavía no hay nada.",
+  noWordsYetNote:
+    "Toca una palabra mientras lees y aparecerá aquí, con su significado ya guardado.",
+  exportWords: "Exportar para Anki",
+  removeWord: "Quitar",
 
   listen: "Escuchar",
   preparing: "Preparando…",

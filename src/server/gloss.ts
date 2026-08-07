@@ -54,7 +54,7 @@ export interface Gloss {
  * something that will never be found again. Selections can span several words
  * now, so a phrase is keyed on its own collapsed, lowercased text instead.
  */
-function cacheKey(language: Language, text: string): string {
+export function cacheKey(language: Language, text: string): string {
   const trimmed = text.trim();
   if (language.words(trimmed).length > 1) {
     return trimmed.toLowerCase().replace(/\s+/g, " ");
@@ -172,7 +172,13 @@ export function recordLookup(
     .run(
       userId,
       pieceId,
-      getLanguage(code).normalizeWord(word),
+      // The SAME key the definition is cached under, not normalizeWord. They
+      // agree for a single word and diverge for a phrase, which normalizeWord
+      // strips to something unfindable - so a multi-word selection was recorded
+      // under a key that could never join back to its own meaning. Harmless
+      // while nothing read the words back; the moment they are listed, those
+      // rows show up with no definition.
+      cacheKey(getLanguage(code), word),
       new Date().toISOString(),
     );
 }
