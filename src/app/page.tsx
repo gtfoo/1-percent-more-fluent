@@ -3,7 +3,7 @@ import { getUserId, getProfile, getProfiles } from "@/server/user";
 import { listPieces } from "@/server/generate";
 import { isTtsConfigured, charactersSpent } from "@/server/tts";
 import { labelFor, paramsFor } from "@/lib/level";
-import { getLanguage } from "@/lib/languages";
+import { getLanguage, LANGUAGES } from "@/lib/languages";
 import { Compose } from "@/components/Compose";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
@@ -48,6 +48,13 @@ export default async function Home() {
     return { code: p.language, name: l.name, label: labelFor(p.level, l) };
   });
 
+  // ...and the ones they could start. Without these the switcher is useless to
+  // anyone with a single language, which is everybody at first: there is nothing
+  // to switch BETWEEN until a second one exists.
+  const available = Object.values(LANGUAGES)
+    .filter((l) => !placed.some((p) => p.code === l.code))
+    .map((l) => ({ code: l.code, name: l.name }));
+
   return (
     <div className="space-y-10">
       <section className="rounded-xl border border-border bg-surface px-5 py-4">
@@ -56,6 +63,7 @@ export default async function Home() {
             <LanguageSwitcher
               current={{ code: language.code, name: language.name, label: params.label }}
               placed={placed}
+              available={available}
             />
             <p className="text-2xl font-semibold">
               {params.label}{" "}

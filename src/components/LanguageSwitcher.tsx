@@ -11,25 +11,45 @@ export interface PlacedLanguage {
   label: string;
 }
 
+export interface AvailableLanguage {
+  code: string;
+  name: string;
+}
+
 /**
  * Switch which language you are reading.
  *
- * Each language keeps its own level, so switching is just repointing - nothing
- * is lost and nothing needs re-taking. That is the whole reason profiles are
- * keyed per language now; before this, choosing Chinese overwrote your Spanish
- * level and there was deliberately no button for it.
+ * Each language keeps its own level, so switching is repointing - nothing is
+ * lost and nothing needs re-taking. That is why profiles are keyed per language;
+ * before that, choosing Chinese overwrote your Spanish level.
+ *
+ * Two things this gets right that the first version did not, both found by
+ * looking at it as a real user rather than as the two-language case it was
+ * built against:
+ *
+ *  - It always looks like a control. Every user starts with exactly ONE
+ *    language, and in that case the first version rendered bare grey text with
+ *    no arrow - indistinguishable from the label above it. Nobody would ever
+ *    have clicked it.
+ *
+ *  - It lists languages you have NOT placed in, not just the ones you have.
+ *    Offering only "switch between your languages" is useless when you have one:
+ *    the thing you actually want is the second language, and it was two
+ *    unmarked clicks away.
  *
  * The names are always written in English rather than in each language's own
  * script. This is the one control that must stay readable when the rest of the
- * UI has switched to a language you are still learning - if you cannot find
- * your way back, the app has trapped you.
+ * UI has switched to a language you are still learning - if you cannot find your
+ * way back, the app has trapped you.
  */
 export function LanguageSwitcher({
   current,
   placed,
+  available,
 }: {
   current: PlacedLanguage;
   placed: PlacedLanguage[];
+  available: AvailableLanguage[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -47,25 +67,12 @@ export function LanguageSwitcher({
       });
       if (!res.ok) throw new Error();
       setOpen(false);
-      // Server components hold the level and the reading history, so the whole
-      // route has to re-render rather than just this control.
+      // The level, the reading history and the suggestions all live in server
+      // components, so the whole route re-renders rather than just this control.
       router.refresh();
     } finally {
       setBusy(false);
     }
-  }
-
-  // Nothing to switch between yet: still worth offering the second language.
-  if (!others.length && !open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-sm text-muted underline decoration-dotted underline-offset-4 hover:text-accent"
-      >
-        {current.name}
-      </button>
-    );
   }
 
   return (
@@ -74,32 +81,72 @@ export function LanguageSwitcher({
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={busy}
-        className="text-sm text-muted underline decoration-dotted underline-offset-4 hover:text-accent"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="-ml-2 flex items-center gap-1.5 rounded-lg border border-transparent px-2 py-1 text-sm text-muted transition-colors hover:border-border hover:text-foreground"
       >
-        {current.name} ▾
+        {current.name}
+        <span aria-hidden className="text-xs">
+          ▾
+        </span>
       </button>
 
       {open && (
-        <div className="absolute left-0 z-20 mt-2 w-60 rounded-lg border border-border bg-surface p-2 shadow-lg">
-          {others.map((p) => (
-            <button
-              key={p.code}
-              type="button"
-              onClick={() => choose(p.code)}
-              disabled={busy}
-              className="flex w-full items-baseline justify-between gap-3 rounded px-3 py-2 text-left text-sm hover:bg-accent-soft"
+        <>
+          {/* Click-away. Behind the menu, over everything else. */}
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-10 cursor-default"
+          />
+          <div className="absolute left-0 z-20 mt-1 w-64 rounded-lg border border-border bg-surface p-1.5 shadow-lg">
+            {others.length > 0 && (
+              <>
+                <p className="px-2.5 py-1 text-xs uppercase tracking-wide text-muted">
+                  Switch to
+                </p>
+                {others.map((p) => (
+                  <button
+                    key={p.code}
+                    type="button"
+                    onClick={() => choose(p.code)}
+                    disabled={busy}
+                    className="flex w-full items-baseline justify-between gap-3 rounded px-2.5 py-2 text-left text-sm hover:bg-accent-soft"
+                  >
+                    <span>{p.name}</span>
+                    <span className="text-muted">{p.label}</span>
+                  </button>
+                ))}
+              </>
+            )}
+
+            {available.length > 0 && (
+              <>
+                <p className="px-2.5 pb-1 pt-2 text-xs uppercase tracking-wide text-muted">
+                  Start learning
+                </p>
+                {available.map((l) => (
+                  <Link
+                    key={l.code}
+                    href={`/setup?language=${l.code}`}
+                    className="flex w-full items-baseline justify-between gap-3 rounded px-2.5 py-2 text-left text-sm hover:bg-accent-soft"
+                  >
+                    <span>{l.name}</span>
+                    <span className="text-xs text-muted">90-second check</span>
+                  </Link>
+                ))}
+              </>
+            )}
+
+            <Link
+              href="/setup"
+              className="mt-1 block border-t border-border px-2.5 pb-1 pt-2 text-sm text-muted hover:text-accent"
             >
-              <span>{p.name}</span>
-              <span className="text-muted">{p.label}</span>
-            </button>
-          ))}
-          <Link
-            href="/setup"
-            className="block rounded px-3 py-2 text-sm text-muted hover:bg-accent-soft"
-          >
-            Start another language…
-          </Link>
-        </div>
+              Re-take my level check
+            </Link>
+          </div>
+        </>
       )}
     </div>
   );

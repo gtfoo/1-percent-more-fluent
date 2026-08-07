@@ -30,15 +30,25 @@ type Step = "language" | "words" | "readback" | "done";
 const BELOW_EASIEST = 0;
 const ABOVE_HARDEST = 95;
 
-export function PlacementTest({ languages }: { languages: LanguageChoice[] }) {
+export function PlacementTest({
+  languages,
+  preselected = null,
+}: {
+  languages: LanguageChoice[];
+  /** Chosen already, via `/setup?language=`. Skips the picker. */
+  preselected?: LanguageChoice | null;
+}) {
   const router = useRouter();
-  const [language, setLanguage] = useState<LanguageChoice>(languages[0]!);
+  const [language, setLanguage] = useState<LanguageChoice>(
+    preselected ?? languages[0]!,
+  );
   const [items, setItems] = useState<string[] | null>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [known, setKnown] = useState<Set<string>>(new Set());
-  // Skip straight past the choice when there is only one language to choose.
+  // Skip the choice when there is only one language, or when the switcher has
+  // already made it - being asked a question you just answered reads as a bug.
   const [step, setStep] = useState<Step>(
-    languages.length > 1 ? "language" : "words",
+    languages.length > 1 && !preselected ? "language" : "words",
   );
   const [result, setResult] = useState<Result | null>(null);
   const [submitting, setSubmitting] = useState(false);
