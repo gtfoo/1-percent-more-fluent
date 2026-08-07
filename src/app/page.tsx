@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getUserId, getProfile, getProfiles } from "@/server/user";
 import { listPieces } from "@/server/generate";
-import { isTtsConfigured, charactersSpent } from "@/server/tts";
+import { isTtsConfigured, charactersSpentTotal } from "@/server/tts";
 import { labelFor, paramsFor } from "@/lib/level";
 import { getLanguage, LANGUAGES } from "@/lib/languages";
 import { Compose } from "@/components/Compose";
@@ -50,7 +50,12 @@ export default async function Home() {
   const language = getLanguage(profile.language);
   const params = paramsFor(profile.level, language);
   const recent = listPieces(profile.userId, language.code);
-  const spent = charactersSpent(profile.userId);
+  // Operator information, shown to the operator only. ADMIN_USER_ID is the
+  // `fluent_uid` cookie of whoever runs the site; unset means nobody sees it.
+  const isAdmin =
+    Boolean(process.env.ADMIN_USER_ID) &&
+    process.env.ADMIN_USER_ID === profile.userId;
+  const spent = isAdmin ? charactersSpentTotal() : 0;
 
   // Every language this learner has placed in, for the switcher. Each keeps its
   // own level, so the label shown next to each is that language's, not this one's.
@@ -120,11 +125,14 @@ export default async function Home() {
         </section>
       )}
 
-      {spent > 0 && (
+      {isAdmin && spent > 0 && (
         <p className="text-sm text-muted">
-          Speech synthesised so far: {spent.toLocaleString()} characters ·
-          roughly ${((spent / 1000) * 0.1).toFixed(2)} at ElevenLabs’
-          multilingual rate. Replays are free.
+          <span className="mr-2 rounded border border-border px-1.5 py-0.5 text-xs uppercase tracking-wide">
+            admin
+          </span>
+          Speech synthesised across all readers: {spent.toLocaleString()}{" "}
+          characters · roughly ${((spent / 1000) * 0.1).toFixed(2)} at
+          ElevenLabs’ multilingual rate. Replays are free.
         </p>
       )}
     </div>
