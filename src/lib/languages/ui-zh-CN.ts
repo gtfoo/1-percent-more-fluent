@@ -39,6 +39,20 @@ export const UI_ZH_CN: UiStrings = {
 
   everythingRead: "你读过的全部内容",
 
+  signIn: "登录",
+  signOut: "退出登录",
+  signInWhy:
+    "只是为了把你的水平和读过的内容带到别的设备上。不登录也能用，这个浏览器一样会记住你。",
+  emailAddress: "you@example.com",
+  emailMeALink: "把登录链接发到我邮箱",
+  linkExpires: "不用密码。链接只能用一次，15 分钟后失效。",
+  noSignInHere: "这台服务器还没有配置登录。",
+  checkYourEmail: "去邮箱看一下",
+  checkYourEmailNote: "登录链接已经发出。只能用一次，15 分钟后失效。",
+  checkYourEmailSpam:
+    "没收到？看看垃圾邮件，再确认一下地址有没有写错。我们不能告诉你某个邮箱有没有注册过，否则谁都能用这个页面来试。",
+  tryAnotherAddress: "换一个邮箱地址",
+
   yourWords: "你查过的词",
   yourWordsNote: "你读的时候点过的词都在这里。反复出现的，就是最值得记住的。",
   noWordsYet: "这里还是空的。",

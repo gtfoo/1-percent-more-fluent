@@ -46,6 +46,20 @@ export interface UiStrings {
   // Home
   everythingRead: string;
 
+  // Signing in, which is optional and only exists to carry progress
+  // between devices. Nothing in the app is behind it.
+  signIn: string;
+  signOut: string;
+  signInWhy: string;
+  emailAddress: string;
+  emailMeALink: string;
+  linkExpires: string;
+  noSignInHere: string;
+  checkYourEmail: string;
+  checkYourEmailNote: string;
+  checkYourEmailSpam: string;
+  tryAnotherAddress: string;
+
   // The words you looked up
   yourWords: string;
   yourWordsNote: string;
@@ -108,6 +122,21 @@ export const EN: UiStrings = {
     "Writing, then checking it against your level and rewriting anything too hard. Usually 20–40 seconds.",
 
   everythingRead: "Everything you’ve read",
+
+  signIn: "Sign in",
+  signOut: "Sign out",
+  signInWhy:
+    "Only to carry your level and your reading to another device. Everything works without an account — this browser remembers you either way.",
+  emailAddress: "you@example.com",
+  emailMeALink: "Email me a sign-in link",
+  linkExpires: "No password. The link works once and expires in 15 minutes.",
+  noSignInHere: "Signing in isn’t set up on this server yet.",
+  checkYourEmail: "Check your email",
+  checkYourEmailNote:
+    "A sign-in link is on its way. It works once and expires in 15 minutes.",
+  checkYourEmailSpam:
+    "Nothing arriving? Check spam, and confirm the address was right — we can’t tell you whether an address is registered, because that would let anyone use this page to find out.",
+  tryAnotherAddress: "Try a different address",
 
   yourWords: "Words you looked up",
   yourWordsNote:

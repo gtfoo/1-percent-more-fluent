@@ -3,6 +3,7 @@ import { Geist, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { getUserId, getProfile, getUiPreference } from "@/server/user";
+import { authConfigured, currentUser, signOut } from "@/auth";
 import { getLanguage } from "@/lib/languages";
 import { uiFor } from "@/lib/ui";
 
@@ -34,6 +35,8 @@ export default async function RootLayout({
   const userId = await getUserId();
   const profile = userId ? getProfile(userId) : null;
   const placed = profile !== null;
+  const signInReady = authConfigured() && Boolean(process.env.AUTH_RESEND_KEY);
+  const signedIn = signInReady && (await currentUser()) !== null;
   // The header follows the interface language too; a lone English link above
   // otherwise-translated chrome is the half-done look this is meant to avoid.
   const { strings: t } = profile
@@ -56,14 +59,42 @@ export default async function RootLayout({
                 reads as an app that has confused them with somebody else.
                 Kept for placed users because the reader page has no language
                 switcher, so this is the only route back to setup from there. */}
-            {placed && (
-              <Link
-                href="/setup"
-                className="text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
-              >
-                {t.retakeLevel}
-              </Link>
-            )}
+            <div className="flex items-baseline gap-4">
+              {placed && (
+                <Link
+                  href="/setup"
+                  className="text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
+                >
+                  {t.retakeLevel}
+                </Link>
+              )}
+              {/* Only where there is something to offer. Auth is optional and
+                  often unconfigured, and "Sign in" that leads to "signing in
+                  isn't set up" is worse than no link at all. */}
+              {signInReady &&
+                (signedIn ? (
+                  <form
+                    action={async () => {
+                      "use server";
+                      await signOut({ redirectTo: "/" });
+                    }}
+                  >
+                    <button
+                      type="submit"
+                      className="text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
+                    >
+                      {t.signOut}
+                    </button>
+                  </form>
+                ) : (
+                  <Link
+                    href="/signin"
+                    className="text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
+                  >
+                    {t.signIn}
+                  </Link>
+                ))}
+            </div>
           </div>
         </header>
         <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-8">{children}</main>

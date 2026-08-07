@@ -3,15 +3,11 @@ import { cookies } from "next/headers";
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
 import { levelForVocab } from "@/lib/level";
+import { USER_COOKIE, LEGACY_USER_COOKIE } from "@/lib/cookies";
+import { currentUser } from "@/auth";
 
-const COOKIE = "fluent_uid";
-/**
- * The app was called "Comprensible" before. Renaming the cookie outright would
- * orphan every existing profile and its whole reading history, so the old name
- * is still read and silently adopted. Safe to delete once nobody is carrying
- * one - it has no effect on new users.
- */
-const LEGACY_COOKIE = "comprensible_uid";
+const COOKIE = USER_COOKIE;
+const LEGACY_COOKIE = LEGACY_USER_COOKIE;
 const ONE_YEAR = 60 * 60 * 24 * 365;
 
 type Jar = Awaited<ReturnType<typeof cookies>>;
@@ -29,11 +25,21 @@ export interface Profile {
 }
 
 /**
- * Resolve the anonymous learner for this browser, creating one on first visit.
- * No login: progress rides on the cookie. Everything is keyed by user_id, so
- * attaching real accounts later is a migration, not a rewrite.
+ * Resolve the learner for this request, creating one on first visit.
+ *
+ * A session wins over the cookie. That ordering is what makes signing out mean
+ * anything: the cookie is still sitting in the browser afterwards, so reading
+ * it first would leave someone "signed out" and still looking at their own
+ * history. It also makes signing in on a second device work without touching
+ * that device's cookie at all.
+ *
+ * Below the session, nothing has changed - progress rides on the cookie, and an
+ * account is optional.
  */
 export async function getOrCreateUserId(): Promise<string> {
+  const signedIn = await currentUser();
+  if (signedIn) return signedIn.id;
+
   const jar = await cookies();
   const db = getDb();
 
@@ -70,10 +76,17 @@ export async function getOrCreateUserId(): Promise<string> {
  * user row gets created by the first API call they make.
  */
 export async function getUserId(): Promise<string | null> {
+  const signedIn = await currentUser();
+  if (signedIn) return signedIn.id;
+
   const jar = await cookies();
   const id = readUserCookie(jar);
   if (!id) return null;
   const known = getDb().prepare("SELECT 1 FROM users WHERE id = ?").get(id);
+  // A cookie pointing at a row that no longer exists reads as a first-time
+  // visitor. That is exactly what happens after signing in and out again: the
+  // anonymous row was claimed and deleted, and the stale cookie should not
+  // resurrect anything.
   return known ? id : null;
 }
 

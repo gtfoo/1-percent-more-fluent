@@ -32,6 +32,21 @@ export const UI_ES: UiStrings = {
 
   everythingRead: "Todo lo que has leído",
 
+  signIn: "Iniciar sesión",
+  signOut: "Cerrar sesión",
+  signInWhy:
+    "Solo sirve para llevar tu nivel y tus lecturas a otro dispositivo. Todo funciona sin cuenta: este navegador te recuerda igualmente.",
+  emailAddress: "tu@ejemplo.com",
+  emailMeALink: "Enviarme un enlace de acceso",
+  linkExpires: "Sin contraseña. El enlace sirve una vez y caduca en 15 minutos.",
+  noSignInHere: "El inicio de sesión aún no está configurado en este servidor.",
+  checkYourEmail: "Revisa tu correo",
+  checkYourEmailNote:
+    "El enlace de acceso va en camino. Sirve una vez y caduca en 15 minutos.",
+  checkYourEmailSpam:
+    "¿No llega nada? Mira en spam y comprueba que la dirección era correcta. No podemos decirte si una dirección está registrada: cualquiera podría usar esta página para averiguarlo.",
+  tryAnotherAddress: "Probar con otra dirección",
+
   yourWords: "Palabras que buscaste",
   yourWordsNote:
     "Cada palabra que tocaste mientras leías. Las que se repiten son las que vale la pena aprender.",

@@ -105,9 +105,59 @@ export function getDb(): Database.Database {
   // Which language the learner is currently reading. Null until they place.
   addColumn("users", "active_language", "TEXT");
 
+  addAccounts();
   migrateProfilesToPerLanguage();
 
   return db;
+}
+
+/**
+ * Let a learner attach an email address to the browser they already read in.
+ *
+ * Accounts are OPTIONAL. Reading anonymously on a cookie is still the whole
+ * product; signing in exists so progress can follow you to a second device.
+ * So this extends the users table the app already has rather than introducing
+ * a parallel one - the cookie id simply becomes the account id, and not one
+ * existing profile, piece or lookup has to be re-keyed.
+ *
+ * SQLite cannot ADD COLUMN ... UNIQUE, so the email uniqueness that Auth.js
+ * relies on is a separate index. It has to be a partial index: every existing
+ * row has a NULL email, and while SQLite treats NULLs as distinct for
+ * uniqueness, being explicit about it is cheaper than remembering that rule.
+ */
+function addAccounts(): void {
+  addColumn("users", "email", "TEXT");
+  addColumn("users", "email_verified", "TEXT");
+  addColumn("users", "name", "TEXT");
+  addColumn("users", "image", "TEXT");
+  // Compared against the JWT on every request. Bumping it invalidates every
+  // token already issued, which is how "sign out everywhere" works without
+  // storing sessions server-side.
+  addColumn("users", "token_version", "INTEGER NOT NULL DEFAULT 0");
+
+  db!.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS users_by_email
+      ON users(email) WHERE email IS NOT NULL;
+
+    -- OAuth identities. Empty today - only the email provider is wired - but
+    -- the adapter interface requires the methods, and a table that exists is
+    -- cheaper than a migration later.
+    CREATE TABLE IF NOT EXISTS accounts (
+      user_id             TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider            TEXT NOT NULL,
+      provider_account_id TEXT NOT NULL,
+      type                TEXT NOT NULL,
+      PRIMARY KEY (provider, provider_account_id)
+    );
+
+    -- Magic-link tokens. Single use, short lived, deleted as they are read.
+    CREATE TABLE IF NOT EXISTS verification_tokens (
+      identifier TEXT NOT NULL,
+      token      TEXT NOT NULL,
+      expires    TEXT NOT NULL,
+      PRIMARY KEY (identifier, token)
+    );
+  `);
 }
 
 /**
