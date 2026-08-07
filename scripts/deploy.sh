@@ -41,6 +41,27 @@ fi
 echo "==> npm ci (recompiles better-sqlite3 for this host)"
 npm ci
 
+# THE SITE IS BROKEN WHILE THIS RUNS, for the length of a build - a few minutes.
+# `.next` is removed, so the running server's own directory is gone: pages still
+# answer 200 while every asset fails, and the reader sees unstyled markup.
+#
+# Two cheaper fixes were tried and both measured as failures, in
+# scripts/try-swap-deploy.sh:
+#
+#   - Park the old build under another name and swap at the end. A renamed
+#     .next leaves the server serving pages but 500ing every asset, so Next
+#     resolves static files through an absolute path fixed at startup, not
+#     through its working directory.
+#   - Clear only .next/cache, so the serving files survive. `next build`
+#     rewrites .next/static regardless: the asset was unavailable for 11 of the
+#     12 seconds sampled.
+#
+# Removing the window entirely means the live server must not read from the
+# directory being rebuilt - a releases/<sha> directory with a `current` symlink,
+# which needs the systemd unit changed and therefore root. Until then the
+# verification at the bottom makes a deploy that ends broken fail loudly, which
+# is the part that actually cost something.
+#
 # Clean, not incremental. Turbopack's cache served a STALE copy of a committed
 # JSON import here: src/data/zh-CN/samples.json was correct on disk, the build
 # inlined the empty placeholder it had cached from a previous commit, and the
@@ -61,5 +82,19 @@ cp -r public .next/standalone/public
 
 echo "==> restarting ${SERVICE}"
 sudo systemctl restart "${SERVICE}"
+
+# Prove the site actually works before calling this a success.
+#
+# `rm -rf .next` above means that for the whole length of the build the
+# standalone server's directory does not exist: the HTML still returns 200 while
+# every stylesheet and script fails, and the site renders as bare unstyled
+# markup. That window is expected and self-healing - but a deploy that ends
+# with it PERMANENTLY looks identical, and nothing here noticed. It shipped
+# twice before a person did.
+#
+# Status codes alone are useless for this. The page is 200 either way; what
+# matters is whether the assets it references load.
+echo "==> verifying"
+bash "$(dirname "$0")/verify-serving.sh"
 
 echo "==> deployed $(git rev-parse --short HEAD) on $(hostname)"
