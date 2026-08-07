@@ -303,10 +303,26 @@ export async function narrateDialogue(
   return { url, alignment, characters, cached: false };
 }
 
-/** Total characters ever synthesised - the running bill, in the UI. */
-export function charactersSpent(): number {
+/**
+ * Characters synthesised for ONE learner - the running bill, in the UI.
+ *
+ * Scoped by user because this stopped being a single-user app. Summing the
+ * whole audio table was right when there was one reader and wrong the moment
+ * the site went public: a visitor who had never pressed Listen was shown the
+ * owner's cumulative spend and told it was theirs.
+ *
+ * Joined through pieces rather than stored on `audio`, because audio is keyed
+ * by content hash and deliberately shared - two learners who generate identical
+ * text pay for it once. The row is attributed to whoever's piece caused it.
+ */
+export function charactersSpent(userId: string): number {
   const row = getDb()
-    .prepare("SELECT COALESCE(SUM(characters), 0) AS total FROM audio")
-    .get() as { total: number };
+    .prepare(
+      `SELECT COALESCE(SUM(a.characters), 0) AS total
+         FROM audio a
+         JOIN pieces p ON p.id = a.piece_id
+        WHERE p.user_id = ?`,
+    )
+    .get(userId) as { total: number };
   return row.total;
 }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
+import { getUserId, getProfile } from "@/server/user";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,11 +22,16 @@ export const metadata: Metadata = {
     "Short stories, articles and conversations generated in the language you are learning, at a level you can actually read.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read-only: a layout cannot write cookies, so this treats "no cookie" as a
+  // first-time visitor rather than creating a user for one page view.
+  const userId = await getUserId();
+  const placed = userId ? getProfile(userId) !== null : false;
+
   return (
     <html
       lang="en"
@@ -37,12 +43,19 @@ export default function RootLayout({
             <Link href="/" className="text-lg font-semibold tracking-tight">
               1 Percent More Fluent
             </Link>
-            <Link
-              href="/setup"
-              className="text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
-            >
-              Re-test my level
-            </Link>
+            {/* Only once there is a level to re-test. A first-time visitor was
+                being offered "Re-test my level" before ever taking one, which
+                reads as an app that has confused them with somebody else.
+                Kept for placed users because the reader page has no language
+                switcher, so this is the only route back to setup from there. */}
+            {placed && (
+              <Link
+                href="/setup"
+                className="text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
+              >
+                Re-test my level
+              </Link>
+            )}
           </div>
         </header>
         <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-8">{children}</main>

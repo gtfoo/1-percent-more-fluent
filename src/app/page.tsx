@@ -12,19 +12,30 @@ export default async function Home() {
   const profile = userId ? getProfile(userId) : null;
 
   if (!profile) {
+    // Read from the registry rather than written into the copy. This page said
+    // "Read Spanish" and "it writes one, in Spanish" for as long as Chinese has
+    // been supported - the first thing a new visitor saw was the app describing
+    // itself as something it had outgrown, and adding a third language would
+    // have left it wrong again.
+    const names = Object.values(LANGUAGES).map((l) => l.name);
+    const offered =
+      names.length > 1
+        ? `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`
+        : names[0];
+
     return (
       <div className="max-w-xl space-y-5">
         <h1 className="text-3xl font-semibold tracking-tight">
-          Read Spanish at the level you’re actually at
+          Read {offered} at the level you’re actually at
         </h1>
         <p className="text-muted">
-          Tell it what you feel like reading — a folk tale, a piece about the
-          trade war, two friends arguing about a film — and it writes one, in
-          Spanish, pitched so you understand most of it but not all of it.
+          Tell it what you feel like reading — a folk tale, how noise-cancelling
+          headphones work, chasing a client for an overdue invoice — and it
+          writes one, pitched so you understand most of it but not all of it.
         </p>
         <p className="text-muted">
           First, a 90-second vocabulary check. No grammar questions, and you
-          don’t need to know your CEFR level.
+          don’t need to know your CEFR or HSK level.
         </p>
         <Link
           href="/setup"
@@ -39,7 +50,7 @@ export default async function Home() {
   const language = getLanguage(profile.language);
   const params = paramsFor(profile.level, language);
   const recent = listPieces(profile.userId, language.code);
-  const spent = charactersSpent();
+  const spent = charactersSpent(profile.userId);
 
   // Every language this learner has placed in, for the switcher. Each keeps its
   // own level, so the label shown next to each is that language's, not this one's.
