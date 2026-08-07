@@ -37,17 +37,23 @@ import type { TopicTerm } from "@/lib/terms";
 export const pieceSchema = (lang: Language | string) => {
   const language = typeof lang === "string" ? lang : lang.name;
   const pronunciation = typeof lang === "string" ? null : lang.pronunciation;
-  // Always declared, never conditionally spread. A maybe-present key inside
-  // z.object infers as `unknown`, which then will not assign anywhere - so the
-  // field is always there and it is the INSTRUCTION that varies. A language
-  // with no transcription system is told to omit it, which costs a few tokens
-  // and keeps one schema instead of a union of two.
+  // Always declared AND required, never optional. Both halves are load-bearing.
+  //
+  // Always declared: a maybe-present key inside z.object infers as `unknown`,
+  // which then will not assign anywhere, so the field is there for every
+  // language and it is the INSTRUCTION that varies.
+  //
+  // Required: it was `.optional()` first, purely to dodge that inference
+  // problem - and an optional field is one the model may simply skip, which it
+  // then did on every single piece. Nothing failed and no pinyin ever appeared.
+  // A language with no transcription is told to return an empty string, which
+  // costs a couple of tokens and keeps the field's presence non-negotiable.
   const pron = {
     pronunciation: z
       .string()
-      .optional()
       .describe(
-        pronunciation ?? "Leave this out; this language does not use a transcription.",
+        pronunciation ??
+          "Return an empty string; this language's spelling already shows how to say it.",
       ),
   };
 

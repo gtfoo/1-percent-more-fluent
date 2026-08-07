@@ -15,6 +15,7 @@ import {
   termSpans,
 } from "../src/lib/terms";
 import { measure, MAX_TERMS, MAX_TERM_RATE } from "../src/server/difficulty";
+import { pieceSchema } from "../src/server/generate";
 import { paramsFor } from "../src/lib/level";
 import { getLanguage } from "../src/lib/languages";
 
@@ -184,6 +185,41 @@ console.log("\n--- the guards on declaring a term ---");
     padded.problems.some((p) => /key terms \(limit/i.test(p)),
     `${(padded.termRate * 100).toFixed(0)}% terms`,
   );
+}
+
+console.log("\n--- the schema asks for pronunciation, and insists ---");
+{
+  // The bug this pins: pronunciation was declared `.optional()`, purely to work
+  // around a TypeScript inference problem. An optional field is one the model
+  // may skip - and it skipped it on every piece generated. Nothing errored, no
+  // pinyin ever appeared, and the type checker was perfectly happy throughout.
+  for (const code of ["zh-CN", "es"]) {
+    const language = getLanguage(code);
+    const shape = pieceSchema(language).shape;
+
+    for (const [field, entry] of [
+      ["terms", shape.terms.element.shape],
+      ["glossary", shape.glossary.element.shape],
+    ] as const) {
+      const pron = entry.pronunciation;
+      ok(
+        `${code} ${field} declares pronunciation`,
+        Boolean(pron),
+      );
+      ok(
+        `${code} ${field} pronunciation is REQUIRED, not optional`,
+        Boolean(pron) && !pron.isOptional(),
+      );
+    }
+
+    // The instruction has to name the system, or the model invents one.
+    const desc = shape.terms.element.shape.pronunciation?.description ?? "";
+    ok(
+      `${code} says how to write it`,
+      language.pronunciation ? desc.includes("Pinyin") : desc.includes("empty string"),
+      desc.slice(0, 48),
+    );
+  }
 }
 
 console.log("\n--- missingTerms ---");

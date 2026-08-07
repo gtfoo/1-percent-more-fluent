@@ -363,6 +363,11 @@ export function Reader({
           : new Map(prev).set(term.term, {
               word: term.term,
               meaning: term.meaning,
+              // Carried through, not dropped. Terms are the words a learner most
+              // needs to be able to say out loud, and this short-circuit is the
+              // ONLY path they take - so leaving it off meant pinyin showed for
+              // ordinary words and never for the ones that mattered.
+              pronunciation: term.pronunciation,
               // It came with the piece; nothing was looked up to get it.
               cached: true,
             }),

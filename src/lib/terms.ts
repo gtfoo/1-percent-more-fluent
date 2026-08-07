@@ -29,6 +29,15 @@ export interface TopicTerm {
   term: string;
   /** A short English gloss, shown when the reader taps it. */
   meaning: string;
+  /**
+   * How to say it, where the language needs telling - pinyin for Chinese.
+   *
+   * Optional because pieces generated before this existed have none, and
+   * because a language whose spelling is already phonetic returns nothing.
+   * Terms are the words a learner most needs to be able to SAY, so dropping
+   * this on the way to the card defeats most of the point of having it.
+   */
+  pronunciation?: string;
 }
 
 export interface Span {
