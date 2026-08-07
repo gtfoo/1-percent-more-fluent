@@ -22,13 +22,13 @@ import { seedGlossary } from "./gloss";
 import type { Format } from "@/lib/formats";
 import { splitTurns, type Speaker } from "@/lib/dialogue";
 import type { TopicTerm } from "@/lib/terms";
+import { pronounce } from "./pronounce";
 
 /**
  * Built per language rather than declared once: the field descriptions carry
  * the language name, and they are a meaningful part of the instruction the
  * model actually follows.
- */
-/**
+ *
  * `language` is the Language, not just its name, because the schema now depends
  * on more than the label: a language with no pronunciation system must not be
  * asked for one, and a learner of a language that HAS one needs it on every
@@ -36,26 +36,6 @@ import type { TopicTerm } from "@/lib/terms";
  */
 export const pieceSchema = (lang: Language | string) => {
   const language = typeof lang === "string" ? lang : lang.name;
-  const pronunciation = typeof lang === "string" ? null : lang.pronunciation;
-  // Always declared AND required, never optional. Both halves are load-bearing.
-  //
-  // Always declared: a maybe-present key inside z.object infers as `unknown`,
-  // which then will not assign anywhere, so the field is there for every
-  // language and it is the INSTRUCTION that varies.
-  //
-  // Required: it was `.optional()` first, purely to dodge that inference
-  // problem - and an optional field is one the model may simply skip, which it
-  // then did on every single piece. Nothing failed and no pinyin ever appeared.
-  // A language with no transcription is told to return an empty string, which
-  // costs a couple of tokens and keeps the field's presence non-negotiable.
-  const pron = {
-    pronunciation: z
-      .string()
-      .describe(
-        pronunciation ??
-          "Return an empty string; this language's spelling already shows how to say it.",
-      ),
-  };
 
   return z.object({
   title: z.string().describe(`A short title, in ${language}.`),
@@ -74,7 +54,6 @@ export const pieceSchema = (lang: Language | string) => {
             `The key term in ${language}, spelled EXACTLY as it appears in the text.`,
           ),
         meaning: z.string().describe("A short English gloss."),
-        ...pron,
       }),
     )
     .describe(
@@ -85,7 +64,6 @@ export const pieceSchema = (lang: Language | string) => {
       z.object({
         word: z.string().describe(`The ${language} word, as it appears in the text.`),
         meaning: z.string().describe("A short English gloss."),
-        ...pron,
       }),
     )
     .describe(
@@ -192,7 +170,18 @@ export function buildPrompt(
 
 export interface GeneratedPiece {
   id: string;
-  piece: Piece;
+  /**
+   * The stored piece: the model's output PLUS the pronunciations derived from
+   * it. Callers want what was saved, not what came back.
+   *
+   * Omit-and-replace rather than an intersection. Intersecting two array types
+   * leaves `.filter` resolving against the first signature, so
+   * `terms.filter(t => t.pronunciation)` stops compiling for no visible reason.
+   */
+  piece: Omit<Piece, "terms" | "glossary"> & {
+    terms: TopicTerm[];
+    glossary: { word: string; meaning: string; pronunciation?: string }[];
+  };
   report: DifficultyReport;
   modelId: string;
   attempts: number;
@@ -268,8 +257,18 @@ export async function generatePiece(args: {
   // it so the UI can be honest about what happened.
   const id = randomUUID();
 
+  // Added here rather than asked for, so the model never gets the chance to be
+  // confidently wrong about a polyphone. Both lists get it: terms are the words
+  // worth saying to somebody, and the glossary is where most taps land.
+  const say = (text: string) => pronounce(language.code, text);
+  const terms: TopicTerm[] = piece!.terms.map((t) => ({
+    ...t,
+    pronunciation: say(t.term),
+  }));
+  const glossary = piece!.glossary.map((g) => ({ ...g, pronunciation: say(g.word) }));
+
   // The glossary came free with the text, so put it where taps will find it.
-  seedGlossary(language.code, piece!.glossary);
+  seedGlossary(language.code, glossary);
 
   getDb()
     .prepare(
@@ -285,16 +284,16 @@ export async function generatePiece(args: {
       args.level,
       piece!.title,
       JSON.stringify(piece!.paragraphs),
-      JSON.stringify(piece!.glossary),
+      JSON.stringify(glossary),
       JSON.stringify(piece!.questions),
       JSON.stringify(piece!.speakers ?? []),
-      JSON.stringify(piece!.terms ?? []),
+      JSON.stringify(terms),
       JSON.stringify(report!),
       modelId,
       new Date().toISOString(),
     );
 
-  return { id, piece: piece!, report: report!, modelId, attempts };
+  return { id, piece: { ...piece!, terms, glossary }, report: report!, modelId, attempts };
 }
 
 export interface StoredPiece {

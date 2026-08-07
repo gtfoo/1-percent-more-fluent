@@ -16,6 +16,7 @@ import {
 } from "../src/lib/terms";
 import { measure, MAX_TERMS, MAX_TERM_RATE } from "../src/server/difficulty";
 import { pieceSchema } from "../src/server/generate";
+import { derivesPronunciation, pronounce, toPinyin } from "../src/server/pronounce";
 import { paramsFor } from "../src/lib/level";
 import { getLanguage } from "../src/lib/languages";
 
@@ -187,39 +188,49 @@ console.log("\n--- the guards on declaring a term ---");
   );
 }
 
-console.log("\n--- the schema asks for pronunciation, and insists ---");
+console.log("\n--- pronunciation is derived, not generated ---");
 {
-  // The bug this pins: pronunciation was declared `.optional()`, purely to work
-  // around a TypeScript inference problem. An optional field is one the model
-  // may skip - and it skipped it on every piece generated. Nothing errored, no
-  // pinyin ever appeared, and the type checker was perfectly happy throughout.
+  // History, in two steps. It was asked of the model as an OPTIONAL field, and
+  // the model simply never filled it in - no pinyin ever appeared and nothing
+  // errored. Made required, it filled it in and got polyphones wrong: "dài é"
+  // for 大额, where 大 is dà. A wrong reading is the one error a learner cannot
+  // catch, because it looks exactly like a right one. So it is computed now.
   for (const code of ["zh-CN", "es"]) {
-    const language = getLanguage(code);
-    const shape = pieceSchema(language).shape;
-
-    for (const [field, entry] of [
-      ["terms", shape.terms.element.shape],
-      ["glossary", shape.glossary.element.shape],
-    ] as const) {
-      const pron = entry.pronunciation;
-      ok(
-        `${code} ${field} declares pronunciation`,
-        Boolean(pron),
-      );
-      ok(
-        `${code} ${field} pronunciation is REQUIRED, not optional`,
-        Boolean(pron) && !pron.isOptional(),
-      );
-    }
-
-    // The instruction has to name the system, or the model invents one.
-    const desc = shape.terms.element.shape.pronunciation?.description ?? "";
+    const shape = pieceSchema(getLanguage(code)).shape;
     ok(
-      `${code} says how to write it`,
-      language.pronunciation ? desc.includes("Pinyin") : desc.includes("empty string"),
-      desc.slice(0, 48),
+      code + " is not asked for a pronunciation",
+      !("pronunciation" in shape.terms.element.shape) &&
+        !("pronunciation" in shape.glossary.element.shape),
     );
   }
+
+  ok("Chinese derives one", derivesPronunciation("zh-CN"));
+  ok("Spanish needs none", !derivesPronunciation("es"));
+  check("...so Spanish returns nothing", pronounce("es", "hola"), undefined);
+
+  // The reading the model got wrong, and the classic traps around it: same
+  // character, different word, different sound.
+  for (const [word, want] of [
+    ["大额", "dà é"],
+    ["银行", "yín háng"],
+    ["行走", "xíng zǒu"],
+    ["会计", "kuài jì"],
+    ["开会", "kāi huì"],
+    ["重要", "zhòng yào"],
+    ["重复", "chóng fù"],
+  ] as const) {
+    check(word + " reads as " + want, pronounce("zh-CN", word), want);
+  }
+
+  // Raw text through the library spaces out every character it does not know
+  // and keeps punctuation, so only Han runs and Latin runs survive.
+  check("punctuation is dropped", toPinyin("你好，世界。"), "nǐ hǎo shì jiè");
+  check("Latin stays whole", toPinyin("AI技术"), "AI jì shù");
+  check("digits stay whole", toPinyin("第3季度"), "dì 3 jì dù");
+  check("no Han means nothing to say", toPinyin("hola"), "");
+  check("empty in, empty out", toPinyin(""), "");
+  // Multi-word selections reach this too, through the extend buttons.
+  check("a phrase", toPinyin("拿钥匙"), "ná yào shi");
 }
 
 console.log("\n--- missingTerms ---");

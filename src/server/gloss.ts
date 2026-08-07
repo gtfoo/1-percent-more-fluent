@@ -14,6 +14,7 @@ import { z } from "zod";
 import { generateStructured } from "./llm";
 import { getDb } from "./db";
 import { getLanguage, type Language } from "@/lib/languages";
+import { pronounce } from "./pronounce";
 
 /**
  * Built per language, so a language that needs no transcription is never asked
@@ -26,12 +27,9 @@ const BASE = {
   meaning: z.string().describe("A short English gloss, under 12 words."),
 };
 
-// Two concrete schemas rather than one with a conditional field: spreading a
-// maybe-present key into z.object widens the inferred type to unknown, which
-// then has to be cast back at the call site.
+// One schema. The model is never asked for a pronunciation - a language that
+// needs one derives it locally, where polyphones resolve from a dictionary.
 const PLAIN = z.object(BASE);
-const withPronunciation = (how: string) =>
-  z.object({ ...BASE, pronunciation: z.string().describe(how) });
 
 /**
  * `lemma` and `partOfSpeech` are optional because entries seeded from a piece's
@@ -123,9 +121,7 @@ export async function glossWord(
   if (hit) return hit;
 
   const { object } = await generateStructured({
-    schema: language.pronunciation
-      ? withPronunciation(language.pronunciation)
-      : PLAIN,
+    schema: PLAIN,
     system:
       "You are a bilingual dictionary. Answer with the plain dictionary meaning of the word or phrase. Be terse.",
     prompt: [
@@ -143,9 +139,22 @@ export async function glossWord(
       `INSERT OR REPLACE INTO gloss_cache (language, word, meaning, created_at)
        VALUES (?, ?, ?, ?)`,
     )
-    .run(language.code, key, JSON.stringify(object), new Date().toISOString());
+    .run(
+      language.code,
+      key,
+      // Derived from the word itself, not from the model's answer, and cached
+      // alongside it so the next tap costs nothing either.
+      JSON.stringify({ ...object, ...withDerived(language.code, word) }),
+      new Date().toISOString(),
+    );
 
-  return { word: key, cached: false, ...object };
+  return { word: key, cached: false, ...object, ...withDerived(language.code, word) };
+}
+
+/** `{ pronunciation }` when the language computes it, `{}` otherwise. */
+function withDerived(code: string, text: string): { pronunciation?: string } {
+  const said = pronounce(code, text);
+  return said ? { pronunciation: said } : {};
 }
 
 /** Record that the reader needed help with a word - the difficulty signal. */

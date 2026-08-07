@@ -159,7 +159,10 @@ export const simplifiedChinese: Language = {
   grammar: GRAMMAR,
   // Characters carry no sound, so without this a learner can read a word and
   // still be unable to say it to anyone - which is most of the point.
-  pronunciation: "Hanyu Pinyin with tone marks, spaced by syllable, e.g. yào shi",
+  // Computed, not generated. The model returned "dài é" for 大额 - 大 is dà -
+  // and a wrong reading is the one error a learner cannot catch, because it
+  // looks exactly like a right one. See src/server/pronounce.ts.
+  pronunciation: { source: "derived" },
   ui: UI_ZH_CN,
   uiFormat: FORMAT_ZH_CN,
   // Around HSK 4, and later than Spanish on purpose: there is no alphabet to

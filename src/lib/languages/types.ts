@@ -78,10 +78,17 @@ export interface Language {
    * sound at all, and a learner who cannot pronounce 钥匙 cannot say it to
    * anyone, which is the entire point of learning it.
    *
-   * The string is an instruction to the model, so it says which system and what
-   * it should look like.
+   * `derived` means a library computes it, and the model is never asked. The
+   * model got polyphones wrong - it returned "dài é" for 大额, where 大 is dà -
+   * and a wrong reading is the one error a learner cannot catch, because it
+   * looks exactly like a right one.
+   *
+   * DELIBERATELY NOT A FUNCTION. These modules are imported by the reader, which
+   * is a client component, so anything referenced here ships to the browser -
+   * and the pinyin dictionary is 1.1MB. The derivation lives in
+   * src/server/pronounce.ts, keyed off this tag.
    */
-  pronunciation: string | null;
+  pronunciation: null | { source: "derived" };
 
   /** The interface, written in this language. See src/lib/ui-strings.ts. */
   ui: UiStrings;
