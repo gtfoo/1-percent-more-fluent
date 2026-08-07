@@ -31,6 +31,7 @@ let piecesTouched = 0;
 let termsFilled = 0;
 let glossFilled = 0;
 let cacheFilled = 0;
+let corrected = 0;
 
 // --- Pieces: terms and glossary ---------------------------------------------
 const pieces = db
@@ -92,20 +93,26 @@ for (const row of cached) {
   } catch {
     continue;
   }
-  if (entry.pronunciation) continue;
-
   const said = pronounce(row.language, row.word);
-  if (!said) continue;
+  if (!said || said === entry.pronunciation) continue;
 
+  // Overwrites a reading the model produced, not just a missing one. Filling
+  // only the blanks left model-era entries in place, and two of them disagreed
+  // with the dictionary: 的屏蔽 was stored as "píng bì", the reading for 屏蔽
+  // rather than for the string actually keyed. For a language whose
+  // pronunciation is `derived`, the dictionary is the authority by definition -
+  // that is the entire reason the model stopped being asked.
+  if (entry.pronunciation) corrected++;
+  else cacheFilled++;
   entry.pronunciation = said;
-  cacheFilled++;
   if (write) updateCache.run(JSON.stringify(entry), row.language, row.word);
 }
 
 console.log(
   `${write ? "filled" : "would fill"}: ` +
     `${termsFilled} terms and ${glossFilled} glossary entries across ${piecesTouched} piece(s), ` +
-    `plus ${cacheFilled} cached lookup(s)`,
+    `plus ${cacheFilled} cached lookup(s)` +
+    (corrected ? `, and corrected ${corrected} that disagreed with the dictionary` : ""),
 );
 if (!write) console.log("dry run - pass --write to apply");
 db.close();
