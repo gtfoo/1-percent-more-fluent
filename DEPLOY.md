@@ -87,7 +87,27 @@ OPENAI_API_KEY=...
 # ELEVENLABS_VOICE_ID=Xb7hH8MSUJpSbSDYk0k2
 # ELEVENLABS_MODEL_ID=eleven_multilingual_v2
 # ELEVENLABS_MAX_CHARS=6000
+
+# Optional. Sign-in by magic link, so a level follows you between devices.
+# Omitting all four leaves the app exactly as it is without them: no sign-in
+# offered, /api/auth/* answers 404.
+# AUTH_SECRET="..."                 # openssl rand -base64 32, QUOTED - see below
+# AUTH_RESEND_KEY=re_...
+# AUTH_EMAIL_FROM=login@gtfoo.com
+# AUTH_URL=https://1-percent-more-fluent.gtfoo.com
 ```
+
+Two ways sign-in fails **silently**, both learned the hard way on
+`career-side-quests`:
+
+- **An unquoted `AUTH_SECRET`.** `openssl rand -base64 32` can emit a `#`, and
+  dotenv reads that as the start of a comment and discards the rest, so the
+  variable parses as missing. The symptom is a sign-in page insisting nothing is
+  configured while the line sits plainly in the file. Quote it.
+- **A subdomain sender.** Resend treats `1-percent-more-fluent.gtfoo.com` as a
+  different domain from `gtfoo.com`, needing its own DNS records. `gtfoo.com` is
+  already verified there, so `login@gtfoo.com` works today. Sending from the
+  unverified subdomain produces no error anywhere — the mail just never arrives.
 
 A provider with no key is dropped from the chain rather than tried, so adding
 just one of the two optional keys is fine — and adding neither leaves behaviour

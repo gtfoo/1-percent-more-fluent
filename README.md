@@ -94,6 +94,10 @@ Copy `.env.example` to `.env.local` and fill in:
 
 - `GOOGLE_GENERATIVE_AI_API_KEY` — text generation. Free tier is plenty.
 - `ELEVENLABS_API_KEY` — speech. Optional; the app runs read-only without it.
+- `AUTH_SECRET` + `AUTH_RESEND_KEY` — sign-in by magic link. Optional, and
+  leaving them out is a supported state: reading rides on a cookie, as it
+  always has. An account exists only so a level built over weeks follows you to
+  another device, and signing in claims whatever that browser already read.
 
 Then build the Spanish word data (~1 MB, downloads two public lists):
 
