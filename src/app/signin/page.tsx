@@ -78,7 +78,7 @@ export default async function SignInPage() {
             </span>
             <span className="h-px flex-1 bg-border" />
           </div>
-          <Passkey mode="authenticate" t={t} />
+          <Passkey t={t} />
           <p className="text-sm text-muted">{t.passkeyWhy}</p>
         </div>
       )}

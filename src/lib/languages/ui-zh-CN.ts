@@ -8,6 +8,8 @@ export const FORMAT_ZH_CN: UiFormatters = {
     `目标是每句约 ${sentenceWords} 个词，其中 ${newWordPercent}% 是生词`,
   // 篇 is the measure word for a piece of writing.
   metInPieces: (n) => `这个词你在 ${n} 篇里都查过`,
+  passkeyOn: (date, synced) =>
+    `${synced ? "已同步的密钥" : "只在这台设备上"} · ${date} 添加`,
 };
 
 /**
@@ -53,6 +55,8 @@ export const UI_ZH_CN: UiStrings = {
     "没收到？看看垃圾邮件，再确认一下地址有没有写错。我们不能告诉你某个邮箱有没有注册过，否则谁都能用这个页面来试。",
   tryAnotherAddress: "换一个邮箱地址",
 
+  passkeyHeading: "不用邮箱登录",
+  passkeyRemove: "删除",
   passkeySignIn: "用通行密钥登录",
   passkeyAdd: "在这台设备上添加通行密钥",
   passkeyAdded: "已添加。下次在这台设备上不用邮箱也能登录。",

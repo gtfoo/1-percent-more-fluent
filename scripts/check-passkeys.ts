@@ -119,6 +119,50 @@ async function main() {
   check("found by provider account id", account?.userId, "u1");
   check("a wrong provider finds nothing", await adapter.getAccount!("acct-1", "github"), null);
 
+  console.log("\n--- what the reader is shown, and can revoke ---");
+  {
+    const { listPasskeys, removePasskey } = await import("../src/server/passkeys");
+
+    const shown = listPasskeys("u1");
+    check("both appear", shown.map((p) => p.credentialId), ["cred-1", "cred-2"]);
+    check("a synced one says so", shown[0]!.backedUp, true);
+    check("a device-bound one says so", shown[1]!.backedUp, false);
+    check("dated, not timestamped", shown[0]!.addedOn.length, 10);
+    // The page must never carry credential material to the browser. The private
+    // half never leaves the authenticator, but there is still no reason to ship
+    // a public key and a counter to a page that only needs to name a device.
+    ok(
+      "no credential material is exposed",
+      !("credentialPublicKey" in shown[0]!) && !("counter" in shown[0]!),
+      Object.keys(shown[0]!).join(", "),
+    );
+
+    db.prepare("INSERT INTO users (id, email, created_at) VALUES (?, ?, ?)").run(
+      "u3",
+      "other@example.com",
+      new Date().toISOString(),
+    );
+    check("someone else's credential is not theirs to remove", removePasskey("u3", "cred-1"), false);
+    check("...and it is still there", countPasskeys("u1"), 2);
+
+    check("removing your own works", removePasskey("u1", "cred-1"), true);
+    check("...and it is gone", countPasskeys("u1"), 1);
+    check("removing it twice is not a success", removePasskey("u1", "cred-1"), false);
+    check("an unknown id removes nothing", removePasskey("u1", "made-up"), false);
+
+    // Put it back so the delete-cascade check below still has two.
+    await adapter.createAuthenticator!({
+      credentialID: "cred-1",
+      userId: "u1",
+      providerAccountId: "acct-1",
+      credentialPublicKey: "pubkey-1",
+      counter: 7,
+      credentialDeviceType: "multiDevice",
+      credentialBackedUp: true,
+      transports: "internal,hybrid",
+    });
+  }
+
   console.log("\n--- deleting a reader takes their passkeys ---");
   await adapter.deleteUser!("u1");
   check("no credentials left", countPasskeys("u1"), 0);

@@ -60,6 +60,8 @@ export interface UiStrings {
   checkYourEmailSpam: string;
   tryAnotherAddress: string;
 
+  passkeyHeading: string;
+  passkeyRemove: string;
   passkeySignIn: string;
   passkeyAdd: string;
   passkeyAdded: string;
@@ -145,6 +147,8 @@ export const EN: UiStrings = {
     "Nothing arriving? Check spam, and confirm the address was right — we can’t tell you whether an address is registered, because that would let anyone use this page to find out.",
   tryAnotherAddress: "Try a different address",
 
+  passkeyHeading: "Signing in without email",
+  passkeyRemove: "Remove",
   passkeySignIn: "Use a passkey",
   passkeyAdd: "Add a passkey to this device",
   passkeyAdded: "Added. Next time this device signs you in without email.",
@@ -204,6 +208,13 @@ export interface UiFormatters {
   aimingFor(sentenceWords: number, newWordPercent: number): string;
   /** Only ever called with n > 1 - "met in 1 piece" is noise, not information. */
   metInPieces(n: number): string;
+  /**
+   * One registered passkey. `synced` is the authenticator's own claim that the
+   * credential is backed up - a synced one reaches your other devices, a
+   * device-bound one does not, and that is the difference worth surfacing when
+   * someone is deciding which to remove.
+   */
+  passkeyOn(date: string, synced: boolean): string;
 }
 
 export const EN_FORMAT: UiFormatters = {
@@ -211,4 +222,6 @@ export const EN_FORMAT: UiFormatters = {
   aimingFor: (sentenceWords, newWordPercent) =>
     `Aiming for ~${sentenceWords}-word sentences and ${newWordPercent}% new vocabulary`,
   metInPieces: (n) => `You needed this one in ${n} different pieces`,
+  passkeyOn: (date, synced) =>
+    `${synced ? "Synced passkey" : "This device only"} · added ${date}`,
 };

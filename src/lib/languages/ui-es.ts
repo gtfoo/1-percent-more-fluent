@@ -8,6 +8,8 @@ export const FORMAT_ES: UiFormatters = {
   aimingFor: (sentenceWords, newWordPercent) =>
     `Busca frases de unas ${sentenceWords} palabras y un ${newWordPercent}% de vocabulario nuevo`,
   metInPieces: (n) => `Has necesitado esta palabra en ${n} textos distintos`,
+  passkeyOn: (date, synced) =>
+    `${synced ? "Clave sincronizada" : "Solo en este dispositivo"} · añadida el ${date}`,
 };
 
 /** The interface in Spanish. A translation of EN in src/lib/ui-strings.ts. */
@@ -47,6 +49,8 @@ export const UI_ES: UiStrings = {
     "¿No llega nada? Mira en spam y comprueba que la dirección era correcta. No podemos decirte si una dirección está registrada: cualquiera podría usar esta página para averiguarlo.",
   tryAnotherAddress: "Probar con otra dirección",
 
+  passkeyHeading: "Entrar sin correo",
+  passkeyRemove: "Quitar",
   passkeySignIn: "Usar una clave de acceso",
   passkeyAdd: "Añadir una clave de acceso a este dispositivo",
   passkeyAdded: "Añadida. La próxima vez entrarás sin correo.",
