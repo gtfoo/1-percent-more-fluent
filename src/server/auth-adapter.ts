@@ -45,7 +45,7 @@ export function SqliteAdapter(): Adapter {
     },
 
     async getUser(id) {
-      return toUser(getDb().prepare("SELECT * FROM users WHERE id = ?").get(id));
+      return readUser(id);
     },
 
     async getUserByEmail(email) {
@@ -81,7 +81,18 @@ export function SqliteAdapter(): Adapter {
           user.emailVerified ? user.emailVerified.toISOString() : null,
           user.id,
         );
-      return (await this.getUser!(user.id!)) as AdapterUser;
+      // NOT `this.getUser(...)`. Auth.js calls adapter methods without the
+      // adapter as receiver, so `this` is undefined and that threw
+      // "Cannot read properties of undefined (reading 'getUser')" - surfacing
+      // to the reader as "There is a problem with the server configuration".
+      //
+      // It only ever fired on a SECOND sign-in. A new address goes through
+      // createUser; an address Auth.js already knows comes back here to refresh
+      // emailVerified. So signing in on a phone worked and signing in on a
+      // laptop afterwards did not, which reads like a device problem and is not.
+      const updated = readUser(user.id!);
+      if (!updated) throw new Error(`no user ${user.id}`);
+      return updated;
     },
 
     async deleteUser(id) {
@@ -167,6 +178,17 @@ interface Row {
   name: string | null;
   image: string | null;
   email_verified: string | null;
+}
+
+/**
+ * One reader by id.
+ *
+ * A plain function rather than a method, so nothing inside the adapter has to
+ * reach for `this` - the adapter's methods are handed around individually by
+ * Auth.js and are not guaranteed to be called with the adapter as receiver.
+ */
+function readUser(id: string): AdapterUser | null {
+  return toUser(getDb().prepare("SELECT * FROM users WHERE id = ?").get(id));
 }
 
 function toUser(row: unknown): AdapterUser | null {

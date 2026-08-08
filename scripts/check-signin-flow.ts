@@ -186,6 +186,73 @@ async function main() {
     console.log("FAIL no session cookie to continue with");
   }
 
+  // --- Signing in AGAIN, with the same address ---------------------------
+  //
+  // This is the case every earlier version of this script missed. It minted a
+  // brand-new address each run, so Auth.js only ever took the createUser path;
+  // an address it already knows comes back through updateUser instead. That
+  // method ended with `this.getUser(...)`, and Auth.js does not call adapter
+  // methods with the adapter as receiver, so `this` was undefined and it threw
+  // - reaching the reader as "There is a problem with the server
+  // configuration".
+  //
+  // It looked like a device problem: sign in on a phone, fine; sign in on a
+  // laptop afterwards, broken. It was simply first sign-in versus second.
+  console.log("\n--- signing in again, as a second device would ---");
+  {
+    const anon2 = randomUUID();
+    const piece2 = randomUUID();
+    db.prepare("INSERT INTO users (id, active_language, created_at) VALUES (?, ?, ?)").run(
+      anon2,
+      "es",
+      new Date().toISOString(),
+    );
+    db.prepare(
+      `INSERT INTO pieces (id, user_id, language, format, topic, level, title, body,
+                           glossary, questions, report, created_at)
+       VALUES (?, ?, 'es', 'story', 'fixture', 47, 'SecondDevice', '[]', '[]', '[]', '{}', ?)`,
+    ).run(piece2, anon2, new Date().toISOString());
+
+    const token2 = randomUUID();
+    db.prepare(
+      "INSERT INTO verification_tokens (identifier, token, expires) VALUES (?, ?, ?)",
+    ).run(
+      EMAIL,
+      createHash("sha256").update(`${token2}${secret}`).digest("hex"),
+      new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    );
+
+    const res2 = await fetch(
+      `${BASE}/api/auth/callback/resend?token=${token2}&email=${encodeURIComponent(EMAIL)}`,
+      { headers: { cookie: `fluent_uid=${anon2}` }, redirect: "manual" },
+    );
+    const to = res2.headers.get("location") ?? "";
+    ok("the second sign-in redirects", res2.status === 302, `HTTP ${res2.status}`);
+    ok("...and not to an error page", !/\/api\/auth\/error/.test(to), to);
+    ok(
+      "a session cookie is issued again",
+      res2.headers.getSetCookie().some((c) => c.startsWith("authjs.session-token=")),
+    );
+
+    check(
+      "no second account was created for the same address",
+      (db.prepare("SELECT COUNT(*) n FROM users WHERE email = ?").get(EMAIL) as { n: number })
+        .n,
+      1,
+    );
+    check(
+      "the second device's reading was claimed too",
+      (db.prepare("SELECT COUNT(*) n FROM pieces WHERE user_id = ?").get(account.id) as {
+        n: number;
+      }).n,
+      2,
+    );
+    ok(
+      "the second anonymous reader is gone",
+      !db.prepare("SELECT 1 FROM users WHERE id = ?").get(anon2),
+    );
+  }
+
   console.log("\n--- cleaning up ---");
   db.transaction(() => {
     db.prepare("DELETE FROM lookups WHERE user_id = ?").run(account.id);
