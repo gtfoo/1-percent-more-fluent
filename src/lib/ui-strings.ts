@@ -60,6 +60,8 @@ export interface UiStrings {
   checkYourEmailSpam: string;
   tryAnotherAddress: string;
 
+  /** Short enough to sit in the header beside the other two links. */
+  passkeyNav: string;
   passkeyHeading: string;
   passkeyRemove: string;
   passkeySignIn: string;
@@ -147,6 +149,7 @@ export const EN: UiStrings = {
     "Nothing arriving? Check spam, and confirm the address was right — we can’t tell you whether an address is registered, because that would let anyone use this page to find out.",
   tryAnotherAddress: "Try a different address",
 
+  passkeyNav: "Passkeys",
   passkeyHeading: "Signing in without email",
   passkeyRemove: "Remove",
   passkeySignIn: "Use a passkey",

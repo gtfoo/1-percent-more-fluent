@@ -3,9 +3,6 @@ import { getUserId, getProfile, getProfiles, getUiPreference } from "@/server/us
 import { listPieces, toTopicHistory } from "@/server/generate";
 import { rankAll } from "@/lib/rank-suggestions";
 import { countVocabulary } from "@/server/vocabulary";
-import { currentUser, passkeysConfigured } from "@/auth";
-import { listPasskeys } from "@/server/passkeys";
-import { Passkeys } from "@/components/Passkeys";
 import { isTtsConfigured, charactersSpentTotal } from "@/server/tts";
 import { labelFor, paramsFor } from "@/lib/level";
 import { getLanguage, LANGUAGES } from "@/lib/languages";
@@ -67,11 +64,6 @@ export default async function Home() {
   // from the home page is a promise the app has not kept yet.
   const words = countVocabulary(profile.userId, language.code);
 
-  // Shown to anyone signed in, whether or not they already have one. The first
-  // version hid itself the moment a passkey existed, which left no way to add a
-  // second device and no way to revoke one on a laptop you no longer have.
-  const signedIn = passkeysConfigured() ? await currentUser() : null;
-  const passkeys = signedIn ? listPasskeys(signedIn.id) : [];
   // Operator information, shown to the operator only. ADMIN_USER_ID is the
   // `fluent_uid` cookie of whoever runs the site; unset means nobody sees it.
   const isAdmin =
@@ -123,23 +115,6 @@ export default async function Home() {
         </h2>
         <Compose ttsReady={isTtsConfigured()} t={t} suggestions={chips} />
       </section>
-
-      {/* Only for someone already signed in. Registration is gated server-side
-          too - a passkey can never create an account on its own; see
-          getUserInfo in src/auth.ts. */}
-      {signedIn && (
-        <Passkeys
-          t={t}
-          canAdd
-          rows={passkeys.map((p) => ({
-            credentialId: p.credentialId,
-            addedOn: p.addedOn,
-            // Formatted here: the interpolating strings are functions, and a
-            // function cannot cross to a client component.
-            label: f.passkeyOn(p.addedOn, p.backedUp),
-          }))}
-        />
-      )}
 
       {words > 0 && (
         <section>

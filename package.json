@@ -24,6 +24,7 @@
     "auth:flow": "tsx scripts/check-signin-flow.ts",
     "auth:env": "bash scripts/check-auth-env.sh",
     "passkeys": "tsx scripts/check-passkeys.ts",
+    "passkeys:page": "tsx scripts/check-passkey-page.ts",
     "verify": "bash scripts/verify-serving.sh",
     "verify:check": "bash scripts/check-verify-serving.sh",
     "words": "bash scripts/check-words-page.sh",

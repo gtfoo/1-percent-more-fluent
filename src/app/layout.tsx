@@ -3,7 +3,7 @@ import { Geist, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { getUserId, getProfile, getUiPreference } from "@/server/user";
-import { authConfigured, currentUser, signOut } from "@/auth";
+import { authConfigured, currentUser, passkeysConfigured, signOut } from "@/auth";
 import { getLanguage } from "@/lib/languages";
 import { uiFor } from "@/lib/ui";
 
@@ -66,6 +66,19 @@ export default async function RootLayout({
                   className="text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
                 >
                   {t.retakeLevel}
+                </Link>
+              )}
+              {/* Account settings belong up here rather than in the middle of
+                  the reading flow, which is where this started - a card between
+                  the level and the word list, interrupting the one thing
+                  somebody came to do. Only when signed in, because there is
+                  nothing to manage otherwise. */}
+              {signedIn && passkeysConfigured() && (
+                <Link
+                  href="/passkeys"
+                  className="text-sm text-muted underline-offset-4 hover:text-accent hover:underline"
+                >
+                  {t.passkeyNav}
                 </Link>
               )}
               {/* Only where there is something to offer. Auth is optional and

@@ -55,6 +55,7 @@ export const UI_ZH_CN: UiStrings = {
     "没收到？看看垃圾邮件，再确认一下地址有没有写错。我们不能告诉你某个邮箱有没有注册过，否则谁都能用这个页面来试。",
   tryAnotherAddress: "换一个邮箱地址",
 
+  passkeyNav: "通行密钥",
   passkeyHeading: "不用邮箱登录",
   passkeyRemove: "删除",
   passkeySignIn: "用通行密钥登录",

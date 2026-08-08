@@ -49,6 +49,7 @@ export const UI_ES: UiStrings = {
     "¿No llega nada? Mira en spam y comprueba que la dirección era correcta. No podemos decirte si una dirección está registrada: cualquiera podría usar esta página para averiguarlo.",
   tryAnotherAddress: "Probar con otra dirección",
 
+  passkeyNav: "Claves de acceso",
   passkeyHeading: "Entrar sin correo",
   passkeyRemove: "Quitar",
   passkeySignIn: "Usar una clave de acceso",
