@@ -4,14 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FORMATS, type Format } from "@/lib/formats";
 import type { Length } from "@/lib/level";
-import { SUGGESTIONS } from "@/lib/suggestions";
+import { PLACEHOLDERS, SUGGESTIONS } from "@/lib/suggestions";
 import type { UiStrings } from "@/lib/ui-strings";
-
-const FORMAT_LABELS: Record<Format, { label: string; hint: string }> = {
-  story: { label: "Story", hint: "folklore, a small mystery, something that happened" },
-  article: { label: "Article", hint: "the trade war, why volcanoes erupt, a place" },
-  conversation: { label: "Conversation", hint: "two friends on the new Spider-Man film" },
-};
 
 const LENGTHS: { value: Length }[] = [
   { value: "short" },
@@ -86,7 +80,10 @@ export function Compose({ ttsReady, t }: { ttsReady: boolean; t: UiStrings }) {
             if (e.key === "Enter" && !busy) generate();
           }}
           maxLength={200}
-          placeholder={FORMAT_LABELS[format].hint}
+          // English even when the rest of the chrome is not, like the
+          // suggestion chips below it and for the same reason. See
+          // src/lib/suggestions.ts.
+          placeholder={PLACEHOLDERS[format]}
           className="mt-2 w-full rounded-lg border border-border bg-surface px-4 py-3 outline-none focus:border-accent"
         />
 

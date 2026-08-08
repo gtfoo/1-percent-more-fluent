@@ -15,6 +15,7 @@
     "language": "tsx scripts/check-language.ts",
     "migration": "tsx scripts/check-migration.ts",
     "terms": "tsx scripts/check-terms.ts",
+    "suggestions": "tsx scripts/check-suggestions.ts",
     "vocab": "tsx scripts/check-vocabulary.ts",
     "auth": "tsx scripts/check-auth.ts",
     "auth:page": "bash scripts/check-auth-page.sh",
