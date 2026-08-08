@@ -21,6 +21,7 @@ on:
       - ".gitignore"
       - "scripts/check-*"
       - "scripts/droplet-*"
+      - "scripts/inspect-*"
       - "scripts/peek-*"
       - "scripts/try-*"
       - ".github/**"
