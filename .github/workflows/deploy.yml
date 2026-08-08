@@ -5,6 +5,27 @@ name: Deploy to droplet
 on:
   push:
     branches: [main]
+    # A deploy is not free: scripts/deploy.sh removes .next before rebuilding,
+    # so for the length of a build the site serves pages with no styles and no
+    # scripts. Paying that for a commit that cannot possibly change what is
+    # served is waste - a test script or a paragraph of documentation took the
+    # site down for three minutes more than once.
+    #
+    # These paths are pulled onto the droplet by the next real deploy anyway,
+    # so nothing drifts. deploy.sh and verify-serving.sh are deliberately NOT
+    # here: they run during a deploy, and a fix to one should take effect at
+    # the next one rather than waiting for an unrelated change.
+    paths-ignore:
+      - "**.md"
+      - ".env.example"
+      - ".gitignore"
+      - "scripts/check-*"
+      - "scripts/droplet-*"
+      - "scripts/peek-*"
+      - "scripts/try-*"
+      - ".github/**"
+  # Still deployable by hand from the Actions tab - for a scripts-only change
+  # you do want on the droplet now, or after fixing a bad deploy.
   workflow_dispatch: {}
 
 # Never let two deploys overlap; queue them instead of interrupting a build.
