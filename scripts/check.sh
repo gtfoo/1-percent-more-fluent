@@ -25,6 +25,7 @@ step "language contract" npx tsx scripts/check-language.ts
 step "profile migration" npx tsx scripts/check-migration.ts
 step "topic terms" npx tsx scripts/check-terms.ts
 step "starting points" npx tsx scripts/check-suggestions.ts
+step "chip order" npx tsx scripts/check-chips.ts
 step "word list" npx tsx scripts/check-vocabulary.ts
 step "sign-in and claiming" npx tsx scripts/check-auth.ts
 step "passkey storage" npx tsx scripts/check-passkeys.ts

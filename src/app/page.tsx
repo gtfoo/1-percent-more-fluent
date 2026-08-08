@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getUserId, getProfile, getProfiles, getUiPreference } from "@/server/user";
-import { listPieces } from "@/server/generate";
+import { listPieces, toTopicHistory } from "@/server/generate";
+import { rankAll } from "@/lib/rank-suggestions";
 import { countVocabulary } from "@/server/vocabulary";
 import { currentUser, passkeysConfigured } from "@/auth";
 import { listPasskeys } from "@/server/passkeys";
@@ -57,6 +58,11 @@ export default async function Home() {
   // Above a level the chrome switches too; see src/lib/ui.ts.
   const { strings: t, format: f, inTarget } = uiFor(language, profile.level, await getUiPreference());
   const recent = listPieces(profile.userId, language.code);
+  // No extra query and no network: listPieces already fetched the topics and
+  // this page already threw them away. The seed is the reader plus how much
+  // they have read, so the two exploration slots rotate when there is something
+  // new to rotate for and hold still across a refresh.
+  const chips = rankAll(toTopicHistory(recent), `${profile.userId}:${recent.length}`);
   // Only linked once there is something behind the link. An empty list offered
   // from the home page is a promise the app has not kept yet.
   const words = countVocabulary(profile.userId, language.code);
@@ -115,7 +121,7 @@ export default async function Home() {
         <h2 className="mb-4 text-xl font-semibold tracking-tight">
           {t.whatToRead}
         </h2>
-        <Compose ttsReady={isTtsConfigured()} t={t} />
+        <Compose ttsReady={isTtsConfigured()} t={t} suggestions={chips} />
       </section>
 
       {/* Only for someone already signed in. Registration is gated server-side

@@ -14,6 +14,8 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { paramsFor, LENGTH_WORDS, type Length, type LevelParams } from "@/lib/level";
+import { asTopicField, TOPIC_FIELDS } from "@/lib/suggestions";
+import type { TopicHistory } from "@/lib/rank-suggestions";
 import type { Language } from "@/lib/languages";
 import { generateStructured } from "./llm";
 import { measure, type DifficultyReport } from "./difficulty";
@@ -88,6 +90,29 @@ export const pieceSchema = (lang: Language | string) => {
       }),
     )
     .describe("Exactly three comprehension questions."),
+  /**
+   * A label for the TOPIC, used to order the starting-point chips. It steers
+   * nothing about the text.
+   *
+   * LAST in the object on purpose: the model emits JSON in schema order, so a
+   * key that comes after the body is a label applied to what was asked for
+   * rather than an instruction shaping what gets written.
+   *
+   * `z.string()`, not `z.enum`, and required, not optional. Both halves are
+   * scar tissue:
+   *
+   *   - Optional means the model simply skips it. That is exactly what happened
+   *     with `pronunciation` - no pinyin appeared for weeks and nothing errored.
+   *   - An enum makes an unlisted value fail the STRUCTURED PARSE, which trips
+   *     the retry chain and can burn a whole generation. A cosmetic label must
+   *     never be able to fail an expensive call, so the model is asked nicely
+   *     and `asTopicField` cleans up after it.
+   */
+  field: z
+    .string()
+    .describe(
+      `The single domain this TOPIC belongs to - not the text you wrote. Exactly one of: ${TOPIC_FIELDS.join(", ")}. Use "other" if none of them fits.`,
+    ),
   });
 };
 
@@ -272,8 +297,8 @@ export async function generatePiece(args: {
 
   getDb()
     .prepare(
-      `INSERT INTO pieces (id, user_id, language, format, topic, level, title, body, glossary, questions, speakers, terms, report, model, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO pieces (id, user_id, language, format, topic, topic_field, level, title, body, glossary, questions, speakers, terms, report, model, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -281,6 +306,9 @@ export async function generatePiece(args: {
       language.code,
       args.format,
       args.topic,
+      // Cleaned before storage, so nothing downstream has to wonder whether the
+      // model invented a domain.
+      asTopicField(piece!.field),
       args.level,
       piece!.title,
       JSON.stringify(piece!.paragraphs),
@@ -349,15 +377,35 @@ export function getPiece(id: string): StoredPiece | null {
 export function listPieces(userId: string, language: string, limit = 20) {
   const rows = getDb()
     .prepare(
-      "SELECT id, title, format, topic, level, created_at FROM pieces WHERE user_id = ? AND language = ? ORDER BY created_at DESC LIMIT ?",
+      "SELECT id, title, format, topic, topic_field, level, created_at FROM pieces WHERE user_id = ? AND language = ? ORDER BY created_at DESC LIMIT ?",
     )
     .all(userId, language, limit) as {
     id: string;
     title: string;
     format: Format;
     topic: string;
+    topic_field: string | null;
     level: number;
     created_at: string;
   }[];
   return rows;
+}
+
+/**
+ * The same rows, in the shape the chip ranker wants. Newest first, because
+ * listPieces already orders that way and the ranker weights by POSITION rather
+ * than by clock - see src/lib/rank-suggestions.ts.
+ *
+ * Deliberately a reshape and not a query: the home page already calls
+ * listPieces and threw the topic column away. Ordering the chips costs no
+ * additional database work and no network at all.
+ */
+export function toTopicHistory(rows: ReturnType<typeof listPieces>): TopicHistory[] {
+  return rows.map((r) => ({
+    topic: r.topic,
+    format: r.format,
+    // NULL for every piece written before the label existed. Inert in the
+    // ranker rather than a field named "null".
+    field: r.topic_field === null ? null : asTopicField(r.topic_field),
+  }));
 }

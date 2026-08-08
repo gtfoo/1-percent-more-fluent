@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FORMATS, type Format } from "@/lib/formats";
 import type { Length } from "@/lib/level";
-import { PLACEHOLDERS, SUGGESTIONS } from "@/lib/suggestions";
+import { PLACEHOLDERS, type Suggestion } from "@/lib/suggestions";
 import type { UiStrings } from "@/lib/ui-strings";
 
 const LENGTHS: { value: Length }[] = [
@@ -22,7 +22,19 @@ function lengthLabel(t: UiStrings, l: Length): string {
   return l === "short" ? t.lengthShort : l === "medium" ? t.lengthMedium : t.lengthLong;
 }
 
-export function Compose({ ttsReady, t }: { ttsReady: boolean; t: UiStrings }) {
+export function Compose({
+  ttsReady,
+  t,
+  // Ordered on the server by what this reader has read; see
+  // src/lib/rank-suggestions.ts. Plain data, so it crosses the boundary safely -
+  // unlike the interpolating strings that 500'd every page while the types were
+  // perfectly happy.
+  suggestions,
+}: {
+  ttsReady: boolean;
+  t: UiStrings;
+  suggestions: Record<Format, Suggestion[]>;
+}) {
   const router = useRouter();
   const [format, setFormat] = useState<Format>("story");
   const [topic, setTopic] = useState("");
@@ -95,7 +107,7 @@ export function Compose({ ttsReady, t }: { ttsReady: boolean; t: UiStrings }) {
           <div className="mt-3">
             <p className="text-sm text-muted">{t.orStartFrom}</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {SUGGESTIONS[format].map((s) => (
+              {suggestions[format].map((s) => (
                 <button
                   key={s.label}
                   type="button"

@@ -102,6 +102,14 @@ export function getDb(): Database.Database {
   // as "nothing protected" - exactly how they were measured at the time.
   addColumn("pieces", "terms", "TEXT NOT NULL DEFAULT '[]'");
 
+  // The domain the TOPIC sits in, labelled by the model that was already
+  // reading it, and used only to order the starting-point chips.
+  //
+  // Nullable with no default, unlike speakers and terms above, because here
+  // NULL carries meaning: a piece written before the label existed does not
+  // vote on what to suggest next, which is different from voting "other".
+  addColumn("pieces", "topic_field", "TEXT");
+
   // Which language the learner is currently reading. Null until they place.
   addColumn("users", "active_language", "TEXT");
 

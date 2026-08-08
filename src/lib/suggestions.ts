@@ -60,6 +60,33 @@ export const FIELDS: Field[] = [
   "travel",
 ];
 
+/**
+ * What a piece can be labelled with, which is the authored fields plus an
+ * escape hatch.
+ *
+ * `other` exists so the model is never forced to mislabel a topic that genuinely
+ * belongs nowhere - "my neighbour's cat" is not payments. It lives here and
+ * NEVER in FIELDS, so the every-field-in-every-format invariant that
+ * check-suggestions.ts asserts is untouched by it: nothing is ever authored as
+ * `other`, it is only ever observed.
+ */
+export const TOPIC_FIELDS = [...FIELDS, "other"] as const;
+export type TopicField = (typeof TOPIC_FIELDS)[number];
+
+/**
+ * Coerce whatever the model said into a field. Never throws.
+ *
+ * The model is asked for one of these by name but is not CONSTRAINED to them -
+ * see the schema in src/server/generate.ts for why a cosmetic label must not be
+ * able to fail an expensive generation. So anything unrecognised, missing or
+ * the wrong type lands on `other` rather than propagating.
+ */
+export function asTopicField(value: unknown): TopicField {
+  return typeof value === "string" && (TOPIC_FIELDS as readonly string[]).includes(value)
+    ? (value as TopicField)
+    : "other";
+}
+
 export interface Suggestion {
   /** Short enough for a chip. */
   label: string;
