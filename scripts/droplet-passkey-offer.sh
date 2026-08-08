@@ -48,8 +48,10 @@ const rendered = (h) => h.replace(/<script\b[\s\S]*?<\/script>/g, "");
        html.match(/passkey[^<]{0,40}/i)?.[0] || "no mention of a passkey anywhere");
     ok("...and offers sign-out, so we really are signed in", /Sign out|Cerrar sesión/.test(html));
 
-    // Once one is registered the offer should stop - but then there is no way
-    // to add a second device, or to see what is registered.
+    // With one registered the section must STAY. A phone and a laptop are
+    // different credentials, and a passkey on a machine you no longer have
+    // needs revoking - the first version hid itself here, which made both
+    // impossible.
     if (acct) {
       db.prepare(`INSERT INTO authenticators
         (credential_id,user_id,provider_account_id,credential_public_key,counter,
@@ -57,9 +59,10 @@ const rendered = (h) => h.replace(/<script\b[\s\S]*?<\/script>/g, "");
         VALUES (?,?,?,?,?,?,?,?,?)`)
         .run("fixture-cred", acct.id, "fixture-acct", "k", 0, "multiDevice", 1, null, now);
       const after = rendered(await (await fetch(site, { headers: { cookie: sess } })).text());
-      ok("with one registered, the offer is gone", !/Add a passkey/.test(after));
-      ok("...and nothing replaces it", !/passkey/i.test(after),
-         after.match(/passkey[^<]{0,40}/i)?.[0] || "(nothing about passkeys at all)");
+      ok("the registered passkey is listed", /Synced passkey|Clave sincronizada/.test(after),
+         after.match(/(Synced passkey|Clave sincronizada)[^<]{0,30}/)?.[0] || "not listed");
+      ok("...with a way to revoke it", /Remove|Quitar/.test(after));
+      ok("...and a way to add another device", /Add a passkey|Añadir una clave/.test(after));
     }
   }
 
