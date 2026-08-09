@@ -128,6 +128,14 @@ export function Reader({
   );
   const [rating, setRating] = useState<string | null>(null);
   const [result, setResult] = useState<SessionResult | null>(null);
+
+  // Lifted out of finish(), because the review below needs them too - and the
+  // score the reader is shown must be the same number that moved their level,
+  // not a second calculation that could drift from it.
+  const answered = answers.filter((a) => a !== null).length;
+  const correctCount = answers.filter(
+    (a, i) => a !== null && a === piece.questions[i]!.answer,
+  ).length;
   const [error, setError] = useState<string | null>(null);
 
   const language = getLanguage(piece.language);
@@ -439,11 +447,6 @@ export function Reader({
   }, [audioUrl]);
 
   async function finish() {
-    const answered = answers.filter((a) => a !== null).length;
-    const correct = answers.filter(
-      (a, i) => a !== null && a === piece.questions[i]!.answer,
-    ).length;
-
     setError(null);
     try {
       const res = await fetch("/api/session", {
@@ -452,7 +455,7 @@ export function Reader({
         body: JSON.stringify({
           pieceId: piece.id,
           rating,
-          quizScore: answered ? correct / answered : undefined,
+          quizScore: answered ? correctCount / answered : undefined,
           dwellMs: Date.now() - openedAt.current,
         }),
       });
@@ -746,6 +749,90 @@ export function Reader({
               </button>
             </>
           )}
+        </section>
+      )}
+
+      {/* What the reader actually got.
+          Submitting used to replace the whole quiz with the level change, so
+          you were told your comprehension had moved your level without ever
+          being told which questions you had wrong - which is the one thing
+          worth knowing, and the only part of the piece you cannot go back and
+          re-read for yourself. */}
+      {result && answered > 0 && (
+        <section className="space-y-4 border-t border-border pt-8">
+          <h2 className="text-xl font-semibold">{t.howYouDid}</h2>
+          {/* A bare fraction rather than a sentence. The score is only known on
+              the client, and the interpolating strings are FUNCTIONS that
+              cannot cross that boundary - so a sentence here would mean either
+              a second interpolation mechanism or an English island. "2 / 3"
+              needs no grammar and no translation. */}
+          <p className="text-2xl font-semibold tabular-nums">
+            {correctCount} / {answered}
+          </p>
+
+          <ol className="space-y-5">
+            {piece.questions.map((q, qi) => {
+              // Skipped questions are shown too, with the right answer and no
+              // "you chose". Leaving them out would mean the one question you
+              // were least sure about is the one you never get told the answer
+              // to. The score above still counts only what was answered, which
+              // is what moved the level.
+              const chose = answers[qi];
+              return (
+                <li key={qi} className="space-y-2">
+                  <p
+                    className="font-medium"
+                    lang={language.code}
+                    style={{ fontFamily: language.fontStack }}
+                  >
+                    {q.question}
+                  </p>
+                  {q.options.map((opt, oi) => {
+                    const isRight = oi === q.answer;
+                    const isTheirs = oi === chose;
+                    // Everything else is dimmed away: the two rows that matter
+                    // are the right answer and, when it differs, the one they
+                    // picked.
+                    if (!isRight && !isTheirs) {
+                      return (
+                        <p key={oi} className="pl-6 text-sm text-muted opacity-60">
+                          <span
+                            lang={language.code}
+                            style={{ fontFamily: language.fontStack }}
+                          >
+                            {opt}
+                          </span>
+                        </p>
+                      );
+                    }
+                    return (
+                      <p
+                        key={oi}
+                        className={`flex items-start gap-2 text-sm ${
+                          isRight ? "text-foreground" : "text-warn"
+                        }`}
+                      >
+                        {/* A word, not only a colour or a tick: colour alone is
+                            no use to anyone who cannot see the difference. */}
+                        <span aria-hidden="true">{isRight ? "✓" : "✗"}</span>
+                        <span>
+                          <span
+                            lang={language.code}
+                            style={{ fontFamily: language.fontStack }}
+                          >
+                            {opt}
+                          </span>{" "}
+                          <span className="text-muted">
+                            — {isRight ? t.correctAnswer : t.yourAnswer}
+                          </span>
+                        </span>
+                      </p>
+                    );
+                  })}
+                </li>
+              );
+            })}
+          </ol>
         </section>
       )}
 

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "wordlist": "tsx scripts/build-wordlist.ts",
+    "icons": "tsx scripts/build-icons.ts",
     "samples": "tsx scripts/build-samples.ts",
     "voices": "tsx scripts/probe-voices.ts",
     "models": "tsx scripts/probe-llm.ts",

@@ -86,6 +86,10 @@ export interface UiStrings {
   pause: string;
   finishedReading: string;
   didYouFollow: string;
+  // Shown after answering, so the reader finds out which ones they got.
+  howYouDid: string;
+  correctAnswer: string;
+  yourAnswer: string;
   howDidThatFeel: string;
   tooEasy: string;
   justRight: string;
@@ -175,6 +179,9 @@ export const EN: UiStrings = {
   pause: "Pause",
   finishedReading: "I’ve finished reading",
   didYouFollow: "Did you follow it?",
+  howYouDid: "How you did",
+  correctAnswer: "Correct answer",
+  yourAnswer: "You chose this",
   howDidThatFeel: "How did that feel?",
   tooEasy: "Too easy",
   justRight: "Just right",

@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import Image from "next/image";
 import { Geist, Source_Serif_4 } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
@@ -18,6 +19,18 @@ const reading = Source_Serif_4({
   variable: "--font-reading",
   subsets: ["latin", "latin-ext"],
 });
+
+/**
+ * Colours the browser chrome around the page, and the status bar on an
+ * installed home-screen app. Two entries because the app has a dark theme: one
+ * value would leave a cream bar above a dark page.
+ */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf8f5" },
+    { media: "(prefers-color-scheme: dark)", color: "#14130f" },
+  ],
+};
 
 export const metadata: Metadata = {
   title: "1 Percent More Fluent",
@@ -51,7 +64,21 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <header className="border-b border-border">
           <div className="mx-auto flex w-full max-w-3xl items-baseline justify-between px-5 py-4">
-            <Link href="/" className="text-lg font-semibold tracking-tight">
+            {/* self-start rather than baseline-aligned: the row is
+                items-baseline for the text links, and an image has no baseline
+                to align to, so it would otherwise hang below them. */}
+            <Link
+              href="/"
+              className="flex items-center gap-2 self-start text-lg font-semibold tracking-tight"
+            >
+              <Image
+                src="/logo-96.png"
+                alt=""
+                width={28}
+                height={28}
+                priority
+                className="rounded"
+              />
               1 Percent More Fluent
             </Link>
             {/* Only once there is a level to re-test. A first-time visitor was
