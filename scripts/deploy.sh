@@ -37,6 +37,10 @@ if [ ! -f src/data/zh-CN/frequency.json ]; then
   echo "==> building Chinese word data (first deploy)"
   LANGUAGE=zh-CN npx tsx scripts/build-wordlist.ts
 fi
+if [ ! -f src/data/id/frequency.json ]; then
+  echo "==> building Indonesian word data (first deploy)"
+  LANGUAGE=id npx tsx scripts/build-wordlist.ts
+fi
 
 echo "==> npm ci (recompiles better-sqlite3 for this host)"
 npm ci

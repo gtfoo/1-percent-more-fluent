@@ -12,7 +12,12 @@ nvm use 20 >/dev/null 2>&1
 
 BASE="${BASE:-http://127.0.0.1:3003}"
 
-for lang in es zh-CN; do
+# Driven from the registry, so a new language is smoke-tested the moment it is
+# registered rather than the day somebody remembers to edit this list.
+LANGS=$(npx --yes tsx -e 'import("../src/lib/languages").then(m=>console.log(m.languageCodes().join(" ")))' 2>/dev/null \
+        || echo "es zh-CN id")
+
+for lang in $LANGS; do
   echo "=== $lang ==="
   JAR=$(mktemp)
 
@@ -39,20 +44,43 @@ for lang in es zh-CN; do
 
   BODY=$(curl -s -c "$JAR" -b "$JAR" "$BASE/read/$ID")
 
-  # What script did the model actually write in? Character ranges through grep
-  # are locale-dependent, so test the UTF-8 bytes directly.
-  if printf '%s' "$BODY" | LC_ALL=C grep -qP '[\xe4-\xe9][\x80-\xbf][\x80-\xbf]'; then
-    SCRIPT="Han (Chinese)"
-  elif printf '%s' "$BODY" | grep -qE '[áéíóúñ¿¡]'; then
-    SCRIPT="Latin with Spanish diacritics"
-  else
-    SCRIPT="plain Latin / unclear"
-  fi
+  # Which language did the model actually write in?
+  #
+  # This used to identify a language by its SCRIPT - Han bytes meant Chinese,
+  # Spanish diacritics meant Spanish, anything else was a failure. That cannot
+  # work for a third language written in plain ASCII Latin: Indonesian could
+  # never pass, and worse, the one thing this script exists to catch - being
+  # served the wrong language - is invisible, because Indonesian and English
+  # are the same script.
+  #
+  # So: count marker words instead. Common function words, chosen to be
+  # unambiguous across the three, and required in numbers so that a stray
+  # loanword or name cannot carry the verdict.
+  hits() { printf '%s' "$1" | grep -oiE "\\b($2)\\b" | wc -l; }
 
-  case "$lang:$SCRIPT" in
-    "es:Latin with Spanish diacritics"|"zh-CN:Han (Chinese)") SOK="ok  " ;;
-    *) SOK="FAIL"; FAILED=1 ;;
+  case "$lang" in
+    es)
+      SCRIPT="Spanish"
+      N=$(hits "$BODY" "el|la|los|las|que|de|una?|con|para|pero|porque")
+      ;;
+    id)
+      SCRIPT="Indonesian"
+      N=$(hits "$BODY" "yang|dan|tidak|dengan|untuk|adalah|itu|ini|dari|akan")
+      ;;
+    zh-CN)
+      SCRIPT="Simplified Chinese"
+      # Han is unambiguous where it applies, and character ranges through grep
+      # are locale-dependent, so test the UTF-8 bytes directly.
+      N=$(printf '%s' "$BODY" | LC_ALL=C grep -oP '[\xe4-\xe9][\x80-\xbf][\x80-\xbf]' | wc -l)
+      ;;
+    *)
+      SCRIPT="unknown"; N=0
+      ;;
   esac
+
+  # Three markers is well past chance for prose of this length, and well under
+  # what any real piece in the language contains.
+  if [ "$N" -ge 3 ]; then SOK="ok  "; else SOK="FAIL"; FAILED=1; fi
 
   # The prose block must be marked with the learner's language. <html lang="en">
   # is correct and stays - the UI chrome really is English - so look for the
@@ -64,7 +92,7 @@ for lang in es zh-CN; do
   fi
 
   echo "  piece   : $ID"
-  echo "  $SOK script  : $SCRIPT"
+  echo "  $SOK reads as: $SCRIPT ($N markers)"
   echo "  $LOK prose   : marked lang=\"$lang\""
   rm -f "$JAR"
 done

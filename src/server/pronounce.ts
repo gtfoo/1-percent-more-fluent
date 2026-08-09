@@ -48,11 +48,24 @@ export function toPinyin(text: string): string {
  */
 export function pronounce(code: string, text: string): string | undefined {
   const language = getLanguage(code);
-  if (language.pronunciation?.source !== "derived") return undefined;
+  if (!language.pronunciation) return undefined;
 
-  // Only Chinese derives today. A second one would branch on `code` here.
-  const said = toPinyin(text);
-  return said || undefined;
+  // A switch on `via`, not a call to the only implementation that happens to
+  // exist. This used to check the tag and then call toPinyin unconditionally,
+  // so a language deriving by some other means would get `undefined` back with
+  // no error and no failing test - which is exactly how the missing pinyin hid
+  // for weeks. The default binds to `never`, so a new romanisation stops this
+  // compiling until it is handled here.
+  switch (language.pronunciation.via) {
+    case "pinyin": {
+      const said = toPinyin(text);
+      return said || undefined;
+    }
+    default: {
+      const unhandled: never = language.pronunciation.via;
+      throw new Error(`no pronunciation implementation for "${String(unhandled)}"`);
+    }
+  }
 }
 
 /** Does this language compute its own pronunciation, rather than asking? */

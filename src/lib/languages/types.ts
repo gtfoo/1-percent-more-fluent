@@ -83,12 +83,20 @@ export interface Language {
    * and a wrong reading is the one error a learner cannot catch, because it
    * looks exactly like a right one.
    *
+   * `via` names WHICH derivation, and exists so a second one cannot arrive
+   * silently. The bare tag was enough while only one language derived, because
+   * pronounce.ts just called the pinyin function after checking it - so a
+   * language setting `derived` without a pinyin implementation would get
+   * `undefined` back, with no error and no failing test. That is exactly how the
+   * missing pinyin went unnoticed for weeks. With a member here, the switch in
+   * pronounce.ts stops compiling until the new one is handled.
+   *
    * DELIBERATELY NOT A FUNCTION. These modules are imported by the reader, which
    * is a client component, so anything referenced here ships to the browser -
    * and the pinyin dictionary is 1.1MB. The derivation lives in
    * src/server/pronounce.ts, keyed off this tag.
    */
-  pronunciation: null | { source: "derived" };
+  pronunciation: null | { source: "derived"; via: "pinyin" };
 
   /** The interface, written in this language. See src/lib/ui-strings.ts. */
   ui: UiStrings;

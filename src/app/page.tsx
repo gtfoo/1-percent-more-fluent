@@ -37,8 +37,12 @@ export default async function Home() {
           writes one, pitched so you understand most of it but not all of it.
         </p>
         <p className="text-muted">
+          {/* Named no scales. It used to say "your CEFR or HSK level", which
+              went stale the moment a third language arrived and would go stale
+              again with a fourth - and the acronyms were doing no work here
+              anyway, since the whole sentence is about not needing to know. */}
           First, a 90-second vocabulary check. No grammar questions, and you
-          don’t need to know your CEFR or HSK level.
+          don’t need to know what level you are.
         </p>
         <Link
           href="/setup"

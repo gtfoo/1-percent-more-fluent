@@ -14,7 +14,8 @@ npm ci --no-audit --no-fund 2>&1 | tail -3
 echo "=== word data ==="
 [ -f src/data/es/frequency.json ] || npx tsx scripts/build-wordlist.ts 2>&1 | tail -2
 [ -f src/data/zh-CN/frequency.json ] || LANGUAGE=zh-CN npx tsx scripts/build-wordlist.ts 2>&1 | tail -2
-ls -la src/data/es src/data/zh-CN 2>/dev/null | grep -E "frequency|placement|anchors|samples" | head -10
+[ -f src/data/id/frequency.json ] || LANGUAGE=id npx tsx scripts/build-wordlist.ts 2>&1 | tail -2
+ls -la src/data/es src/data/zh-CN src/data/id 2>/dev/null | grep -E "frequency|placement|anchors|samples" | head -14
 
 echo "=== next build ==="
 npm run build 2>&1 | tail -6

@@ -8,12 +8,14 @@
 import type { Language } from "./types";
 import { spanish } from "./es";
 import { simplifiedChinese } from "./zh-CN";
+import { indonesian } from "./id";
 
 export type { Language, Token, GrammarGate } from "./types";
 
 export const LANGUAGES: Record<string, Language> = {
   [spanish.code]: spanish,
   [simplifiedChinese.code]: simplifiedChinese,
+  [indonesian.code]: indonesian,
 };
 
 export const DEFAULT_LANGUAGE = spanish.code;

@@ -36,6 +36,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { existsSync, readFileSync } from "node:fs";
 import { generateStructured } from "../src/server/llm";
+import { getLanguage } from "../src/lib/languages";
 
 function loadEnv(path = ".env.local") {
   try {
@@ -271,6 +272,175 @@ const chinese: Strategy = {
     ),
 };
 
+// --- Bahasa Indonesia -------------------------------------------------------
+
+/** Letters and internal hyphens only - reduplication lives inside the word. */
+const INDONESIAN_WORD = /^[a-z]+(?:-[a-z]+)*$/;
+
+/** Vowels that may be swapped to make a pseudoword. Deliberately NOT `e`. */
+const ID_VOWELS = ["a", "i", "u", "o"];
+
+let indonesianRoots = new Set<string>();
+let englishRank = new Map<string, number>();
+
+/**
+ * Can this word be traced back to an Indonesian root?
+ *
+ * Reuses the language module's own affix stripper, which is a good sign the
+ * abstraction sits in the right place: the thing that decides difficulty at
+ * runtime is the same thing that cleans the corpus at build time.
+ */
+function rootDerivable(word: string): boolean {
+  const isRoot = (f: string) => indonesianRoots.has(f);
+  if (isRoot(word)) return true;
+  return getLanguage("id").baseForms(word, isRoot).some(isRoot);
+}
+
+/** Common in BOTH languages, so the English filter would take them by mistake. */
+const ID_KEEP = new Set([
+  "ya", "di", "ke", "dia", "ini", "itu", "ada", "aku", "kau", "sana", "sini", "ia",
+]);
+
+const indonesian: Strategy = {
+  code: "id",
+  name: "Indonesian",
+  frequencyUrl:
+    "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/id/id_50k.txt",
+
+  /**
+   * The list is badly contaminated with English - "the" is at rank 202, "you"
+   * 297, "and" 494, "john" 526 - because these are subtitles and Indonesian is
+   * ASCII Latin, the same shape as the contaminant. Chinese gets this filtering
+   * for free from its Han regex and Spanish from its accents plus a 636k-form
+   * dictionary. Indonesian has neither.
+   *
+   * Left alone it poisons three things at once: the frequency ruler everything
+   * is measured against, the placement items, and the register anchors quoted
+   * back to the model as examples of ordinary vocabulary.
+   *
+   * So drop a word only if it is common ENGLISH and cannot be traced to an
+   * Indonesian root. The second clause is what keeps loanwords (bank, hotel,
+   * film, radio) and every affixed form - a naive root-dictionary test would
+   * throw those away along with about half the corpus.
+   */
+  isValidWord: (word) =>
+    INDONESIAN_WORD.test(word) &&
+    word.length >= 2 &&
+    (ID_KEEP.has(word) ||
+      (englishRank.get(word) ?? Infinity) > 3_000 ||
+      rootDerivable(word)),
+
+  async prepare() {
+    // Root words only - no affixed forms, no proper nouns. Exactly the shape
+    // needed to tell Indonesian from English.
+    const roots = await fetchText(
+      "https://raw.githubusercontent.com/sastrawi/sastrawi/master/data/kata-dasar.txt",
+      "Indonesian root list",
+    );
+    indonesianRoots = new Set(
+      roots
+        .split("\n")
+        .map((l) => l.trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    const english = await fetchText(
+      "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/en/en_50k.txt",
+      "English frequency list",
+    );
+    englishRank = new Map(
+      english
+        .split("\n")
+        .map((l) => l.trim().split(/\s+/)[0]?.toLowerCase())
+        .filter((w): w is string => Boolean(w))
+        .map((w, i) => [w, i + 1]),
+    );
+
+    console.log(
+      `  ${indonesianRoots.size.toLocaleString()} roots, ` +
+        `${englishRank.size.toLocaleString()} English ranks for filtering.`,
+    );
+  },
+
+  /**
+   * Stricter than isValidWord, because this governs what a HUMAN is shown -
+   * placement items and register anchors. Hyphenated words are excluded because
+   * knowing "anak-anak" is just knowing "anak" twice.
+   */
+  isTestable: (word) =>
+    word.length >= 4 && word.length <= 16 && !word.includes("-") && rootDerivable(word),
+
+  /**
+   * Vetted by the model, not left to the root list.
+   *
+   * The root list was supposed to make this a no-op the way Spanish's
+   * dictionary does. It does not: `paul` and `cina` are both in kata-dasar and
+   * both duly turned up as placement items on the first build. A name is the
+   * one thing a yes/no vocabulary test must not contain, because everybody
+   * marks it known and it measures nothing - which is the whole reason Spanish
+   * pulls in a 636k-form dictionary in the first place.
+   */
+  vetItems: (words) =>
+    vetWithModel(
+      words,
+      "Indonesian",
+      // Misspellings and crude terms matter beyond the test items: the same
+      // vetted pool becomes anchors.json, which is quoted VERBATIM into the
+      // generation prompt as examples of vocabulary at a level. A subtitle
+      // typo like "anaku" for "anakku" teaches the model the wrong spelling.
+      "Mark a word to DROP if it is: a personal name, a place name, a brand, or a transliteration of a foreign name; an English word rather than an Indonesian one; a multi-word phrase rather than a single word; a misspelling of a correctly-spelled Indonesian word; or crude anatomical or sexual slang.",
+    ),
+
+  makePseudowordCandidates(donors, corpus, count, seen) {
+    const out: string[] = [];
+    for (const donor of evenlySpaced(donors, count * 8)) {
+      if (out.length >= count) break;
+      const fake = substituteIndonesianVowel(donor.word, corpus);
+      if (fake && !seen.has(fake)) {
+        seen.add(fake);
+        out.push(fake);
+      }
+    }
+    return out;
+  },
+
+  // Absence from a 50k list is weaker evidence here than elsewhere: Indonesian
+  // affixation is productive enough that a well-formed invention can simply be
+  // a word nobody has happened to write down.
+  vetPseudowords: (candidates) =>
+    vetWithModel(
+      candidates,
+      "Indonesian",
+      "These are meant to be INVENTED non-words. Mark one to DROP if it is in fact a real Indonesian word, a well-formed affixed form of a real root, a regional or colloquial spelling variant, a Malay word, or a name.",
+    ),
+};
+
+/**
+ * Swap one vowel, scanning from the END of the word.
+ *
+ * From the end so the prefix survives: a mutated me-/ber-/peng- announces itself
+ * as broken, while a changed final syllable reads like an affixed word you
+ * half-know, which is what a catch trial needs.
+ *
+ * `e` is never touched and never substituted in. It is the schwa, and swapping
+ * it lands on a real regional spelling - sekarang to sakarang - that a learner
+ * is right to claim they know, which destroys the trial.
+ */
+function substituteIndonesianVowel(word: string, corpus: Set<string>): string | null {
+  for (let i = word.length - 2; i >= 1; i--) {
+    if (!ID_VOWELS.includes(word[i]!)) continue;
+    for (const v of ID_VOWELS) {
+      if (v === word[i]) continue;
+      const candidate = word.slice(0, i) + v + word.slice(i + 1);
+      if (corpus.has(candidate)) continue;
+      if (indonesianRoots.has(candidate)) continue;
+      if (rootDerivable(candidate)) continue;
+      return candidate;
+    }
+  }
+  return null;
+}
+
 /**
  * Ask the model which candidates to keep.
  *
@@ -321,6 +491,7 @@ async function vetWithModel(
 const STRATEGIES: Record<string, Strategy> = {
   es: spanish,
   "zh-CN": chinese,
+  id: indonesian,
 };
 
 async function main() {

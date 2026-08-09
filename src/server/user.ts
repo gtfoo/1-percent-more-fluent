@@ -199,7 +199,11 @@ export function getProfile(userId: string, language?: string): Profile | null {
 export function setPlacement(
   userId: string,
   vocabEstimate: number,
-  language = "es",
+  // Required, no default. It used to default to "es", which is the same trap
+  // paramsFor already closed: a caller that forgets gets a confidently wrong
+  // answer instead of a compile error, and with a third language the odds of
+  // that being wrong went up rather than down.
+  language: string,
   level = levelForVocab(vocabEstimate),
 ): Profile {
   const now = new Date().toISOString();

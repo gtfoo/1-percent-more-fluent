@@ -162,7 +162,7 @@ export const simplifiedChinese: Language = {
   // Computed, not generated. The model returned "dài é" for 大额 - 大 is dà -
   // and a wrong reading is the one error a learner cannot catch, because it
   // looks exactly like a right one. See src/server/pronounce.ts.
-  pronunciation: { source: "derived" },
+  pronunciation: { source: "derived", via: "pinyin" },
   ui: UI_ZH_CN,
   uiFormat: FORMAT_ZH_CN,
   // Around HSK 4, and later than Spanish on purpose: there is no alphabet to

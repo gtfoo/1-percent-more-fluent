@@ -59,6 +59,44 @@ const FIXTURES: Record<string, Fixture> = {
     known: ["什么时候", "北京大学", "为什么", "知道", "什么", "时候"],
     rare: ["犹豫", "慷慨", "赠送", "经文"],
   },
+  id: {
+    // Reduplication INSIDE a word, a clitic, and ASCII terminators. The
+    // round-trip check earns its keep on "Anak-anak": split on the hyphen and
+    // the reader offers "anak" twice, glossing "children" as "child".
+    text: "Anak-anak itu berjalan pelan. Apakah kau melihat ibunya? Ya, dia menunggu di rumah!",
+    sentences: 3,
+    band: 3_000,
+    // Each of these is outside the band on its surface form and inside it
+    // through some root, and each breaks a DIFFERENT way:
+    //
+    //   penulisan / pendengaran - the same prefix, opposite behaviour. men-
+    //     eats the /t/ of tulis but keeps the /d/ of dengar, and nothing in the
+    //     surface form says which. A stripper that always elides fails one; one
+    //     that never elides fails the other.
+    //   penyelamat, pengenalan  - /s/ and /k/ elided under peny- and peng-.
+    //   penglihatan, pembaca    - /l/ and /b/ kept, the counterparts.
+    //   perkataan               - forces suffix-before-prefix ordering.
+    //   memukulnya              - forces clitic-before-affix ordering.
+    //   sebaik                  - shortest stem in the set, pinning MIN_STEM.
+    //   the reduplications      - Indonesian's only plural. Lose them and every
+    //                             plural noun reads as rare vocabulary.
+    known: [
+      "penglihatan", "pengenalan", "penulisan", "penyelamat",
+      "pendengaran", "pembaca", "perkataan", "pertolongan",
+      "dipukul", "disuruh", "memukulnya", "bacaan",
+      "ketiduran", "teringat", "sebaik",
+      "buku-buku", "rumah-rumah", "mobil-mobil",
+    ],
+    // The last three are the over-stripping guards, and they are the point of
+    // this list. penyelundupan has exactly the shape of penyelamat - peny- over
+    // a root in /s/ - but "selundup" is not in the corpus, so a peny- rule that
+    // fires without consulting isKnown leaks it into the band, and this catches
+    // it. Same for kemerdekaan against ketiduran, and gugatan against bacaan.
+    rare: [
+      "amandemen", "sindikat", "epidemi", "metabolisme", "kaligrafi",
+      "penyelundupan", "kemerdekaan", "gugatan",
+    ],
+  },
 };
 
 let failures = 0;
