@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { randomUUID } from "node:crypto";
 import { getOrCreateUserId, getProfile, setLevel } from "@/server/user";
 import { getPiece } from "@/server/generate";
 import { countLookups } from "@/server/gloss";
@@ -89,13 +90,17 @@ export async function POST(req: NextRequest) {
   });
   setLevel(userId, after, piece.language);
 
+  // A plain INSERT, not INSERT OR REPLACE. Reading a piece a second time is a
+  // second reading and gets its own row - the old REPLACE silently destroyed
+  // the first one, taking its date and its level with it.
   getDb()
     .prepare(
-      `INSERT OR REPLACE INTO sessions
-         (piece_id, user_id, rating, quiz_score, lookup_rate, level_before, level_after, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions
+         (id, piece_id, user_id, rating, quiz_score, lookup_rate, level_before, level_after, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
+      randomUUID(),
       piece.id,
       userId,
       rating ?? null,

@@ -72,9 +72,14 @@ export function getDb(): Database.Database {
       PRIMARY KEY (language, word)
     );
 
-    -- One row per completed reading, holding the signals that moved the level.
+    -- One row per completed READING, holding the signals that moved the level.
+    --
+    -- Keyed on a surrogate id rather than piece_id, so re-reading a piece adds
+    -- a row instead of overwriting the first one. See
+    -- migrateSessionsToOneRowPerReading for what that used to cost.
     CREATE TABLE IF NOT EXISTS sessions (
-      piece_id     TEXT PRIMARY KEY,
+      id           TEXT PRIMARY KEY,
+      piece_id     TEXT NOT NULL,
       user_id      TEXT NOT NULL,
       rating       TEXT,
       quiz_score   REAL,
@@ -115,8 +120,73 @@ export function getDb(): Database.Database {
 
   addAccounts();
   migrateProfilesToPerLanguage();
+  migrateSessionsToOneRowPerReading();
+
+  // Neither table had any index but its own key, and every progress query
+  // filters on the reader and orders by date. Cheap, and IF NOT EXISTS so
+  // there is nothing to migrate.
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id, created_at);
+    CREATE INDEX IF NOT EXISTS lookups_user  ON lookups  (user_id, created_at);
+  `);
 
   return db;
+}
+
+/**
+ * One row per READING, not one per piece.
+ *
+ * `sessions` was keyed on piece_id, and the write was INSERT OR REPLACE. So
+ * re-reading a piece did not merely fail to record the second reading - it
+ * DESTROYED the first. Finish something in June, read it again in August, and
+ * the June row is gone: replaced by an August row carrying August's levels.
+ *
+ * That is worse than losing data, because the surviving row is wrong rather
+ * than absent. The June point vanishes from the level history, the June day
+ * vanishes from the reading calendar, and the August level move is attributed
+ * to a piece that was finished twice.
+ *
+ * Re-reading is a first-class path - the home page links every piece ever
+ * generated, and audio is never regenerated so it costs nothing - which makes
+ * this a live loss, not a theoretical one. Every week of delay destroys rows
+ * that cannot be recovered.
+ *
+ * SQLite cannot alter a primary key, so this is the same rebuild as
+ * migrateProfilesToPerLanguage above. Existing rows reuse their piece_id as
+ * the new surrogate id: it was the primary key, so it is unique by
+ * construction, and it keeps the copy a plain INSERT ... SELECT with no
+ * identifiers generated in SQL.
+ */
+function migrateSessionsToOneRowPerReading(): void {
+  const columns = db!.prepare("PRAGMA table_info(sessions)").all() as {
+    name: string;
+    pk: number;
+  }[];
+
+  // Already migrated: the surrogate id is the key.
+  if (columns.some((c) => c.name === "id" && c.pk > 0)) return;
+
+  db!.exec(`
+    BEGIN;
+    CREATE TABLE sessions_new (
+      id           TEXT PRIMARY KEY,
+      piece_id     TEXT NOT NULL,
+      user_id      TEXT NOT NULL,
+      rating       TEXT,
+      quiz_score   REAL,
+      lookup_rate  REAL NOT NULL,
+      level_before REAL NOT NULL,
+      level_after  REAL NOT NULL,
+      created_at   TEXT NOT NULL
+    );
+    INSERT INTO sessions_new (id, piece_id, user_id, rating, quiz_score,
+                              lookup_rate, level_before, level_after, created_at)
+      SELECT piece_id, piece_id, user_id, rating, quiz_score,
+             lookup_rate, level_before, level_after, created_at FROM sessions;
+    DROP TABLE sessions;
+    ALTER TABLE sessions_new RENAME TO sessions;
+    COMMIT;
+  `);
 }
 
 /**

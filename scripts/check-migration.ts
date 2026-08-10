@@ -45,6 +45,22 @@ process.env.DATA_DIR = dir;
     INSERT INTO profiles VALUES
       ('u-es', 'es',    62.5, 4200, '2026-01-01', '2026-01-02'),
       ('u-zh', 'zh-CN',  8.4,  120, '2026-01-01', '2026-01-02');
+
+    -- sessions in its OLD shape: keyed on piece_id, which is what made a
+    -- re-read overwrite the first reading.
+    CREATE TABLE sessions (
+      piece_id     TEXT PRIMARY KEY,
+      user_id      TEXT NOT NULL,
+      rating       TEXT,
+      quiz_score   REAL,
+      lookup_rate  REAL NOT NULL,
+      level_before REAL NOT NULL,
+      level_after  REAL NOT NULL,
+      created_at   TEXT NOT NULL
+    );
+    INSERT INTO sessions VALUES
+      ('p-1', 'u-es', 'just-right', 0.67, 0.041, 60.0, 62.5, '2026-01-02T09:00:00.000Z'),
+      ('p-2', 'u-es', 'too-hard',   0.33, 0.150, 62.5, 58.0, '2026-01-03T09:00:00.000Z');
   `);
   old.close();
 }
@@ -109,6 +125,65 @@ check("a nudge in one language leaves the other alone", afterNudge, [
   { language: "zh-CN", level: 7 },
 ]);
 
+console.log("\n--- sessions: one row per reading ---");
+
+const sessionPk = (
+  db.prepare("PRAGMA table_info(sessions)").all() as { name: string; pk: number }[]
+)
+  .filter((c) => c.pk > 0)
+  .map((c) => c.name);
+check("primary key is the surrogate id", sessionPk, ["id"]);
+
+// The whole point: the old rows must arrive with their dates and their levels
+// intact. A migration that silently renumbered them would be worse than none,
+// because the level history is drawn from exactly these columns.
+const kept = db
+  .prepare(
+    "SELECT id, piece_id, level_before, level_after, created_at FROM sessions ORDER BY created_at",
+  )
+  .all();
+check("both readings survived, values and dates unchanged", kept, [
+  {
+    id: "p-1",
+    piece_id: "p-1",
+    level_before: 60.0,
+    level_after: 62.5,
+    created_at: "2026-01-02T09:00:00.000Z",
+  },
+  {
+    id: "p-2",
+    piece_id: "p-2",
+    level_before: 62.5,
+    level_after: 58.0,
+    created_at: "2026-01-03T09:00:00.000Z",
+  },
+]);
+
+// The thing the old schema made impossible. Under INSERT OR REPLACE keyed on
+// piece_id, this second reading would have destroyed the January one.
+db.prepare(
+  `INSERT INTO sessions (id, piece_id, user_id, rating, quiz_score, lookup_rate,
+                         level_before, level_after, created_at)
+   VALUES (?,?,?,?,?,?,?,?,?)`,
+).run("s-3", "p-1", "u-es", "just-right", 1.0, 0.02, 58.0, 61.0, "2026-03-01T09:00:00.000Z");
+
+const reread = db
+  .prepare(
+    "SELECT created_at, level_after FROM sessions WHERE piece_id = 'p-1' ORDER BY created_at",
+  )
+  .all();
+check("reading the same piece twice keeps both readings", reread, [
+  { created_at: "2026-01-02T09:00:00.000Z", level_after: 62.5 },
+  { created_at: "2026-03-01T09:00:00.000Z", level_after: 61.0 },
+]);
+
+console.log("\n--- the indexes progress leans on ---");
+const indexes = (
+  db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as { name: string }[]
+).map((i) => i.name);
+check("sessions_user exists", indexes.includes("sessions_user"), true);
+check("lookups_user exists", indexes.includes("lookups_user"), true);
+
 console.log("\n--- running it twice ---");
 // getDb caches, so re-run the guard directly: the migration must be a no-op the
 // second time rather than dropping a now-correct table.
@@ -116,6 +191,18 @@ const pkAgain = (db.prepare("PRAGMA table_info(profiles)").all() as { pk: number
   .filter((c) => c.pk > 0)
   .map((c) => c.name);
 check("still migrated, nothing re-run", pkAgain.includes("language"), true);
+
+const sessionsAgain = (
+  db.prepare("PRAGMA table_info(sessions)").all() as { pk: number; name: string }[]
+)
+  .filter((c) => c.pk > 0)
+  .map((c) => c.name);
+check("sessions too - the guard holds", sessionsAgain, ["id"]);
+check(
+  "and the rows it would have dropped are still there",
+  (db.prepare("SELECT COUNT(*) AS n FROM sessions").get() as { n: number }).n,
+  3,
+);
 
 db.close();
 rmSync(dir, { recursive: true, force: true });

@@ -15,6 +15,7 @@
     "bench": "tsx scripts/bench-models.ts",
     "language": "tsx scripts/check-language.ts",
     "migration": "tsx scripts/check-migration.ts",
+    "progress": "tsx scripts/check-progress.ts",
     "terms": "tsx scripts/check-terms.ts",
     "suggestions": "tsx scripts/check-suggestions.ts",
     "chips": "tsx scripts/check-chips.ts",

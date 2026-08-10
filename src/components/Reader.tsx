@@ -128,6 +128,7 @@ export function Reader({
   );
   const [rating, setRating] = useState<string | null>(null);
   const [result, setResult] = useState<SessionResult | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Lifted out of finish(), because the review below needs them too - and the
   // score the reader is shown must be the same number that moved their level,
@@ -447,6 +448,13 @@ export function Reader({
   }, [audioUrl]);
 
   async function finish() {
+    // Guarded because a second click is a second reading now. The button had
+    // no in-flight state, so a double tap always sent two requests and moved
+    // the level twice - INSERT OR REPLACE just hid the evidence by collapsing
+    // both into one row. Recording every reading honestly means the duplicate
+    // would show up in the history instead.
+    if (saving) return;
+    setSaving(true);
     setError(null);
     try {
       const res = await fetch("/api/session", {
@@ -464,6 +472,9 @@ export function Reader({
       setResult(data as SessionResult);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.couldNotSave);
+      // Only on failure. On success the result panel replaces the button, so
+      // clearing it would briefly re-enable something already gone.
+      setSaving(false);
     }
   }
 
@@ -743,7 +754,8 @@ export function Reader({
 
               <button
                 onClick={finish}
-                className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
+                disabled={saving}
+                className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
                 Save and update my level
               </button>
