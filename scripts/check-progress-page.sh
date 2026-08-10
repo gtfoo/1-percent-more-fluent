@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# Render /progress over real HTTP against the dev server.
+#
+#   bash scripts/dev.sh && bash scripts/check-progress-page.sh
+#
+# scripts/check-progress.ts already covers the arithmetic offline. This covers
+# the thing that file cannot: that the page assembles, that the strings reach
+# the markup in the right language, and that the SVG and the table are actually
+# emitted rather than thrown away by a guard.
+#
+# Costs nothing: no LLM, no TTS. Every row it reads it created itself.
+set -u
+
+# better-sqlite3 is a native module built for Node 20. Without this the fixture
+# cannot open the database and every check below fails for a reason that has
+# nothing to do with the page.
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  # shellcheck disable=SC1090
+  . "$NVM_DIR/nvm.sh"
+  nvm use 20 >/dev/null
+fi
+
+PORT=3003
+BASE="http://127.0.0.1:$PORT"
+
+pass=0
+fail=0
+ok() { if [ "$2" = "1" ]; then echo "ok   $1"; pass=$((pass+1)); else echo "FAIL $1  ${3:-}"; fail=$((fail+1)); fi }
+has() { if echo "$3" | grep -qF -- "$2"; then ok "$1" 1; else ok "$1" 0 "not in the markup"; fi }
+hasnt() { if echo "$3" | grep -qF -- "$2"; then ok "$1" 0 "it is in the markup"; else ok "$1" 1; fi }
+
+if ! curl -s -o /dev/null "$BASE/"; then
+  echo "no dev server on $PORT - run: bash scripts/dev.sh"
+  exit 1
+fi
+
+USER_ID=$(npx tsx scripts/fixture-progress.ts add | tail -1)
+cleanup() { npx tsx scripts/fixture-progress.ts remove >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+if [ -z "$USER_ID" ]; then echo "fixture failed"; exit 1; fi
+
+# Everything a server component renders also appears inside the RSC payload, in
+# a <script> tag. Grepping the raw response therefore passes even when the page
+# renders nothing at all - it has done exactly that here before. Strip the
+# scripts and assert only on markup the reader can actually see.
+visible() { perl -0777 -pe 's{<script.*?</script>}{}gs'; }
+get() { curl -s -b "fluent_uid=$USER_ID${2:-}" "$BASE$1" | visible; }
+
+echo "--- the page renders, in the reader's language ---"
+html=$(get /progress)
+code=$(curl -s -o /dev/null -w '%{http_code}' -b "fluent_uid=$USER_ID" "$BASE/progress")
+[ "$code" = "200" ] && ok "HTTP 200" 1 || ok "HTTP 200" 0 "HTTP $code"
+# Level 41 is over Spanish's uiFromLevel of 40, so the chrome is Spanish.
+has "heading, in Spanish" "Cuánto has avanzado" "$html"
+has "the headline is words, not a level" "Palabras que puedes leer" "$html"
+has "the level section" "Tu nivel, texto a texto" "$html"
+has "the breadth grid" "Sobre qué has leído" "$html"
+has "the reading days" "Días que leíste" "$html"
+hasnt "no empty state, this reader has read" "Todavía no hay nada que mostrar" "$html"
+
+echo
+echo "--- the numbers ---"
+# The placement wrote 1400; the profile sits at level 41. Both halves of the
+# then-vs-now must be present, and they must not be the same number.
+echo "$html" | grep -qE '1[.,]400' && ok "where the placement put them" 1 || ok "where the placement put them" 0
+echo "$html" | grep -qE '2[.,]2[0-9][0-9]' && ok "where they are now" 1 || ok "where they are now" 0
+has "nine finished readings counted" "en 9 textos que terminaste" "$html"
+# The fixture went 32 -> 41 and 1400 -> ~2269, so the growth sentence is the one
+# that must appear. The shrunk one is a DIFFERENT sentence, not a sign flip, and
+# picking the wrong one is the failure this catches.
+has "growth is worded as growth" "palabras más que al empezar" "$html"
+# Six distinct cells, from nine readings: philosophy/story was read twice, and
+# the 'other' and unlabelled ones are footnotes rather than cells.
+has "six of twenty-four squares covered" "6 de 24 cuadros" "$html"
+has "days read out of the window" "Leíste " "$html"
+has "and the longest run" "Racha más larga" "$html"
+
+echo
+echo "--- the drawings exist ---"
+charts=$(echo "$html" | grep -o '<svg' | wc -l)
+[ "$charts" -ge 2 ] && ok "a level chart and a calendar" 1 || ok "a level chart and a calendar" 0 "$charts svg"
+echo "$html" | grep -q 'vectorEffect\|vector-effect' && ok "strokes do not scale with the phone" 1 \
+  || ok "strokes do not scale with the phone" 0
+# The dotted segment is the whole point of the chart: the reader moved their own
+# level between day 6 and day 9 and no session recorded it. A solid line there
+# would be the page inventing a reading that never happened.
+echo "$html" | grep -q 'stroke-dasharray="3 3"' && ok "the self-adjusted gap is drawn dotted" 1 \
+  || ok "the self-adjusted gap is drawn dotted" 0
+has "the legend says what dotted means" "ajustaste el nivel tú mismo" "$html"
+has "and where the check put them" "Donde te situó la prueba de nivel" "$html"
+# --warn is this app's error colour. A level coming down is the app working.
+hasnt "a drop is not coloured as an error" "var(--warn)" "$html"
+
+echo
+echo "--- the grid ---"
+cells=$(echo "$html" | grep -o 'class="[^"]*h-8 w-full rounded' | wc -l)
+[ "$cells" = "24" ] && ok "eight subjects by three formats" 1 || ok "eight subjects by three formats" 0 "$cells cells"
+has "a subject the fixture read about" "Comida" "$html"
+has "started but not finished, named as such" "Empezado, sin terminar" "$html"
+echo "$html" | grep -q 'border-dashed' && ok "and drawn dashed, not shaded" 1 \
+  || ok "and drawn dashed, not shaded" 0
+# 'other' and NULL are two different facts and must stay two footnotes, never
+# cells - a 25th cell would invite chasing a subject nobody can ask for.
+hasnt "'other' is not a row" ">other<" "$html"
+# It is a footnote instead, and a separately worded one from the unlabelled
+# pieces - db.ts calls that distinction deliberate, so the page must keep it.
+has "'other' is a footnote" "Y 1 textos que no encajaban" "$html"
+echo "$html" | grep -q "antes de que la app" && ok "unlabelled pieces get their own words" 1 \
+  || ok "unlabelled pieces get their own words" 0
+
+echo
+echo "--- every dot states its reason ---"
+# A falling line with a stated cause is a measurement; a bare falling line is a
+# scoreboard. Day 5 dropped 36 -> 33 because the reader said so; day 10 moved
+# after looking up 12% of the words. Two different reasons, both from the row
+# that caused the move.
+has "the drop carries the reader's own verdict" "<title>Muy difícil</title>" "$html"
+has "and a heavy-lookup dot says how heavy" "buscaste el 12% de las palabras" "$html"
+
+echo
+echo "--- English, when asked for it ---"
+en=$(get /progress ";fluent_ui=english")
+has "the same page in English" "How far you’ve come" "$en"
+has "English field labels too" "Money" "$en"
+hasnt "and no Spanish left behind" "Sobre qué has leído" "$en"
+
+echo
+echo "--- getting there from the home page ---"
+home=$(get /)
+has "a row linking to it" 'href="/progress"' "$home"
+has "saying what it shows, not naming a section" "Palabras que puedes leer" "$home"
+
+echo
+echo "--- a reader who has not read anything yet ---"
+npx tsx scripts/fixture-progress.ts empty >/dev/null
+none=$(get /progress)
+has "the empty state is named, not blank" "Todavía no hay nada que mostrar" "$none"
+has "and says what will fill it" "Termina un texto y esto se llena" "$none"
+has "with a way back to reading" "href=\"/\"" "$none"
+# A chart of nothing is a stray axis floating in a box. The section goes.
+echo "$none" | grep -q 'viewBox="0 0 360 180"' && ok "no chart with nothing to chart" 0 "drawn anyway" \
+  || ok "no chart with nothing to chart" 1
+# The grid stays, empty. It is the shape the reading fills, and hiding it would
+# hide the only thing on the page that says what is possible.
+has "the grid is still there, empty" "Sobre qué has leído" "$none"
+# The /words rule: no link until there is something behind it. A progress page
+# offered before anything has been read is a promise the app has not kept.
+hasnt "and the home page does not offer the link yet" 'href="/progress"' "$(get /)"
+cells=$(echo "$none" | grep -o 'class="[^"]*h-8 w-full rounded' | wc -l)
+[ "$cells" = "24" ] && ok "all twenty-four squares, none filled" 1 || ok "all twenty-four squares" 0 "$cells"
+# The cell class specifically - the "start reading" button is bg-accent too,
+# and matching that would pass whatever the grid did.
+hasnt "and none of them filled" "h-8 w-full rounded bg-accent" "$none"
+
+echo
+echo "--- guards ---"
+code=$(curl -s -o /dev/null -w '%{http_code}' -L "$BASE/progress")
+[ "$code" = "200" ] && ok "an unplaced visitor is redirected, not 500ed" 1 \
+  || ok "an unplaced visitor is redirected, not 500ed" 0 "HTTP $code"
+
+echo
+if [ "$fail" -gt 0 ]; then echo "$fail failing"; exit 1; fi
+echo "$pass checks passed"

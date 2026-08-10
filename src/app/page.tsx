@@ -3,6 +3,7 @@ import { getUserId, getProfile, getProfiles, getUiPreference } from "@/server/us
 import { listPieces, toTopicHistory } from "@/server/generate";
 import { rankAll } from "@/lib/rank-suggestions";
 import { countVocabulary } from "@/server/vocabulary";
+import { finishedReadings } from "@/server/progress";
 import { isTtsConfigured, charactersSpentTotal } from "@/server/tts";
 import { labelFor, paramsFor } from "@/lib/level";
 import { getLanguage, LANGUAGES } from "@/lib/languages";
@@ -67,6 +68,9 @@ export default async function Home() {
   // Only linked once there is something behind the link. An empty list offered
   // from the home page is a promise the app has not kept yet.
   const words = countVocabulary(profile.userId, language.code);
+  // Same rule for /progress: the level chart of a reader who has finished
+  // nothing is one dot, and a link to it is a promise the app has not kept.
+  const finished = finishedReadings(profile.userId, language.code);
 
   // Operator information, shown to the operator only. ADMIN_USER_ID is the
   // `fluent_uid` cookie of whoever runs the site; unset means nobody sees it.
@@ -120,15 +124,33 @@ export default async function Home() {
         <Compose ttsReady={isTtsConfigured()} t={t} suggestions={chips} />
       </section>
 
-      {words > 0 && (
-        <section>
-          <Link
-            href="/words"
-            className="flex items-baseline justify-between gap-4 rounded-xl border border-border bg-surface px-5 py-4 hover:bg-accent-soft"
-          >
-            <span className="font-medium">{t.yourWords}</span>
-            <span className="shrink-0 text-sm text-muted">{words}</span>
-          </Link>
+      {(words > 0 || finished > 0) && (
+        <section className="space-y-3">
+          {finished > 0 && (
+            <Link
+              href="/progress"
+              className="flex items-baseline justify-between gap-4 rounded-xl border border-border bg-surface px-5 py-4 hover:bg-accent-soft"
+            >
+              {/* Labelled with what it shows, not with the section's name.
+                  Words rather than readings: the row has to say the same thing
+                  the page says, and the page's headline is the app's own name.
+                  aboutWords is not reusable here - it carries a leading middot
+                  because it trails the level label upstairs. */}
+              <span className="font-medium">{t.wordsYouCanRead}</span>
+              <span className="shrink-0 text-sm text-muted">
+                {params.vocabBand.toLocaleString()}
+              </span>
+            </Link>
+          )}
+          {words > 0 && (
+            <Link
+              href="/words"
+              className="flex items-baseline justify-between gap-4 rounded-xl border border-border bg-surface px-5 py-4 hover:bg-accent-soft"
+            >
+              <span className="font-medium">{t.yourWords}</span>
+              <span className="shrink-0 text-sm text-muted">{words}</span>
+            </Link>
+          )}
         </section>
       )}
 

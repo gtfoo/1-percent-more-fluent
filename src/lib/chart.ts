@@ -85,13 +85,24 @@ export interface Box {
   padBottom: number;
 }
 
+/**
+ * Deliberately small in user units.
+ *
+ * An SVG's text scales with its viewBox, so a 640-wide box squeezed onto a
+ * 335px phone renders 11pt labels at under 6px - present in the markup and
+ * unreadable on the device most of this app's reading happens on. Keeping the
+ * box near the narrowest screen it must serve, and capping how wide the drawing
+ * is allowed to stretch, keeps the labels between about 10 and 14 real pixels
+ * everywhere. The alternative - HTML labels positioned over the drawing - buys
+ * nothing here and costs a layout system.
+ */
 export const DEFAULT_BOX: Box = {
-  width: 640,
-  height: 200,
-  padLeft: 96,
-  padRight: 12,
-  padTop: 12,
-  padBottom: 26,
+  width: 360,
+  height: 180,
+  padLeft: 54,
+  padRight: 10,
+  padTop: 10,
+  padBottom: 24,
 };
 
 /** The smallest level range the y axis will show. */

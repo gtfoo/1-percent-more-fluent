@@ -757,7 +757,7 @@ export function Reader({
                 disabled={saving}
                 className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
-                Save and update my level
+                {saving ? t.savingLevel : t.saveMyLevel}
               </button>
             </>
           )}
@@ -852,29 +852,45 @@ export function Reader({
         <section className="space-y-4 border-t border-border pt-8">
           <h2 className="text-xl font-semibold">
             {result.levelAfter > result.levelBefore
-              ? "Nudged up"
+              ? t.nudgedUp
               : result.levelAfter < result.levelBefore
-                ? "Nudged down"
-                : "Level held"}
+                ? t.nudgedDown
+                : t.levelHeld}
           </h2>
           <p className="text-muted">
-            You looked up {(result.lookupRate * 100).toFixed(1)}% of the words
+            {/* The number goes into the sentence rather than in front of it:
+                this is a client component, so it cannot take a formatter from
+                the server, and a sentence split around the number would not
+                survive translation. See UiStrings.lookedUpPercent. */}
+            {t.lookedUpPercent.replace(
+              "{percent}",
+              (result.lookupRate * 100).toFixed(1),
+            )}{" "}
             {result.lookupRate < 0.02
-              ? " — comfortably below the sweet spot, so the next piece will stretch you more."
+              ? t.belowSweetSpot
               : result.lookupRate > 0.08
-                ? " — above the sweet spot, so the next piece will ease off."
-                : " — right around the sweet spot."}
+                ? t.aboveSweetSpot
+                : t.atSweetSpot}
           </p>
           <p className="text-muted">
-            Level {result.levelBefore.toFixed(0)} → {result.levelAfter.toFixed(0)}{" "}
-            ({result.labelBefore} → {result.labelAfter})
+            {t.levelWord} {result.levelBefore.toFixed(0)} →{" "}
+            {result.levelAfter.toFixed(0)} ({result.labelBefore} →{" "}
+            {result.labelAfter})
           </p>
-          <Link
-            href="/"
-            className="inline-block rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
-          >
-            Read something else
-          </Link>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <Link
+              href="/"
+              className="inline-block rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
+            >
+              {t.readSomethingElse}
+            </Link>
+            {/* Offered here and nowhere else in the reading flow. The moment
+                the level moves - especially down - is the moment the page
+                explaining that a drop is calibration has to be one tap away. */}
+            <Link href="/progress" className="text-muted underline hover:text-accent">
+              {t.seeProgress}
+            </Link>
+          </div>
         </section>
       )}
 

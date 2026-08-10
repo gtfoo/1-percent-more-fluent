@@ -6,6 +6,18 @@ export const FORMAT_ID: UiFormatters = {
   aimingFor: (sentenceWords, newWordPercent) =>
     `Menargetkan kalimat sekitar ${sentenceWords} kata dengan ${newWordPercent}% kosakata baru`,
   metInPieces: (n) => `Kata ini kamu cari di ${n} bacaan berbeda`,
+  grownBy: (words, percent) => `${words} kata lebih banyak daripada waktu kamu mulai — naik ${percent}%.`,
+  shrunkBy: (words, percent) =>
+    `${words} kata lebih sedikit daripada tebakan tes, ${percent}% di bawahnya. Tes itu menebak dari daftar kata; angka ini diukur dari yang benar-benar kamu baca.`,
+  acrossPieces: (n) => `dari ${n} bacaan yang kamu selesaikan`,
+  coveredCells: (filled, total) => `${filled} dari ${total} kotak`,
+  otherPieces: (n) => `Ditambah ${n} bacaan yang tidak masuk ke bidang mana pun di atas.`,
+  unlabelledPieces: (n) =>
+    `${n} bacaan lama ditulis sebelum aplikasi mulai menandai bidang, jadi tidak ikut di kisi ini.`,
+  daysReadOf: (days, of) => `Kamu membaca ${days} dari ${of} hari terakhir`,
+  longestRunDays: (n) => `Rentetan terpanjang: ${n} hari`,
+  readOnDay: (date, events) => `${date} — ${events} hal`,
+  lookedUpShare: (percent) => `kamu mencari ${percent}% katanya`,
   passkeyOn: (date, synced) =>
     `${synced ? "Kunci tersinkron" : "Hanya di perangkat ini"} · ditambahkan ${date}`,
 };
@@ -98,6 +110,43 @@ export const UI_ID: UiStrings = {
   close: "Tutup",
   writeAnother: "Tuliskan satu lagi",
   seeResult: "Lihat hasilnya",
+
+  saveMyLevel: "Simpan dan sesuaikan levelku",
+  savingLevel: "Menyimpan…",
+  nudgedUp: "Naik sedikit",
+  nudgedDown: "Turun sedikit",
+  levelHeld: "Level tetap",
+  lookedUpPercent: "Kamu mencari {percent}% dari katanya",
+  belowSweetSpot:
+    "— cukup jauh di bawah titik pasnya, jadi bacaan berikutnya akan lebih menantang.",
+  aboveSweetSpot: "— di atas titik pasnya, jadi bacaan berikutnya akan lebih ringan.",
+  atSweetSpot: "— pas di titik yang dituju.",
+  levelWord: "Level",
+  readSomethingElse: "Baca yang lain",
+  seeProgress: "Lihat sejauh apa kamu melangkah",
+
+  progressNav: "Perkembanganmu",
+  progressHeading: "Sejauh apa kamu sudah melangkah",
+  wordsYouCanRead: "Kata yang bisa kamu baca",
+  whenYouStarted: "Waktu kamu mulai",
+  rightNow: "Sekarang",
+  levelHeading: "Levelmu, bacaan demi bacaan",
+  levelNote:
+    "Level bergerak setiap kali kamu menyelesaikan satu bacaan. Bisa turun, bisa naik — itu aplikasinya yang membetulkan tebakannya tentang kamu, bukan kamu yang mundur.",
+  levelFromCheck: "Tempat tes level menaruhmu",
+  legendSession: "setelah bacaan yang kamu selesaikan",
+  legendAdjusted: "kamu sendiri yang menyetel levelnya",
+  legendReplaced: "kamu mengulang tes level",
+  breadthHeading: "Apa saja yang sudah kamu baca",
+  breadthNote:
+    "Satu kotak untuk tiap jenis tulisan di tiap bidang. Ini bukan target, hanya gambaran apa yang sudah kamu jelajahi.",
+  breadthStarted: "Dimulai, belum selesai",
+  habitHeading: "Hari-hari kamu membaca",
+  habitNote:
+    "Satu hari dihitung kalau kamu menyelesaikan bacaan, mencari arti kata, atau meminta bacaan baru. Hari dihitung tengah malam ke tengah malam, UTC.",
+  noProgressYet: "Belum ada yang bisa ditampilkan.",
+  noProgressYetNote:
+    "Selesaikan satu bacaan dan halaman ini akan terisi: levelmu dari waktu ke waktu, apa saja yang kamu baca, dan hari-hari kamu datang.",
 
   somethingWentWrong: "Ada yang tidak beres.",
   couldNotLoadAudio: "Audio tidak bisa dimuat.",

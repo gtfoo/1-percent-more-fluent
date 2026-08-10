@@ -83,6 +83,27 @@ export function progressSummary(userId: string, code: string): ProgressSummary |
   };
 }
 
+/**
+ * How many pieces have been finished in this language.
+ *
+ * Its own query rather than progressSummary().sessions: the home page needs to
+ * know only whether the /progress link has anything behind it, and running the
+ * whole summary - profile lookup, MIN over the join, two vocabulary
+ * conversions - to answer "more than zero?" would be work on every visit for a
+ * number nobody displays.
+ */
+export function finishedReadings(userId: string, code: string): number {
+  const row = getDb()
+    .prepare(
+      `SELECT COUNT(*) AS n
+         FROM sessions s
+         JOIN pieces   p ON p.id = s.piece_id
+        WHERE s.user_id = ? AND p.language = ?`,
+    )
+    .get(userId, code) as { n: number };
+  return row.n;
+}
+
 export interface Reading {
   at: string;
   levelBefore: number;

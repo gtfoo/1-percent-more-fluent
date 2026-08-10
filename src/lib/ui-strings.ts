@@ -102,6 +102,57 @@ export interface UiStrings {
   writeAnother: string;
   seeResult: string;
 
+  // What happens to the level after a reading. This is the app's own moment -
+  // the one time it tells you it has changed its mind about you - and it was
+  // the last thing on the reading page still hardcoded in English.
+  saveMyLevel: string;
+  savingLevel: string;
+  nudgedUp: string;
+  nudgedDown: string;
+  levelHeld: string;
+  /**
+   * Reader is a CLIENT component, so this cannot be a formatter - see the note
+   * at the top of this file, and the runtime 500 that produced it. The caller
+   * substitutes the number for `{percent}`.
+   *
+   * A token rather than concatenation around the number: the number does not
+   * sit in the same place in every language, and splitting the sentence in two
+   * hands a translator two fragments they cannot reorder.
+   */
+  lookedUpPercent: string;
+  belowSweetSpot: string;
+  aboveSweetSpot: string;
+  atSweetSpot: string;
+  /** Labels the "36 → 33" line. Just the word. */
+  levelWord: string;
+  readSomethingElse: string;
+  /** The link to /progress, offered exactly when the level has just moved. */
+  seeProgress: string;
+
+  // Progress. Read back out of data the app was already keeping.
+  progressNav: string;
+  progressHeading: string;
+  wordsYouCanRead: string;
+  whenYouStarted: string;
+  rightNow: string;
+  levelHeading: string;
+  /**
+   * Always shown, never conditional on there having been a drop. Reassurance
+   * that appears only after bad news reads as an apology for it.
+   */
+  levelNote: string;
+  levelFromCheck: string;
+  legendSession: string;
+  legendAdjusted: string;
+  legendReplaced: string;
+  breadthHeading: string;
+  breadthNote: string;
+  breadthStarted: string;
+  habitHeading: string;
+  habitNote: string;
+  noProgressYet: string;
+  noProgressYetNote: string;
+
   // Things that went wrong
   somethingWentWrong: string;
   couldNotLoadAudio: string;
@@ -194,6 +245,43 @@ export const EN: UiStrings = {
   writeAnother: "Write me another",
   seeResult: "See how that went",
 
+  saveMyLevel: "Save and update my level",
+  savingLevel: "Saving…",
+  nudgedUp: "Nudged up",
+  nudgedDown: "Nudged down",
+  levelHeld: "Level held",
+  lookedUpPercent: "You looked up {percent}% of the words",
+  belowSweetSpot:
+    "— comfortably below the sweet spot, so the next piece will stretch you more.",
+  aboveSweetSpot: "— above the sweet spot, so the next piece will ease off.",
+  atSweetSpot: "— right around the sweet spot.",
+  levelWord: "Level",
+  readSomethingElse: "Read something else",
+  seeProgress: "See how far you’ve come",
+
+  progressNav: "Your progress",
+  progressHeading: "How far you’ve come",
+  wordsYouCanRead: "Words you can read",
+  whenYouStarted: "When you started",
+  rightNow: "Right now",
+  levelHeading: "Your level, piece by piece",
+  levelNote:
+    "The level moves after every piece you finish. It goes down as well as up — that’s the app correcting its guess about you, not you going backwards.",
+  levelFromCheck: "Where the level check put you",
+  legendSession: "after a piece you finished",
+  legendAdjusted: "you adjusted the level yourself",
+  legendReplaced: "you re-took the level check",
+  breadthHeading: "What you’ve read about",
+  breadthNote:
+    "One square for each kind of writing in each subject. Not a target — a picture of what you’ve covered.",
+  breadthStarted: "Started, not finished",
+  habitHeading: "Days you read",
+  habitNote:
+    "A day counts if you finished a piece, looked a word up, or asked for something new. Days run midnight to midnight, UTC.",
+  noProgressYet: "Nothing to show yet.",
+  noProgressYetNote:
+    "Finish one piece and this fills in: your level over time, what you’ve read about, and the days you showed up.",
+
   somethingWentWrong: "Something went wrong.",
   couldNotLoadAudio: "Could not load audio.",
   couldNotSave: "Could not save.",
@@ -218,6 +306,26 @@ export interface UiFormatters {
   aimingFor(sentenceWords: number, newWordPercent: number): string;
   /** Only ever called with n > 1 - "met in 1 piece" is noise, not information. */
   metInPieces(n: number): string;
+
+  /**
+   * Growth and its opposite, as TWO functions rather than one with a sign
+   * branch. The honest negative wording is a different sentence, not the same
+   * sentence with a minus in it - a translator has to be able to write it as
+   * one. Both take the word count pre-formatted, like aboutWords, and the
+   * percentage as a number.
+   */
+  grownBy(words: string, percent: number): string;
+  shrunkBy(words: string, percent: number): string;
+  acrossPieces(n: number): string;
+  coveredCells(filled: number, total: number): string;
+  otherPieces(n: number): string;
+  unlabelledPieces(n: number): string;
+  daysReadOf(days: number, of: number): string;
+  longestRunDays(n: number): string;
+  /** The calendar tooltip. `date` arrives already formatted. */
+  readOnDay(date: string, events: number): string;
+  /** Why a level moved, on the chart dot. */
+  lookedUpShare(percent: number): string;
   /**
    * One registered passkey. `synced` is the authenticator's own claim that the
    * credential is backed up - a synced one reaches your other devices, a
@@ -232,6 +340,18 @@ export const EN_FORMAT: UiFormatters = {
   aimingFor: (sentenceWords, newWordPercent) =>
     `Aiming for ~${sentenceWords}-word sentences and ${newWordPercent}% new vocabulary`,
   metInPieces: (n) => `You needed this one in ${n} different pieces`,
+  grownBy: (words, percent) => `${words} more words than when you started — ${percent}% more.`,
+  shrunkBy: (words, percent) =>
+    `${words} fewer than the check first guessed, and ${percent}% below it. The check was a guess from a word list; this is measured from what you have actually read.`,
+  acrossPieces: (n) => `across ${n} pieces you finished`,
+  coveredCells: (filled, total) => `${filled} of ${total} squares`,
+  otherPieces: (n) => `Plus ${n} pieces that did not fit any of these subjects.`,
+  unlabelledPieces: (n) =>
+    `${n} earlier pieces were written before the app started labelling subjects, so they are not on the grid.`,
+  daysReadOf: (days, of) => `You read on ${days} of the last ${of} days`,
+  longestRunDays: (n) => `Longest run: ${n} days`,
+  readOnDay: (date, events) => `${date} — ${events} things`,
+  lookedUpShare: (percent) => `you looked up ${percent}% of the words`,
   passkeyOn: (date, synced) =>
     `${synced ? "Synced passkey" : "This device only"} · added ${date}`,
 };

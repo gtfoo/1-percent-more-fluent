@@ -8,6 +8,19 @@ export const FORMAT_ZH_CN: UiFormatters = {
     `目标是每句约 ${sentenceWords} 个词，其中 ${newWordPercent}% 是生词`,
   // 篇 is the measure word for a piece of writing.
   metInPieces: (n) => `这个词你在 ${n} 篇里都查过`,
+  // 个 for words, 篇 for pieces, 天 for days - a bare number slot would drop
+  // every one of them.
+  grownBy: (words, percent) => `比刚开始多认识 ${words} 个词，多了 ${percent}%。`,
+  shrunkBy: (words, percent) =>
+    `比测试当初估的少 ${words} 个词，低了 ${percent}%。当初那是照词表估的，现在这个是照你真正读过的算的。`,
+  acrossPieces: (n) => `来自你读完的 ${n} 篇`,
+  coveredCells: (filled, total) => `${total} 格里填了 ${filled} 格`,
+  otherPieces: (n) => `另外还有 ${n} 篇，不属于上面任何一个话题。`,
+  unlabelledPieces: (n) => `还有 ${n} 篇是在应用开始标话题之前写的，所以没放进格子里。`,
+  daysReadOf: (days, of) => `最近 ${of} 天里，你读了 ${days} 天`,
+  longestRunDays: (n) => `最长连续 ${n} 天`,
+  readOnDay: (date, events) => `${date} — ${events} 次`,
+  lookedUpShare: (percent) => `你查了其中 ${percent}% 的词`,
   passkeyOn: (date, synced) =>
     `${synced ? "已同步的密钥" : "只在这台设备上"} · ${date} 添加`,
 };
@@ -93,6 +106,40 @@ export const UI_ZH_CN: UiStrings = {
   close: "关闭",
   writeAnother: "再写一篇",
   seeResult: "看看结果",
+
+  saveMyLevel: "保存并调整我的等级",
+  savingLevel: "保存中…",
+  nudgedUp: "往上调了一点",
+  nudgedDown: "往下调了一点",
+  levelHeld: "等级不变",
+  lookedUpPercent: "你查了 {percent}% 的词",
+  belowSweetSpot: "——明显低于合适的区间，下一篇会更有挑战。",
+  aboveSweetSpot: "——高于合适的区间，下一篇会放松一些。",
+  atSweetSpot: "——正好在合适的区间。",
+  levelWord: "等级",
+  readSomethingElse: "读点别的",
+  seeProgress: "看看你走了多远",
+
+  progressNav: "你的进步",
+  progressHeading: "你走了多远",
+  wordsYouCanRead: "你能读懂的词",
+  whenYouStarted: "刚开始的时候",
+  rightNow: "现在",
+  levelHeading: "你的水平，一篇一篇看",
+  levelNote:
+    "每读完一篇，水平都会动一次。会往上，也会往下——那是这个应用在修正它对你的估计，不是你退步了。",
+  levelFromCheck: "水平测试把你放在这里",
+  legendSession: "读完一篇之后",
+  legendAdjusted: "你自己调了水平",
+  legendReplaced: "你重新测了一次",
+  breadthHeading: "你都读过些什么",
+  breadthNote: "每个话题、每种体裁各一格。这不是任务，只是你读过的范围。",
+  breadthStarted: "开了头，没读完",
+  habitHeading: "你读书的日子",
+  habitNote:
+    "只要读完一篇、查过一个词，或者让它写一篇新的，这一天就算数。一天按 UTC 从零点算到零点。",
+  noProgressYet: "还没有什么可看的。",
+  noProgressYetNote: "读完一篇，这里就会有内容：你的水平变化、读过的话题，还有你来过的日子。",
 
   somethingWentWrong: "出错了。",
   couldNotLoadAudio: "无法加载音频。",
