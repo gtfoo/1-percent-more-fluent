@@ -3,9 +3,24 @@ import { getOrCreateUserId } from "@/server/user";
 import { glossWord, recordLookup } from "@/server/gloss";
 import { getPiece } from "@/server/generate";
 import { DEFAULT_LANGUAGE } from "@/lib/languages";
+import { clientIp, PLANS, spendIp, spendUser, tooMany } from "@/server/limits";
+
+const TOO_MANY = "That is a lot of lookups at once. Try again in a little while.";
 
 export async function POST(req: NextRequest) {
+  // Charged to the address first: getOrCreateUserId below writes a user row, so
+  // counting only per reader would count nothing at all for a caller that
+  // simply never sends a cookie.
+  //
+  // A cached word costs nothing, but a word nobody has ever looked up is a
+  // model call, and there is an unlimited supply of strings nobody has ever
+  // looked up.
+  const byIp = spendIp(PLANS.gloss, clientIp(req));
+  if (!byIp.ok) return tooMany(byIp, TOO_MANY);
+
   const userId = await getOrCreateUserId();
+  const byUser = spendUser(PLANS.gloss, userId);
+  if (!byUser.ok) return tooMany(byUser, TOO_MANY);
 
   const body = (await req.json()) as {
     word?: string;

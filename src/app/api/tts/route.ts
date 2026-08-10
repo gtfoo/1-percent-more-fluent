@@ -3,6 +3,9 @@ import { getOrCreateUserId } from "@/server/user";
 import { getPiece } from "@/server/generate";
 import { isTtsConfigured, narrate, narrateDialogue } from "@/server/tts";
 import { splitTurns } from "@/lib/dialogue";
+import { clientIp, PLANS, spendIp, spendUser, tooMany } from "@/server/limits";
+
+const TOO_MANY = "That is a lot of listening at once. Try again in a little while.";
 
 /**
  * Narrate a stored piece. Deliberately takes a piece id, not free text: audio
@@ -17,7 +20,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await getOrCreateUserId();
+  // ElevenLabs bills by the character, and this route takes any piece id - not
+  // only the caller's own - so an unlimited caller could walk every piece in
+  // the database. Already-narrated text is served from the audio cache and
+  // costs nothing, but a piece nobody has listened to yet is real money.
+  const byIp = spendIp(PLANS.tts, clientIp(req));
+  if (!byIp.ok) return tooMany(byIp, TOO_MANY);
+
+  const userId = await getOrCreateUserId();
+  const byUser = spendUser(PLANS.tts, userId);
+  if (!byUser.ok) return tooMany(byUser, TOO_MANY);
 
   const { pieceId } = (await req.json()) as { pieceId?: string };
   const piece = pieceId ? getPiece(pieceId) : null;

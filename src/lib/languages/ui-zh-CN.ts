@@ -137,7 +137,7 @@ export const UI_ZH_CN: UiStrings = {
   breadthStarted: "开了头，没读完",
   habitHeading: "你读书的日子",
   habitNote:
-    "只要读完一篇、查过一个词，或者让它写一篇新的，这一天就算数。一天按 UTC 从零点算到零点。",
+    "只要读完一篇、查过一个词，或者让它写一篇新的，这一天就算数。一天按你所在时区从零点算到零点。",
   legendMade: "让它写了一篇",
   legendLooked: "查过词",
   legendFinished: "读完了一篇",

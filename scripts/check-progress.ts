@@ -27,8 +27,10 @@ import {
 } from "../src/lib/chart";
 import {
   currentRun,
+  dayShift,
   daysRead,
   fillDays,
+  localDay,
   longestRun,
   DAY_FINISHED,
   DAY_LOOKED,
@@ -246,6 +248,41 @@ async function main() {
       d: string | null;
     };
     check("an EMPTY modifier is null, which is why the default is not ''", empty.d, null);
+
+    // The reader's own midnight. Everything dayShift can produce has to be a
+    // modifier SQLite accepts - anything it does not accept comes back NULL,
+    // and a whole calendar would silently empty itself.
+    const shifted = (tz: string | undefined, at: string) =>
+      (
+        db.prepare("SELECT date(?, ?) AS d").get(at, dayShift(tz)) as { d: string | null }
+      ).d;
+
+    // 1am in Singapore on the 10th is 5pm UTC on the 9th. UTC called that a
+    // different day, which is how a streak broke on a day that was read.
+    check("east of UTC, a late night stays on its own day", shifted("480", "2026-08-09T17:00:00Z"), "2026-08-10");
+    check("west of UTC, an early evening does too", shifted("-300", "2026-08-10T02:00:00Z"), "2026-08-09");
+    check("no cookie is UTC, unchanged", shifted(undefined, "2026-08-09T17:00:00Z"), "2026-08-09");
+
+    // The cookie is written by the browser, so every one of these is something
+    // a caller can actually send. None of them may reach SQLite as text.
+    for (const junk of ["", "abc", "1e3", "12.5", "99999", "-99999", "+0 hours); DROP", "NaN"]) {
+      check(`junk cookie ${JSON.stringify(junk)} falls back to UTC`, shifted(junk, "2026-08-09T17:00:00Z"), "2026-08-09");
+    }
+    check("and the shift itself is only ever a number of minutes", dayShift("480"), "+480 minutes");
+    check("negative offsets keep their sign", dayShift("-330"), "-330 minutes");
+
+    // localDay must use the same offset as the bucketing, or "today" belongs to
+    // a different calendar than the squares do.
+    check(
+      "today is the reader's today",
+      localDay(Date.parse("2026-08-09T17:00:00Z"), "480"),
+      "2026-08-10",
+    );
+    check(
+      "...and falls back the same way",
+      localDay(Date.parse("2026-08-09T17:00:00Z"), "junk"),
+      "2026-08-09",
+    );
   }
 
   const now = new Date().toISOString();

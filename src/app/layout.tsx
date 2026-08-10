@@ -7,6 +7,7 @@ import { getUserId, getProfile, getUiPreference } from "@/server/user";
 import { authConfigured, currentUser, passkeysConfigured, signOut } from "@/auth";
 import { getLanguage } from "@/lib/languages";
 import { uiFor } from "@/lib/ui";
+import { ReportTimeZone } from "@/components/ReportTimeZone";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -62,6 +63,9 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${reading.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* Renders nothing. Reports which midnight is this reader's, so the
+            reading calendar counts their days rather than Greenwich's. */}
+        <ReportTimeZone />
         <header className="border-b border-border">
           <div className="mx-auto flex w-full max-w-3xl items-baseline justify-between px-5 py-4">
             {/* self-start rather than baseline-aligned: the row is

@@ -4,6 +4,7 @@ import { getOrCreateUserId, setPlacement } from "@/server/user";
 import { clampLevel, labelFor, levelForVocab } from "@/lib/level";
 import { DEFAULT_LANGUAGE, getLanguage } from "@/lib/languages";
 import { gradedSamples } from "@/server/frequency";
+import { clientIp, PLANS, spendIp, tooMany } from "@/server/limits";
 
 /**
  * How much the read-back check counts against the word test - asymmetrically.
@@ -54,6 +55,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // This route spends nothing itself. It is limited because it is the DOOR: it
+  // turns a request with no cookie into a reader with a profile, and a reader
+  // with a profile is what /api/generate will spend money on. Nobody takes the
+  // placement test ten times in an hour.
+  const byIp = spendIp(PLANS.placement, clientIp(req));
+  if (!byIp.ok) return tooMany(byIp, "Too many attempts. Try again in a little while.");
+
   const userId = await getOrCreateUserId();
 
   const body = (await req.json()) as {

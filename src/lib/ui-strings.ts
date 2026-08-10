@@ -285,7 +285,7 @@ export const EN: UiStrings = {
   breadthStarted: "Started, not finished",
   habitHeading: "Days you read",
   habitNote:
-    "A day counts if you finished a piece, looked a word up, or asked for something new. Days run midnight to midnight, UTC.",
+    "A day counts if you finished a piece, looked a word up, or asked for something new. Days run midnight to midnight, where you are.",
   legendMade: "asked for something",
   legendLooked: "looked a word up",
   legendFinished: "finished a piece",

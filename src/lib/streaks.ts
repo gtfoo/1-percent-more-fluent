@@ -35,6 +35,47 @@ export interface ReadingDay {
   events: number;
 }
 
+/**
+ * The furthest a real timezone gets from UTC, in minutes. UTC+14 exists
+ * (Kiritimati); UTC-12 exists. The range is padded to +/-14 hours rather than
+ * fitted to the real extremes, which cost nothing and saves arguing about
+ * Chatham Island.
+ */
+const MAX_OFFSET = 14 * 60;
+
+/**
+ * A SQLite date modifier for the reader's own midnight.
+ *
+ * Days used to be bucketed in UTC, which is fine in London and wrong almost
+ * everywhere else: at UTC+8 everything read between midnight and 8am local
+ * landed on the previous day's square, so a late-night reader saw their streak
+ * break on days they had in fact read. The calendar was measuring Greenwich's
+ * day, not theirs.
+ *
+ * The input comes from a cookie the BROWSER wrote, so it is untrusted, and it
+ * ends up inside a SQLite date() call. It is a bound parameter, so there is
+ * nothing to inject - but an unparseable modifier makes date() return NULL
+ * rather than an error, and every event would silently bucket under a null day
+ * and the calendar would come back blank with nothing thrown. So the number is
+ * parsed, range-checked and reassembled here; the cookie's own text never
+ * reaches the query.
+ *
+ * "+0 minutes", not "". date(x, '') is NULL too - the same trap from the other
+ * direction.
+ */
+export function dayShift(cookie: string | undefined): string {
+  const minutes = Number(cookie);
+  if (!Number.isInteger(minutes) || Math.abs(minutes) > MAX_OFFSET) return "+0 minutes";
+  return `${minutes < 0 ? "-" : "+"}${Math.abs(minutes)} minutes`;
+}
+
+/** Which day it is where the reader is, given the same untrusted cookie. */
+export function localDay(nowMs: number, cookie: string | undefined): string {
+  const minutes = Number(cookie);
+  const safe = Number.isInteger(minutes) && Math.abs(minutes) <= MAX_OFFSET ? minutes : 0;
+  return new Date(nowMs + safe * 60_000).toISOString().slice(0, 10);
+}
+
 /** Days with anything on them. */
 export function daysRead(days: ReadingDay[]): number {
   return days.filter((d) => d.weight > DAY_NONE).length;

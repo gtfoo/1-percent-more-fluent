@@ -143,7 +143,7 @@ export const UI_ID: UiStrings = {
   breadthStarted: "Dimulai, belum selesai",
   habitHeading: "Hari-hari kamu membaca",
   habitNote:
-    "Satu hari dihitung kalau kamu menyelesaikan bacaan, mencari arti kata, atau meminta bacaan baru. Hari dihitung tengah malam ke tengah malam, UTC.",
+    "Satu hari dihitung kalau kamu menyelesaikan bacaan, mencari arti kata, atau meminta bacaan baru. Hari dihitung tengah malam ke tengah malam, waktu kamu.",
   legendMade: "minta bacaan baru",
   legendLooked: "mencari arti kata",
   legendFinished: "menyelesaikan bacaan",

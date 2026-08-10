@@ -100,6 +100,21 @@ export function getDb(): Database.Database {
       characters INTEGER NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    -- How much each address and each reader has spent against the paid routes
+    -- in the current window. See src/server/limits.ts.
+    --
+    -- window_at is an INTEGER of epoch seconds, not the ISO string every other
+    -- table here uses. Deliberate: this column is compared and swept
+    -- arithmetically rather than read by a person, and a fixed window is
+    -- computed by dividing.
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      bucket    TEXT NOT NULL,
+      window_at INTEGER NOT NULL,
+      count     INTEGER NOT NULL,
+      PRIMARY KEY (bucket, window_at)
+    );
+    CREATE INDEX IF NOT EXISTS rate_limits_sweep ON rate_limits (window_at);
   `);
 
   addColumn("pieces", "speakers", "TEXT NOT NULL DEFAULT '[]'");

@@ -15,3 +15,14 @@ export const USER_COOKIE = "fluent_uid";
  * one - it has no effect on new readers.
  */
 export const LEGACY_USER_COOKIE = "comprensible_uid";
+
+/**
+ * Minutes east of UTC, as the browser reports them. Written by the client, so
+ * it is untrusted input - see dayShift, which is where it gets sanitised.
+ *
+ * A cookie rather than a profile column, for the same reasons as the interface
+ * language: it is a display concern, it must work before any profile exists,
+ * and it changes twice a year under daylight saving without anyone editing
+ * their settings.
+ */
+export const TZ_COOKIE = "fluent_tz";

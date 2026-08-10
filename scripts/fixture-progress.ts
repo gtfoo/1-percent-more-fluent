@@ -123,4 +123,16 @@ READINGS.forEach((r, i) => {
 piece.run(`${USER}-piece-abandoned`, USER, LANGUAGE, "conversation", "abandoned", 41,
   "Fixture abandoned", DAY(16), "sport");
 
+// A lookup at 17:00 UTC, which is the 20th in Singapore and the 19th in
+// Greenwich. Nothing else happens on either day, so which square it lands on is
+// a direct readout of whose midnight the calendar is using.
+db.prepare(
+  "INSERT OR IGNORE INTO lookups (user_id, piece_id, word, created_at) VALUES (?, ?, ?, ?)",
+).run(
+  USER,
+  `${USER}-piece-0`,
+  "zzfixtureboundaryzz",
+  new Date(Date.UTC(2026, 6, 19, 17, 0, 0)).toISOString(),
+);
+
 console.log(USER);

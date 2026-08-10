@@ -24,6 +24,7 @@ step "calibration" npx tsx scripts/check-calibration.ts
 step "language contract" npx tsx scripts/check-language.ts
 step "profile migration" npx tsx scripts/check-migration.ts
 step "progress" npx tsx scripts/check-progress.ts
+step "spending limits" npx tsx scripts/check-limits.ts
 step "topic terms" npx tsx scripts/check-terms.ts
 step "starting points" npx tsx scripts/check-suggestions.ts
 step "chip order" npx tsx scripts/check-chips.ts

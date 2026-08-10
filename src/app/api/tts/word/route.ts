@@ -3,6 +3,7 @@ import { getOrCreateUserId } from "@/server/user";
 import { getPiece } from "@/server/generate";
 import { isTtsConfigured, narrate } from "@/server/tts";
 import { splitTurns } from "@/lib/dialogue";
+import { clientIp, PLANS, spendIp, spendUser, tooMany } from "@/server/limits";
 
 /**
  * Speak one word or phrase from a piece.
@@ -20,13 +21,22 @@ import { splitTurns } from "@/lib/dialogue";
 
 /** Long enough for a phrase a reader might select, short enough to be safe. */
 const MAX_CHARS = 60;
+const TOO_MANY = "That is a lot of listening at once. Try again in a little while.";
 
 export async function POST(req: NextRequest) {
   if (!isTtsConfigured()) {
     return Response.json({ error: "No speech configured." }, { status: 503 });
   }
 
-  await getOrCreateUserId();
+  // Each call is only a word, so the per-call cost is small - but the ceiling
+  // is on the loop, not the call. The guard below already refuses text that is
+  // not in the piece; this refuses too much of even the allowed text.
+  const byIp = spendIp(PLANS.wordTts, clientIp(req));
+  if (!byIp.ok) return tooMany(byIp, TOO_MANY);
+
+  const userId = await getOrCreateUserId();
+  const byUser = spendUser(PLANS.wordTts, userId);
+  if (!byUser.ok) return tooMany(byUser, TOO_MANY);
 
   const { pieceId, text } = (await req.json()) as {
     pieceId?: string;

@@ -134,7 +134,7 @@ export const UI_ES: UiStrings = {
   breadthStarted: "Empezado, sin terminar",
   habitHeading: "Días que leíste",
   habitNote:
-    "Cuenta el día si terminaste un texto, buscaste una palabra o pediste algo nuevo. Los días van de medianoche a medianoche, en UTC.",
+    "Cuenta el día si terminaste un texto, buscaste una palabra o pediste algo nuevo. Los días van de medianoche a medianoche, en tu hora.",
   legendMade: "pediste algo",
   legendLooked: "buscaste una palabra",
   legendFinished: "terminaste un texto",

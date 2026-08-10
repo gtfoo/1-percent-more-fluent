@@ -5,8 +5,10 @@ import { FORMATS, type Format } from "@/lib/formats";
 import { isLlmConfigured, keyVarFor, missingKeys } from "@/server/llm";
 import { LENGTH_WORDS, type Length } from "@/lib/level";
 import { getLanguage } from "@/lib/languages";
+import { clientIp, PLANS, spendIp, spendUser, tooMany } from "@/server/limits";
 
 const MAX_TOPIC_CHARS = 200;
+const TOO_MANY = "That is a lot of writing for one day. Try again a bit later.";
 
 export async function POST(req: NextRequest) {
   if (!isLlmConfigured()) {
@@ -24,7 +26,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Counted BEFORE the user is resolved, because getOrCreateUserId writes a
+  // row: without this, an unlimited number of requests each arrive as a brand
+  // new reader and the per-reader ceiling below never binds on anyone.
+  const byIp = spendIp(PLANS.generate, clientIp(req));
+  if (!byIp.ok) return tooMany(byIp, TOO_MANY);
+
   const userId = await getOrCreateUserId();
+  const byUser = spendUser(PLANS.generate, userId);
+  if (!byUser.ok) return tooMany(byUser, TOO_MANY);
+
   const profile = getProfile(userId);
   if (!profile) {
     return Response.json({ error: "Take the placement test first." }, { status: 409 });

@@ -8,7 +8,9 @@ import { fieldLabels } from "@/lib/field-labels";
 import { FIELDS } from "@/lib/suggestions";
 import { FORMATS, type Format } from "@/lib/formats";
 import { levelForVocab } from "@/lib/level";
-import { currentRun, daysRead, fillDays, longestRun } from "@/lib/streaks";
+import { cookies } from "next/headers";
+import { TZ_COOKIE } from "@/lib/cookies";
+import { currentRun, dayShift, daysRead, fillDays, localDay, longestRun } from "@/lib/streaks";
 import type { LevelPoint } from "@/lib/chart";
 import { LevelChart } from "@/components/LevelChart";
 import { BreadthGrid } from "@/components/BreadthGrid";
@@ -47,12 +49,23 @@ export default async function ProgressPage() {
   const readings = levelSeries(profile.userId, language.code);
   const grid = breadth(profile.userId, language.code);
 
+  // Bucketed against the READER's midnight, not Greenwich's. At UTC+8 a UTC
+  // day boundary put everything read between midnight and 8am local on the
+  // previous day's square, which breaks a streak on days that were in fact
+  // read. The cookie is written by the browser and sanitised by dayShift.
+  const tz = (await cookies()).get(TZ_COOKIE)?.value;
+  const shift = dayShift(tz);
+
   // The window is anchored to the newest thing that happened, not to the
   // clock. A reader coming back after a month away should see the month they
   // read, not a screen of empty squares with their history pushed off the
   // left-hand edge.
-  const days = readingDays(profile.userId, language.code, since(WINDOW_DAYS));
-  const lastDay = days.at(-1)?.day ?? today();
+  //
+  // The lower bound is widened by a day because it is compared against raw UTC
+  // timestamps while the buckets are shifted: without the slack, the oldest
+  // local day could be half-collected.
+  const days = readingDays(profile.userId, language.code, since(WINDOW_DAYS + 1), shift);
+  const lastDay = days.at(-1)?.day ?? todayWhere(tz);
   const calendar = fillDays(days, backFrom(lastDay, WINDOW_DAYS), lastDay);
 
   const labels = fieldLabels(language.code, inTarget);
@@ -158,7 +171,10 @@ export default async function ProgressPage() {
         <ReadingCalendar
           days={calendar}
           title={t.habitHeading}
-          dayTitle={(day) => f.readOnDay(day.day, day.events)}
+          // A day with nothing on it gets its date and no sentence. "19 July -
+          // 0 things" is a tooltip that reports an absence back at you; the
+          // date alone is the one useful thing an empty square can say.
+          dayTitle={(day) => (day.events > 0 ? f.readOnDay(day.day, day.events) : day.day)}
           locale={locale}
           t={t}
         />
@@ -213,9 +229,13 @@ function pointsFor(
   ];
 }
 
+// The clock lives out here, not in the component. This page renders on the
+// server on every request, so reading it is legitimate - but the compiler's
+// purity rule cannot tell that from inside a component body, and wrapping it is
+// both cheaper and more honest than an exception comment.
 const DAY_MS = 86_400_000;
-const today = () => new Date().toISOString().slice(0, 10);
 const since = (days: number) => new Date(Date.now() - days * DAY_MS).toISOString();
+const todayWhere = (tz: string | undefined) => localDay(Date.now(), tz);
 
 function backFrom(day: string, days: number): string {
   const [y, m, d] = day.split("-").map(Number);

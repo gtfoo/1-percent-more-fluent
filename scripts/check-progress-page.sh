@@ -148,7 +148,22 @@ hasnt "and no Spanish left behind" "Sobre qué has leído" "$en"
 has "and English separators with it" "1,400" "$en"
 
 echo
-echo "--- getting there from the home page ---"
+echo "--- the day boundary is the reader's, not Greenwich's ---"
+# One fixture lookup sits at 17:00 UTC on the 19th, which is the 20th in
+# Singapore, and nothing else happens on either day. Which square it lands on is
+# a direct readout of whose midnight the calendar counts - and the UTC answer
+# was breaking real streaks for anyone who reads late at night east of London.
+# Matched with the event count attached: every square in the window carries its
+# date, so the date alone would match empty days too and assert nothing.
+has "with no cookie, the day is UTC's" "2026-07-19 — 1" "$html"
+sg=$(get /progress ";fluent_tz=480")
+has "at UTC+8 the same moment is the next day" "2026-07-20 — 1" "$sg"
+hasnt "...and it has moved off the UTC day" "2026-07-19 — 1" "$sg"
+# The cookie is browser-written, so a hostile value must not empty the calendar:
+# an unparseable SQLite modifier returns NULL rather than raising, and every
+# event would bucket under a null day with nothing in the logs.
+junk=$(get /progress ";fluent_tz=nonsense")
+has "junk in the cookie falls back rather than blanking" "2026-07-19 — 1" "$junk"
 home=$(get /)
 has "a row linking to it" 'href="/progress"' "$home"
 has "saying what it shows, not naming a section" "Palabras que puedes leer" "$home"
