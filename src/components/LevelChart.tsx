@@ -20,6 +20,7 @@ export function LevelChart({
   summary,
   firstDay,
   lastDay,
+  locale,
 }: {
   points: LevelPoint[];
   t: UiStrings;
@@ -28,6 +29,8 @@ export function LevelChart({
   /** The ends of the series, already reduced to a day. */
   firstDay?: string;
   lastDay?: string;
+  /** For the axis figures, which are word counts in the thousands. */
+  locale: string;
 }) {
   const box = DEFAULT_BOX;
   const plot = plotLevels(points, box);
@@ -69,10 +72,13 @@ export function LevelChart({
               x={left - 8}
               y={tick.y + 4}
               textAnchor="end"
-              fontSize={11}
+              // 12 rather than 11 for the sake of the 320px phones at the
+              // bottom of the range, where the box scales to 0.78 and every
+              // user unit is worth less than a pixel.
+              fontSize={12}
               fill="var(--muted)"
             >
-              {tick.words.toLocaleString()}
+              {tick.words.toLocaleString(locale)}
             </text>
           </g>
         ))}
@@ -81,12 +87,12 @@ export function LevelChart({
             anything in between would be a date at a position that does not
             mean a date - the calendar below owns time. */}
         {firstDay && (
-          <text x={left} y={baseline} fontSize={10} fill="var(--muted)">
+          <text x={left} y={baseline} fontSize={11} fill="var(--muted)">
             {firstDay}
           </text>
         )}
         {lastDay && lastDay !== firstDay && (
-          <text x={right} y={baseline} textAnchor="end" fontSize={10} fill="var(--muted)">
+          <text x={right} y={baseline} textAnchor="end" fontSize={11} fill="var(--muted)">
             {lastDay}
           </text>
         )}

@@ -150,6 +150,14 @@ export interface UiStrings {
   breadthStarted: string;
   habitHeading: string;
   habitNote: string;
+  /**
+   * What each shade in the calendar means. habitNote says the same thing in
+   * prose, but prose cannot map a colour to a meaning, and the mapping used to
+   * live only in a tooltip - which does not exist on a touchscreen.
+   */
+  legendMade: string;
+  legendLooked: string;
+  legendFinished: string;
   noProgressYet: string;
   noProgressYetNote: string;
 
@@ -278,6 +286,9 @@ export const EN: UiStrings = {
   habitHeading: "Days you read",
   habitNote:
     "A day counts if you finished a piece, looked a word up, or asked for something new. Days run midnight to midnight, UTC.",
+  legendMade: "asked for something",
+  legendLooked: "looked a word up",
+  legendFinished: "finished a piece",
   noProgressYet: "Nothing to show yet.",
   noProgressYetNote:
     "Finish one piece and this fills in: your level over time, what you’ve read about, and the days you showed up.",

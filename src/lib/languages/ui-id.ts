@@ -144,6 +144,9 @@ export const UI_ID: UiStrings = {
   habitHeading: "Hari-hari kamu membaca",
   habitNote:
     "Satu hari dihitung kalau kamu menyelesaikan bacaan, mencari arti kata, atau meminta bacaan baru. Hari dihitung tengah malam ke tengah malam, UTC.",
+  legendMade: "minta bacaan baru",
+  legendLooked: "mencari arti kata",
+  legendFinished: "menyelesaikan bacaan",
   noProgressYet: "Belum ada yang bisa ditampilkan.",
   noProgressYetNote:
     "Selesaikan satu bacaan dan halaman ini akan terisi: levelmu dari waktu ke waktu, apa saja yang kamu baca, dan hari-hari kamu datang.",

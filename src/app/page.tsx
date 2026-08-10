@@ -58,7 +58,11 @@ export default async function Home() {
   const language = getLanguage(profile.language);
   const params = paramsFor(profile.level, language);
   // Above a level the chrome switches too; see src/lib/ui.ts.
-  const { strings: t, format: f, inTarget } = uiFor(language, profile.level, await getUiPreference());
+  const { strings: t, format: f, inTarget, locale } = uiFor(
+    language,
+    profile.level,
+    await getUiPreference(),
+  );
   const recent = listPieces(profile.userId, language.code);
   // No extra query and no network: listPieces already fetched the topics and
   // this page already threw them away. The seed is the reader plus how much
@@ -107,7 +111,7 @@ export default async function Home() {
             <p className="text-2xl font-semibold">
               {params.label}{" "}
               <span className="text-base font-normal text-muted">
-                {f.aboutWords(params.vocabBand.toLocaleString())}
+                {f.aboutWords(params.vocabBand.toLocaleString(locale))}
               </span>
             </p>
           </div>
@@ -138,7 +142,7 @@ export default async function Home() {
                   because it trails the level label upstairs. */}
               <span className="font-medium">{t.wordsYouCanRead}</span>
               <span className="shrink-0 text-sm text-muted">
-                {params.vocabBand.toLocaleString()}
+                {params.vocabBand.toLocaleString(locale)}
               </span>
             </Link>
           )}
@@ -182,7 +186,9 @@ export default async function Home() {
           <span className="mr-2 rounded border border-border px-1.5 py-0.5 text-xs uppercase tracking-wide">
             admin
           </span>
-          Speech synthesised across all readers: {spent.toLocaleString()}{" "}
+          {/* Operator copy, English whatever the reader's chrome is doing, so
+              the number is pinned to English rather than following `locale`. */}
+          Speech synthesised across all readers: {spent.toLocaleString("en")}{" "}
           characters · roughly ${((spent / 1000) * 0.1).toFixed(2)} at
           ElevenLabs’ multilingual rate. Replays are free.
         </p>

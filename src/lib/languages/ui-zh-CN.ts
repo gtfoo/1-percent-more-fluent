@@ -138,6 +138,9 @@ export const UI_ZH_CN: UiStrings = {
   habitHeading: "你读书的日子",
   habitNote:
     "只要读完一篇、查过一个词，或者让它写一篇新的，这一天就算数。一天按 UTC 从零点算到零点。",
+  legendMade: "让它写了一篇",
+  legendLooked: "查过词",
+  legendFinished: "读完了一篇",
   noProgressYet: "还没有什么可看的。",
   noProgressYetNote: "读完一篇，这里就会有内容：你的水平变化、读过的话题，还有你来过的日子。",
 

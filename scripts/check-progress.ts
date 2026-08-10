@@ -38,6 +38,8 @@ import {
 } from "../src/lib/streaks";
 import { FIELDS } from "../src/lib/suggestions";
 import { FORMATS } from "../src/lib/formats";
+import { localeFor } from "../src/lib/ui";
+import { spanish } from "../src/lib/languages/es";
 
 let failures = 0;
 
@@ -66,7 +68,29 @@ const reading = (before: number, after: number, at: string): LevelPoint => ({
 });
 
 async function main() {
+  // ---- Which locale the figures are written in ----------------------------
+  //
+  // Every number on this page is a word count in the thousands, so the
+  // separator is load-bearing: "2.269" is two thousand in Spanish and two in
+  // English. A bare toLocaleString() follows the SERVER's locale, which is how
+  // a fully Spanish interface came to print English separators.
+  console.log("--- the figures are in the reader's own locale ---");
+  {
+    check("target chrome formats in the target language", localeFor(spanish,true), "es");
+    check("English chrome formats in English", localeFor(spanish,false), "en");
+    // Not a tautology: it is the assertion that the tags actually reach ICU and
+    // produce four different, correct conventions. If Node ever ships without
+    // full ICU these all collapse to the English form and this fails loudly
+    // rather than shipping numbers that read a thousandfold wrong.
+    check("Spanish groups from five digits, not four", (1400).toLocaleString("es"), "1400");
+    check("...and uses a point once it does", (12500).toLocaleString("es"), "12.500");
+    check("Indonesian uses a point from four", (1400).toLocaleString("id"), "1.400");
+    check("Chinese uses a comma", (1400).toLocaleString("zh-CN"), "1,400");
+    check("English uses a comma", (1400).toLocaleString("en"), "1,400");
+  }
+
   // ---- Pure geometry, no database -----------------------------------------
+  console.log();
   console.log("--- the chart ---");
   {
     const empty = plotLevels([]);

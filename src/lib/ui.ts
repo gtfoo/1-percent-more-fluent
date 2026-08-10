@@ -30,7 +30,7 @@ export function uiFor(
   language: Language,
   level: number,
   preference: UiPreference = "auto",
-): { strings: UiStrings; format: UiFormatters; inTarget: boolean } {
+): { strings: UiStrings; format: UiFormatters; inTarget: boolean; locale: string } {
   const inTarget =
     preference === "target" ||
     (preference === "auto" && level >= language.uiFromLevel);
@@ -39,5 +39,27 @@ export function uiFor(
     strings: inTarget ? language.ui : EN,
     format: inTarget ? language.uiFormat : EN_FORMAT,
     inTarget,
+    locale: localeFor(language, inTarget),
   };
+}
+
+/**
+ * Which locale to format NUMBERS and DATES in.
+ *
+ * Not a detail. A bare `toLocaleString()` follows the locale of whatever
+ * machine happens to be running the server - en-US on the droplet - so a reader
+ * whose entire interface is Spanish was shown "2,269", which in Spanish means
+ * two point two six nine. The separators are not decoration; swapping them
+ * changes the number by a factor of a thousand.
+ *
+ * It follows the chrome rather than the language being learned: an English
+ * interface should read as English throughout, even while the prose beside it
+ * is Indonesian.
+ *
+ * The language codes are already valid BCP-47 tags ("es", "zh-CN", "id"), so
+ * there is nothing to map. Node 20 ships full ICU, so nothing to install
+ * either.
+ */
+export function localeFor(language: Language, inTarget: boolean): string {
+  return inTarget ? language.code : "en";
 }

@@ -184,7 +184,7 @@ export function measure(
   const budgetCeiling = params.newWordBudget * BUDGET_SLACK;
   if (outOfBandRate > budgetCeiling) {
     problems.push(
-      `${(outOfBandRate * 100).toFixed(1)}% of words fall outside the ${params.vocabBand.toLocaleString()} most common ${language.name} words (limit ${(budgetCeiling * 100).toFixed(0)}%). Replace these with everyday equivalents: ${outOfBand.slice(0, 25).join(", ")}.`,
+      `${(outOfBandRate * 100).toFixed(1)}% of words fall outside the ${params.vocabBand.toLocaleString("en")} most common ${language.name} words (limit ${(budgetCeiling * 100).toFixed(0)}%). Replace these with everyday equivalents: ${outOfBand.slice(0, 25).join(", ")}.`,
     );
   }
   // The other side of the budget: text that never leaves the band teaches the
@@ -195,7 +195,7 @@ export function measure(
     // work - the model has no way to know where the band ends.
     const edge = registerAnchors(params.vocabBand, language.code);
     problems.push(
-      `Only ${(outOfBandRate * 100).toFixed(1)}% of words fall outside the ${params.vocabBand.toLocaleString()} most common words, so this is too easy for the level - aim for about ${(params.newWordBudget * 100).toFixed(0)}%. Do not simplify further and do not lengthen it; instead reach for the more precise or vivid word wherever there is a choice. Words at the edge of this reader's range look like this: ${edge.join(", ")}. Use that register - not those exact words unless they fit - and put whatever lands outside the band in the glossary.`,
+      `Only ${(outOfBandRate * 100).toFixed(1)}% of words fall outside the ${params.vocabBand.toLocaleString("en")} most common words, so this is too easy for the level - aim for about ${(params.newWordBudget * 100).toFixed(0)}%. Do not simplify further and do not lengthen it; instead reach for the more precise or vivid word wherever there is a choice. Words at the edge of this reader's range look like this: ${edge.join(", ")}. Use that register - not those exact words unless they fit - and put whatever lands outside the band in the glossary.`,
     );
   }
 

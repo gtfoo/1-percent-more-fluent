@@ -37,6 +37,7 @@ export function BreadthGrid({
     cells.find((c) => c.field === field && c.format === format)!;
 
   return (
+    <div className="space-y-3">
     <table className="w-full border-separate border-spacing-1 text-sm">
       <caption className="sr-only">{t.breadthHeading}</caption>
       <thead>
@@ -67,9 +68,9 @@ export function BreadthGrid({
                     title={cellTitle(cell)}
                     aria-label={cellTitle(cell)}
                     className={[
-                      "h-8 w-full rounded",
+                      "flex h-9 w-full items-center justify-center rounded text-xs font-medium",
                       cell.state === "filled"
-                        ? "bg-accent"
+                        ? "bg-accent text-white"
                         : cell.state === "started"
                           ? // Dashed, not a lighter fill: "I started this and
                             // put it down" is a different fact from "I have
@@ -78,7 +79,14 @@ export function BreadthGrid({
                             "border-2 border-dashed border-accent bg-surface"
                           : "border border-border bg-surface",
                     ].join(" ")}
-                  />
+                  >
+                    {/* The count goes IN the cell, not in a tooltip. `title`
+                        does nothing on a touchscreen - there is no hover - so
+                        on the device most of this app's reading happens on,
+                        every number here was invisible. The title stays for the
+                        pointer users it does serve. */}
+                    {cell.state === "filled" && cell.count}
+                  </div>
                 </td>
               );
             })}
@@ -86,5 +94,15 @@ export function BreadthGrid({
         ))}
       </tbody>
     </table>
+      {/* The dashed state cannot explain itself the way a number can, and its
+          only explanation used to be a tooltip. One line, always shown. */}
+      <p className="flex items-center gap-2 text-sm text-muted">
+        <span
+          aria-hidden="true"
+          className="inline-block h-4 w-6 shrink-0 rounded border-2 border-dashed border-accent"
+        />
+        {t.breadthStarted}
+      </p>
+    </div>
   );
 }

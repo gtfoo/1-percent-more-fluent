@@ -63,8 +63,14 @@ echo
 echo "--- the numbers ---"
 # The placement wrote 1400; the profile sits at level 41. Both halves of the
 # then-vs-now must be present, and they must not be the same number.
-echo "$html" | grep -qE '1[.,]400' && ok "where the placement put them" 1 || ok "where the placement put them" 0
-echo "$html" | grep -qE '2[.,]2[0-9][0-9]' && ok "where they are now" 1 || ok "where they are now" 0
+#
+# Written the SPANISH way, exactly: Spanish groups from five digits, so 1400 is
+# "1400" with no separator at all. The English form "1,400" appearing here would
+# mean the page had fallen back to the server's own locale, which is the bug
+# these assertions exist to catch. See localeFor.
+has "where the placement put them, written in Spanish" ">1400" "$html"
+has "where they are now" ">2269" "$html"
+hasnt "and not with English separators" "1,400" "$html"
 has "nine finished readings counted" "en 9 textos que terminaste" "$html"
 # The fixture went 32 -> 41 and 1400 -> ~2269, so the growth sentence is the one
 # that must appear. The shrunk one is a DIFFERENT sentence, not a sign flip, and
@@ -75,6 +81,16 @@ has "growth is worded as growth" "palabras más que al empezar" "$html"
 has "six of twenty-four squares covered" "6 de 24 cuadros" "$html"
 has "days read out of the window" "Leíste " "$html"
 has "and the longest run" "Racha más larga" "$html"
+
+echo
+echo "--- readable without a hover, which a phone does not have ---"
+# Same reason as the grid counts: the shades and the position in the year were
+# decodable only by pointing a mouse at them.
+has "the shades are keyed" "buscaste una palabra" "$html"
+has "...all three of them" "terminaste un texto" "$html"
+echo "$html" | grep -qE '>(ene|feb|mar|abr|may|jun|jul|ago|sept|oct|nov|dic)<' \
+  && ok "the calendar says where in the year you are, in Spanish" 1 \
+  || ok "the calendar says where in the year you are, in Spanish" 0
 
 echo
 echo "--- the drawings exist ---"
@@ -94,10 +110,13 @@ hasnt "a drop is not coloured as an error" "var(--warn)" "$html"
 
 echo
 echo "--- the grid ---"
-cells=$(echo "$html" | grep -o 'class="[^"]*h-8 w-full rounded' | wc -l)
+cells=$(echo "$html" | grep -o 'class="[^"]*h-9 w-full items-center' | wc -l)
 [ "$cells" = "24" ] && ok "eight subjects by three formats" 1 || ok "eight subjects by three formats" 0 "$cells cells"
 has "a subject the fixture read about" "Comida" "$html"
 has "started but not finished, named as such" "Empezado, sin terminar" "$html"
+# A touchscreen has no hover, so anything only a `title` says is invisible on
+# the device most of this app's reading happens on. The count goes in the cell.
+has "the count is in the cell, not only in a tooltip" ">2</div>" "$html"
 echo "$html" | grep -q 'border-dashed' && ok "and drawn dashed, not shaded" 1 \
   || ok "and drawn dashed, not shaded" 0
 # 'other' and NULL are two different facts and must stay two footnotes, never
@@ -124,6 +143,9 @@ en=$(get /progress ";fluent_ui=english")
 has "the same page in English" "How far you’ve come" "$en"
 has "English field labels too" "Money" "$en"
 hasnt "and no Spanish left behind" "Sobre qué has leído" "$en"
+# The same figure, the English way. Both halves of this pair have to hold for
+# the locale to be following the chrome rather than the server.
+has "and English separators with it" "1,400" "$en"
 
 echo
 echo "--- getting there from the home page ---"
@@ -147,11 +169,11 @@ has "the grid is still there, empty" "Sobre qué has leído" "$none"
 # The /words rule: no link until there is something behind it. A progress page
 # offered before anything has been read is a promise the app has not kept.
 hasnt "and the home page does not offer the link yet" 'href="/progress"' "$(get /)"
-cells=$(echo "$none" | grep -o 'class="[^"]*h-8 w-full rounded' | wc -l)
+cells=$(echo "$none" | grep -o 'class="[^"]*h-9 w-full items-center' | wc -l)
 [ "$cells" = "24" ] && ok "all twenty-four squares, none filled" 1 || ok "all twenty-four squares" 0 "$cells"
 # The cell class specifically - the "start reading" button is bg-accent too,
 # and matching that would pass whatever the grid did.
-hasnt "and none of them filled" "h-8 w-full rounded bg-accent" "$none"
+hasnt "and none of them filled" "font-medium bg-accent" "$none"
 
 echo
 echo "--- guards ---"

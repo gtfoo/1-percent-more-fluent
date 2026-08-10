@@ -170,7 +170,10 @@ export function buildPrompt(
     // The budget is a TARGET, not a cap. Framed as "at most X%" the model
     // optimises for safety and lands around 1% - which reads fluently, teaches
     // nothing, and drives the level upward because the reader looks nothing up.
-    `- Vocabulary: build the text from the ${params.vocabBand.toLocaleString()} most common ${params.language.name} words, and let about ${Math.round(params.newWordBudget * 100)}% of it fall OUTSIDE that set. That share is the point - unknown words are how the reader learns - so treat it as a figure to hit, not a ceiling to stay under. Every word outside the set must appear in the glossary.`,
+    // Pinned to English rather than left to the host's locale: this is a
+    // prompt, not copy. The band is a figure the model has to read correctly,
+    // and "2.000" is two thousand in Spanish and two in English.
+    `- Vocabulary: build the text from the ${params.vocabBand.toLocaleString("en")} most common ${params.language.name} words, and let about ${Math.round(params.newWordBudget * 100)}% of it fall OUTSIDE that set. That share is the point - unknown words are how the reader learns - so treat it as a figure to hit, not a ceiling to stay under. Every word outside the set must appear in the glossary.`,
     // Models overshoot in one specific way - reaching for a literary register
     // rather than genuinely rare words - so the guidance is about register, not
     // about being easier in general.

@@ -30,11 +30,16 @@ export default async function ProgressPage() {
   if (!profile) redirect("/");
 
   const language = getLanguage(profile.language);
-  const { strings: t, format: f, inTarget } = uiFor(
+  const { strings: t, format: f, inTarget, locale } = uiFor(
     language,
     profile.level,
     await getUiPreference(),
   );
+  // Every number on this page is a word count in the thousands, so the
+  // separator is doing real work: "2.269" and "2,269" are the same figure in
+  // Spanish and English and a thousandfold apart if you read them the other
+  // way round. See localeFor.
+  const num = (n: number) => n.toLocaleString(locale);
 
   const summary = progressSummary(profile.userId, language.code);
   if (!summary) redirect("/");
@@ -64,7 +69,7 @@ export default async function ProgressPage() {
             <p className="font-medium">{t.noProgressYet}</p>
             <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{t.noProgressYetNote}</p>
             <p className="mt-4 text-sm text-muted">
-              {t.whenYouStarted}: {summary.thenWords.toLocaleString()}
+              {t.whenYouStarted}: {num(summary.thenWords)}
             </p>
             <Link
               href="/"
@@ -78,10 +83,10 @@ export default async function ProgressPage() {
             <p className="text-sm uppercase tracking-wide text-muted">{t.wordsYouCanRead}</p>
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
               <span className="text-4xl font-semibold tabular-nums">
-                {summary.nowWords.toLocaleString()}
+                {num(summary.nowWords)}
               </span>
               <span className="text-muted">
-                {t.whenYouStarted}: {summary.thenWords.toLocaleString()}
+                {t.whenYouStarted}: {num(summary.thenWords)}
               </span>
             </div>
             {/* Two sentences, not one with a minus sign. A reader whose level
@@ -89,8 +94,8 @@ export default async function ProgressPage() {
                 showing the level honestly rather than only letting it rise. */}
             <p className="text-muted">
               {summary.deltaWords >= 0
-                ? f.grownBy(summary.deltaWords.toLocaleString(), summary.percent)
-                : f.shrunkBy(Math.abs(summary.deltaWords).toLocaleString(), Math.abs(summary.percent))}{" "}
+                ? f.grownBy(num(summary.deltaWords), summary.percent)
+                : f.shrunkBy(num(Math.abs(summary.deltaWords)), Math.abs(summary.percent))}{" "}
               {f.acrossPieces(summary.sessions)}
             </p>
           </>
@@ -106,6 +111,7 @@ export default async function ProgressPage() {
             summary={`${t.levelHeading} — ${t.wordsYouCanRead}`}
             firstDay={readings[0]!.at.slice(0, 10)}
             lastDay={readings.at(-1)!.at.slice(0, 10)}
+            locale={locale}
           />
           <p className="text-sm text-muted">{t.levelNote}</p>
         </section>
@@ -153,6 +159,8 @@ export default async function ProgressPage() {
           days={calendar}
           title={t.habitHeading}
           dayTitle={(day) => f.readOnDay(day.day, day.events)}
+          locale={locale}
+          t={t}
         />
         <p className="text-sm text-muted">{t.habitNote}</p>
       </section>

@@ -135,6 +135,9 @@ export const UI_ES: UiStrings = {
   habitHeading: "Días que leíste",
   habitNote:
     "Cuenta el día si terminaste un texto, buscaste una palabra o pediste algo nuevo. Los días van de medianoche a medianoche, en UTC.",
+  legendMade: "pediste algo",
+  legendLooked: "buscaste una palabra",
+  legendFinished: "terminaste un texto",
   noProgressYet: "Todavía no hay nada que mostrar.",
   noProgressYetNote:
     "Termina un texto y esto se llena: tu nivel con el tiempo, sobre qué has leído y los días que apareciste.",
