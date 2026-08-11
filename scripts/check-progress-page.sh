@@ -182,6 +182,9 @@ junk=$(get /progress ";fluent_tz=nonsense")
 has "junk in the cookie falls back rather than blanking" "2026-07-19 — 1" "$junk"
 home=$(get /)
 has "a row linking to it" 'href="/progress"' "$home"
+# The only other route out of the reading flow. Kept here as well as in
+# check-theme-page.sh because losing it strands the reader page.
+has "and the header keeps its one settings link" 'href="/settings"' "$home"
 has "saying what it shows, not naming a section" "Tu nivel" "$home"
 
 echo

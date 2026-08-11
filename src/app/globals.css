@@ -1,6 +1,30 @@
 @import "tailwindcss";
 
-:root {
+/*
+ * Two palettes, three behaviours: follow the system, or override it either way.
+ *
+ * The override is a `data-theme` attribute on <html>, set before first paint by
+ * the inline script in layout.tsx and toggled by ThemeToggle. No attribute means
+ * no stored choice, and the media query decides - so a phone that flips to dark
+ * at sunset follows along without the app watching for it.
+ *
+ * The selectors are arranged so each palette is written twice rather than four
+ * times, which is worth one moment of thought to read:
+ *
+ *   - `:root, :root[data-theme="light"]` is light. Applies by default, and
+ *     again when light is explicitly chosen.
+ *   - the dark media query deliberately excludes an explicit light choice, so
+ *     "light on a dark-mode phone" is not fighting a specificity battle.
+ *   - `:root[data-theme="dark"]` is last and is an attribute selector, so it
+ *     outscores the bare `:root` above whatever the system is doing.
+ *
+ * color-scheme is set with each palette, not just the colours. Without it the
+ * scrollbars, form controls and the flash between pages stay in the system's
+ * theme while everything else obeys the reader - which looks like a bug in the
+ * one place a reader cannot fix it.
+ */
+:root,
+:root[data-theme="light"] {
   --background: #faf8f5;
   --surface: #ffffff;
   --border: #e6e0d6;
@@ -10,10 +34,11 @@
   --accent-soft: #f3e6dd;
   --ok: #2f6b46;
   --warn: #8a6114;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --background: #14130f;
     --surface: #1c1a16;
     --border: #322e26;
@@ -23,7 +48,21 @@
     --accent-soft: #2e241d;
     --ok: #7bbd93;
     --warn: #d7ac5b;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --background: #14130f;
+  --surface: #1c1a16;
+  --border: #322e26;
+  --foreground: #e8e4dc;
+  --muted: #9b9285;
+  --accent: #d98a5c;
+  --accent-soft: #2e241d;
+  --ok: #7bbd93;
+  --warn: #d7ac5b;
+  color-scheme: dark;
 }
 
 @theme inline {

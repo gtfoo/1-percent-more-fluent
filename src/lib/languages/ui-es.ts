@@ -28,6 +28,12 @@ export const UI_ES: UiStrings = {
   uiLanguageNote: "Spanish",
 
   retakeLevel: "Volver a medir mi nivel",
+  settings: "Ajustes",
+  settingsNote: "Nada de esto hace falta: la app funciona sin tocar ninguna opción.",
+  themeLabel: "Tema de color",
+  themeAuto: "Automático",
+  themeLight: "Claro",
+  themeDark: "Oscuro",
 
   whatToRead: "¿Qué te apetece leer?",
   topicLabel: "¿Sobre qué quieres leer?",

@@ -34,6 +34,12 @@ export const UI_ZH_CN: UiStrings = {
   uiLanguageNote: "Simplified Chinese",
 
   retakeLevel: "重新测试我的水平",
+  settings: "设置",
+  settingsNote: "这里的东西都不是必需的，不设也能正常用。",
+  themeLabel: "配色",
+  themeAuto: "跟随系统",
+  themeLight: "浅色",
+  themeDark: "深色",
 
   whatToRead: "你想读点什么？",
   topicLabel: "你想读关于什么的内容？",

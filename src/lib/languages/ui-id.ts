@@ -37,6 +37,12 @@ export const UI_ID: UiStrings = {
   uiLanguageNote: "Indonesian",
 
   retakeLevel: "Ukur ulang levelku",
+  settings: "Pengaturan",
+  settingsNote: "Tidak ada yang wajib di sini — aplikasinya jalan tanpa satu pun diatur.",
+  themeLabel: "Tema warna",
+  themeAuto: "Otomatis",
+  themeLight: "Terang",
+  themeDark: "Gelap",
 
   whatToRead: "Kamu ingin baca apa?",
   topicLabel: "Kamu ingin baca tentang apa?",

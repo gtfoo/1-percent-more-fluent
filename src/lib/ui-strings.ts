@@ -27,6 +27,22 @@ export interface UiStrings {
 
   // Chrome
   retakeLevel: string;
+  /**
+   * The one header link. Everything that is not reading lives behind it: the
+   * header used to carry up to four links and ran out of room on a phone at
+   * exactly the point somebody had signed in and had the most to manage.
+   */
+  settings: string;
+  settingsNote: string;
+  /**
+   * The colour theme control. Translated, unlike the LANGUAGE switcher, which
+   * stays English on purpose - somebody who cannot read the target language is
+   * locked out by that control and not by this one.
+   */
+  themeLabel: string;
+  themeAuto: string;
+  themeLight: string;
+  themeDark: string;
 
   // Compose
   whatToRead: string;
@@ -184,6 +200,12 @@ export const EN: UiStrings = {
   uiLanguageNote: "English",
 
   retakeLevel: "Re-test my level",
+  settings: "Settings",
+  settingsNote: "Nothing here is required — the app works without any of it.",
+  themeLabel: "Colour theme",
+  themeAuto: "Auto",
+  themeLight: "Light",
+  themeDark: "Dark",
 
   whatToRead: "What do you feel like reading?",
   topicLabel: "What do you want to read about?",
