@@ -158,18 +158,26 @@ export function PlacementTest({
           <h1 className="text-2xl font-semibold tracking-tight">
             You’re around <span className="text-accent">{result.label}</span>
           </h1>
+          {/* The word count that used to sit here is gone on purpose. It was
+              counting word FORMS from a subtitle corpus - plurals and
+              conjugations of words already counted, plus a tail of proper nouns
+              - so it read three times higher than any honest reading of "words
+              you know", and readers who could judge it did not believe it. The
+              band is the part that was ever load-bearing. */}
           <p className="mt-2 text-muted">
-            The word test put you at roughly{" "}
-            {result.vocabEstimate.toLocaleString()} words. Nothing is locked in —
-            the level adjusts after every piece you read, based on how much you
-            actually look up.
+            That is a starting point, not a verdict — it only decides how hard
+            your first piece is. The level moves after everything you read,
+            based on how much you actually look up, so it corrects itself within
+            a couple of pieces if this is off.
           </p>
         </div>
 
         {result.unreliable && (
           <p className="rounded-lg border border-border bg-accent-soft px-4 py-3 text-sm">
-            You marked a lot of the invented words as known, so the word test
-            counted for less here. It will correct itself as you read.
+            A heads-up: you tapped a lot of the invented words, so we leaned
+            less on the word test for this. That usually means the words looked
+            plausible rather than that anything went wrong — it will sort itself
+            out as you read.
           </p>
         )}
 
@@ -262,15 +270,60 @@ export function PlacementTest({
   // --- Step 1: the yes/no word test ---------------------------------------
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Which of these do you know?
-        </h1>
-        <p className="mt-2 max-w-xl text-muted">
-          Tap every word whose meaning you could give. Skip the ones you can’t.
-          Some of them are invented words that only look like {language.name} — that’s
-          deliberate, and it’s what makes the estimate honest, so don’t guess.
-        </p>
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Which of these do you know?
+          </h1>
+          <p className="mt-2 max-w-xl text-muted">
+            A quick check so the first thing you read lands at the right
+            difficulty. About a minute, and nothing here is locked in.
+          </p>
+        </div>
+
+        {/* Spelled out as three separate points rather than one paragraph.
+            The one that was missing is the second: a tester came away asking
+            why she was being shown words she had never seen, which means she
+            read the whole thing as a quiz she was failing rather than as a
+            measurement. Everything else on this screen depends on her not
+            thinking that. */}
+        <ol className="max-w-xl list-decimal space-y-2 pl-5 text-muted marker:text-muted">
+          <li>
+            <span className="text-foreground">Tap the words you know.</span>{" "}
+            Only the ones whose meaning you could actually give — if you can
+            picture what it means, that counts. Leave the rest alone.
+          </li>
+          <li>
+            <span className="text-foreground">
+              Most of these will be unfamiliar. That is how it works.
+            </span>{" "}
+            The list runs from the most common {language.name} words to genuinely
+            rare ones. Nobody knows all of them, and where you stop is the whole
+            measurement — so a screen with more untapped words than tapped ones
+            is exactly what we expect.
+          </li>
+          <li>
+            <span className="text-foreground">Some are not real words.</span>{" "}
+            They are invented to look like {language.name}, and they are how we
+            tell knowing from guessing: tapping them tells us to trust the rest
+            of your answers less. Nothing bad happens if you tap one honestly by
+            mistake, but do not guess.
+          </li>
+        </ol>
+
+        <details className="max-w-xl text-sm text-muted">
+          <summary className="cursor-pointer text-foreground hover:text-accent">
+            How this is scored
+          </summary>
+          <p className="mt-2">
+            For each difficulty band we take the share of real words you tapped
+            and subtract what your invented-word taps say about guessing, then
+            work out roughly how far into the language your vocabulary reaches.
+            It is an estimate from a small sample, not an exam — it only has to
+            be close enough to pick your first piece. After that the level moves
+            on its own, based on how much you look up while reading.
+          </p>
+        </details>
       </div>
 
       {!items ? (
