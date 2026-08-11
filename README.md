@@ -250,12 +250,26 @@ scripts/          data building and measurement, not part of the app
 
 ## Data sources
 
+Full licences and provenance in [NOTICE.md](NOTICE.md).
+
 - Frequency list: [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords)
   (OpenSubtitles 2018, MIT). Conversational, which matches what a learner wants
   to read — but full of proper nouns, so test items are vetted against:
 - Dictionary: [an-array-of-spanish-words](https://github.com/words/an-array-of-spanish-words),
   ~636k forms. Used only to filter placement-test items and to guarantee a
   generated pseudoword is not an obscure real word.
+- **Chinese placement**: the vocabulary list of 《国际中文教育中文水平等级标准》
+  (GF 0025—2021, 教育部/国家语委), via [ivankra/hsk30](https://github.com/ivankra/hsk30)
+  (MIT). Rebuild with `npm run hsk`.
+
+  Chinese is banded by HSK level rather than by frequency rank, because the
+  frequency ruler could not be failed: its hardest band, notionally ranks
+  11,001–20,000, contained 不便, 安好, 指头 and 往日 — four ordinary words
+  standing in for nine thousand. A subtitle corpus does not hold 9,000 rare
+  Chinese words to put there. HSK is ordered pedagogically, is the scale
+  learners already use, and its top band is genuinely the top. 成语 arrive with
+  it: they are part of levels 7–9, and since film dialogue rarely uses them they
+  sort into the rarer half of that band, which is where they belong.
 
 ## Known limitations
 

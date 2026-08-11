@@ -58,7 +58,9 @@ export default async function Home() {
   const language = getLanguage(profile.language);
   const params = paramsFor(profile.level, language);
   // Above a level the chrome switches too; see src/lib/ui.ts.
-  const { strings: t, format: f, inTarget, locale } = uiFor(
+  // No `locale` here any more: the only numbers this page formatted were the
+  // vocabulary counts, and those are gone.
+  const { strings: t, format: f, inTarget } = uiFor(
     language,
     profile.level,
     await getUiPreference(),

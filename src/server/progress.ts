@@ -16,7 +16,7 @@
  */
 import { getDb } from "./db";
 import { getProfile } from "./user";
-import { vocabSizeFor, levelForVocab } from "@/lib/level";
+import { levelForVocab } from "@/lib/level";
 import { FIELDS, type Field } from "@/lib/suggestions";
 import { FORMATS, type Format } from "@/lib/formats";
 import { DAY_FINISHED, DAY_LOOKED, DAY_MADE, type DayWeight, type ReadingDay } from "@/lib/streaks";

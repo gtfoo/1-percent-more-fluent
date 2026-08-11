@@ -135,16 +135,28 @@ const GRAMMAR: GrammarGate[] = [
 
 /**
  * HSK rather than CEFR, because that is the vocabulary Chinese learners
- * actually use. Thresholds follow the published HSK 3.0 word counts.
+ * actually use - and now with the standard's own numbers rather than round
+ * ones picked to look about right.
+ *
+ * GF 0025-2021 sets 500 words at level 1 and then adds 772, 973, 1,000, 1,071,
+ * 1,140 and 5,636, for 11,092 across nine levels. The previous thresholds put
+ * the HSK 5/6 boundary nearly a thousand words out and gave "HSK 6" twice the
+ * span it should have had.
+ *
+ * Several popular summaries of HSK 3.0 quote 300/500/1,000/2,000/3,600/5,400
+ * instead. Those do not match the word list the standard publishes; these are
+ * the counts in it. Source and licence in NOTICE.md.
  */
 const HSK_THRESHOLDS: { max: number; label: string }[] = [
   { max: 500, label: "HSK 1" },
-  { max: 1_300, label: "HSK 2" },
-  { max: 2_200, label: "HSK 3" },
-  { max: 3_300, label: "HSK 4" },
-  { max: 5_500, label: "HSK 5" },
-  { max: 11_000, label: "HSK 6" },
-  { max: Infinity, label: "HSK 7+" },
+  { max: 1_272, label: "HSK 2" },
+  { max: 2_245, label: "HSK 3" },
+  { max: 3_245, label: "HSK 4" },
+  { max: 4_316, label: "HSK 5" },
+  { max: 5_456, label: "HSK 6" },
+  // The standard's own name for the top band: one undivided pool of
+  // vocabulary, however the exam above it is split.
+  { max: Infinity, label: "HSK 7-9" },
 ];
 
 export const simplifiedChinese: Language = {
