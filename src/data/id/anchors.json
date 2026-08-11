@@ -1,0 +1,177 @@
+{
+  "anchors": [
+    {
+      "fromRank": 500,
+      "words": [
+        "kesalahan",
+        "pesan",
+        "membayar",
+        "berikutnya",
+        "tembak",
+        "bersalah",
+        "informasi",
+        "temanku",
+        "biasanya",
+        "seberapa",
+        "tertawa",
+        "kamera",
+        "terdengar",
+        "kejadian",
+        "pemerintah",
+        "milikku",
+        "menjawab",
+        "menari"
+      ]
+    },
+    {
+      "fromRank": 1000,
+      "words": [
+        "mengenal",
+        "video",
+        "mengambilnya",
+        "sisa",
+        "memimpin",
+        "jari",
+        "jelaskan",
+        "kenyataan",
+        "membawaku",
+        "gratis",
+        "mempercayai",
+        "tenaga",
+        "sebaliknya",
+        "pembohong",
+        "kagak",
+        "pernahkah"
+      ]
+    },
+    {
+      "fromRank": 2000,
+      "words": [
+        "universitas",
+        "pemeriksaan",
+        "menyimpannya",
+        "menahannya",
+        "mainkan",
+        "keyakinan",
+        "sandera",
+        "negatif",
+        "menjelaskannya",
+        "perilaku",
+        "mengajariku",
+        "tentangku",
+        "anti",
+        "terbit",
+        "untung",
+        "pengganti",
+        "cedera"
+      ]
+    },
+    {
+      "fromRank": 3000,
+      "words": [
+        "kedinginan",
+        "sejumlah",
+        "kantorku",
+        "kakaknya",
+        "mendatangi",
+        "banteng",
+        "tipis",
+        "tampilan",
+        "peliharaan",
+        "pinggir",
+        "mengelola",
+        "kediaman",
+        "bandit",
+        "tomat",
+        "pinggang",
+        "memilikimu"
+      ]
+    },
+    {
+      "fromRank": 5000,
+      "words": [
+        "kodenya",
+        "menemani",
+        "memaksamu",
+        "koloni",
+        "naluri",
+        "sengsara",
+        "rintangan",
+        "punggungmu",
+        "dijanjikan",
+        "dicurigai",
+        "kalender",
+        "penghancuran",
+        "mukjizat",
+        "menjangkau",
+        "lebat",
+        "menggenggam",
+        "ulasan"
+      ]
+    },
+    {
+      "fromRank": 8000,
+      "words": [
+        "membereskannya",
+        "bunyikan",
+        "grafik",
+        "menikam",
+        "penjudi",
+        "politikus",
+        "jamuan",
+        "meraihnya",
+        "memprogram",
+        "berhubung",
+        "menjumpai",
+        "tampangnya",
+        "menggambarnya",
+        "malaria",
+        "mencakar",
+        "balaskan",
+        "sepedamu"
+      ]
+    },
+    {
+      "fromRank": 12000,
+      "words": [
+        "gawang",
+        "atasmu",
+        "memunculkan",
+        "relakan",
+        "sepagi",
+        "barter",
+        "tiupan",
+        "kenanganmu",
+        "mencabutnya",
+        "raket",
+        "diracun",
+        "kalsium",
+        "hitunglah",
+        "lenyapkan",
+        "kaligrafi",
+        "berwibawa"
+      ]
+    },
+    {
+      "fromRank": 20000,
+      "words": [
+        "diverifikasi",
+        "modis",
+        "loncengnya",
+        "propulsi",
+        "seonggok",
+        "jubahmu",
+        "asramanya",
+        "setibanya",
+        "debutnya",
+        "diantisipasi",
+        "penyihirmu",
+        "jenisku",
+        "menembakimu",
+        "pengurusan",
+        "sekurangnya",
+        "memfitnahku"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,188 @@
+{
+  "anchors": [
+    {
+      "fromRank": 500,
+      "words": [
+        "tuve",
+        "estaban",
+        "verte",
+        "digas",
+        "increíble",
+        "diré",
+        "trato",
+        "encima",
+        "haz",
+        "gusto",
+        "ocurre",
+        "asi",
+        "normal",
+        "hermosa",
+        "fotos",
+        "das",
+        "esposo",
+        "rato"
+      ]
+    },
+    {
+      "fromRank": 1000,
+      "words": [
+        "escena",
+        "simple",
+        "zona",
+        "habían",
+        "arte",
+        "vayan",
+        "serás",
+        "parís",
+        "noticia",
+        "solamente",
+        "malas",
+        "encontraron",
+        "bala",
+        "borracho",
+        "desaparecido",
+        "gratis",
+        "dedo",
+        "fuente"
+      ]
+    },
+    {
+      "fromRank": 2000,
+      "words": [
+        "sensación",
+        "venganza",
+        "termine",
+        "rara",
+        "bolsillo",
+        "lord",
+        "elegido",
+        "opciones",
+        "ayudó",
+        "exterior",
+        "fotografía",
+        "maestra",
+        "dejará",
+        "mueva",
+        "ascensor",
+        "movimientos",
+        "mayo",
+        "mataría"
+      ]
+    },
+    {
+      "fromRank": 3000,
+      "words": [
+        "marcas",
+        "estando",
+        "olvidó",
+        "mínimo",
+        "muro",
+        "siglos",
+        "siguió",
+        "cometer",
+        "baila",
+        "población",
+        "motel",
+        "borracha",
+        "creciendo",
+        "llegara",
+        "entro",
+        "agarrar",
+        "conviene",
+        "nacer"
+      ]
+    },
+    {
+      "fromRank": 5000,
+      "words": [
+        "jugado",
+        "atmósfera",
+        "emergencias",
+        "disposición",
+        "acceder",
+        "esperábamos",
+        "tuviéramos",
+        "compartimos",
+        "visitantes",
+        "muchachas",
+        "estuviéramos",
+        "bufete",
+        "tablero",
+        "cualidades",
+        "blues",
+        "decido",
+        "expedientes",
+        "bolígrafo"
+      ]
+    },
+    {
+      "fromRank": 8000,
+      "words": [
+        "milla",
+        "sabrías",
+        "protesto",
+        "violador",
+        "contable",
+        "utilidad",
+        "activar",
+        "molestas",
+        "cruzados",
+        "insistir",
+        "ganarás",
+        "chequeo",
+        "capataz",
+        "golpean",
+        "cómics",
+        "comunismo",
+        "pirámides",
+        "arrancaré"
+      ]
+    },
+    {
+      "fromRank": 12000,
+      "words": [
+        "abrazos",
+        "cenicienta",
+        "seréis",
+        "mera",
+        "colas",
+        "derramar",
+        "actuaciones",
+        "juras",
+        "lucharemos",
+        "decepcionar",
+        "rogué",
+        "contraste",
+        "ataúdes",
+        "pediatra",
+        "estuche",
+        "quemamos",
+        "gritaban",
+        "grilletes"
+      ]
+    },
+    {
+      "fromRank": 20000,
+      "words": [
+        "epinefrina",
+        "glaciar",
+        "correas",
+        "convertible",
+        "atrapará",
+        "contracción",
+        "auditoría",
+        "ofreceré",
+        "abrazado",
+        "latón",
+        "cervical",
+        "aprenderemos",
+        "extrañará",
+        "reducirá",
+        "abracé",
+        "gro",
+        "barritas",
+        "deshicieron"
+      ]
+    }
+  ]
+}

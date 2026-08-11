@@ -615,10 +615,24 @@ async function main() {
     join(outDir, "frequency.json"),
     JSON.stringify({ source: strategy.frequencyUrl, words }),
   );
-  await writeFile(
-    join(outDir, "placement.json"),
-    JSON.stringify({ maxRank: TEST_MAX_RANK, bands }, null, 2),
-  );
+  // Chinese places by HSK level, not by frequency rank, and `npm run hsk` owns
+  // that file. Writing frequency bands over it here would silently undo the
+  // whole reason it exists - the frequency test could not be failed, because a
+  // subtitle corpus holds no 9,000 rare Chinese words to put in its top band.
+  //
+  // Skipped rather than made an error: everything else this script produces for
+  // Chinese is still wanted, and frequency.json is what build-hsk sorts the
+  // 7-9 band by.
+  if (strategy.code === "zh-CN") {
+    console.log(
+      "Leaving placement.json alone - Chinese bands by HSK level. Run `npm run hsk` to rebuild it.",
+    );
+  } else {
+    await writeFile(
+      join(outDir, "placement.json"),
+      JSON.stringify({ maxRank: TEST_MAX_RANK, bands }, null, 2),
+    );
+  }
   await writeFile(join(outDir, "anchors.json"), JSON.stringify({ anchors }, null, 2));
 
   // Seed an empty samples.json if there is not one already. src/server/frequency
@@ -631,7 +645,11 @@ async function main() {
     console.log(`Seeded empty ${samplesPath} - run \`LANGUAGE=${strategy.code} npm run samples\` to fill it.`);
   }
 
-  console.log(`\nWrote ${outDir}/{frequency,placement,anchors}.json`);
+  console.log(
+    strategy.code === "zh-CN"
+      ? `\nWrote ${outDir}/{frequency,anchors}.json`
+      : `\nWrote ${outDir}/{frequency,placement,anchors}.json`,
+  );
 }
 
 main().catch((err) => {

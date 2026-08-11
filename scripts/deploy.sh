@@ -15,35 +15,69 @@ set -euo pipefail
 # Repo root, regardless of where it is cloned or called from.
 cd "$(dirname "$0")/.."
 
-# Prefer nvm's Node 20 if this host uses nvm; otherwise fall back to the system
-# Node on PATH (the droplet's deploy user has system Node 20, no nvm).
-export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-if [ -s "$NVM_DIR/nvm.sh" ]; then
-  # shellcheck disable=SC1090
-  . "$NVM_DIR/nvm.sh"
-  nvm use 20 >/dev/null
+# The shared droplet lock. Four apps build on one 1 vCPU box, and two concurrent
+# builds collided on 2026-08-07 and nearly hit the OOM killer - carpark and this
+# app, which was the pairing still unprotected until now.
+#
+# A lock is only as good as its worst adopter: carpark and career-side-quests
+# both took this correctly, and it bought them nothing against us, because our
+# builds went straight through theirs. The path and mode are fixed by
+# ~/Git/INFRA.md and must match exactly - separately-named locks never contend,
+# which is how the original collision happened.
+#
+# Taken before `npm ci` so the whole expensive stretch is inside it. An
+# unopenable lock warns and proceeds: failing to serialise is bad, failing to
+# deploy is worse. Never `rm` this file.
+LOCK=/var/lock/droplet-deploy.lock
+if { touch "$LOCK" && chmod 0666 "$LOCK"; } 2>/dev/null || [ -w "$LOCK" ]; then
+  exec 9>>"$LOCK"
+  flock -w 1800 9 \
+    || { echo "!! another deploy held $LOCK for 30m — aborting" >&2; exit 1; }
+else
+  echo "!! WARNING: cannot open $LOCK — proceeding WITHOUT serialisation" >&2
 fi
+
+# No nvm block. It used to `nvm use 20` when nvm was present, which was worse
+# than dead code: the droplet has no nvm so it never fired there, but it DOES
+# fire on a dev machine that has one - pinning that build to Node 20 while
+# production runs 22.23.2 (ABI 127). Whatever Node is on PATH is the one
+# production uses; the guard below checks the addons actually match it.
 
 SERVICE="${FLUENT_SERVICE:-fluent}"
 
-# The word lists are gitignored - ~1MB of rebuildable data - so a fresh clone
-# has to build them before Next can trace the imports. Free: two public
-# downloads and, for Chinese, one model call to vet the sampled items.
-if [ ! -f src/data/es/frequency.json ]; then
-  echo "==> building Spanish word data (first deploy)"
-  npx tsx scripts/build-wordlist.ts
-fi
-if [ ! -f src/data/zh-CN/frequency.json ]; then
-  echo "==> building Chinese word data (first deploy)"
-  LANGUAGE=zh-CN npx tsx scripts/build-wordlist.ts
-fi
-if [ ! -f src/data/id/frequency.json ]; then
-  echo "==> building Indonesian word data (first deploy)"
-  LANGUAGE=id npx tsx scripts/build-wordlist.ts
-fi
+# The word lists are committed now, so these branches are a safety net rather
+# than a step. They used to be the step, and that was a billing hazard waiting
+# for a CI migration: a fresh runner always looks like a first deploy, and the
+# Chinese build spends a model call vetting its sampled items. It was also a
+# correctness hazard - running build-wordlist for zh-CN would overwrite the HSK
+# placement bands with frequency ones, silently undoing the whole point of them.
+#
+# If one of these ever does fire, something has gone wrong with the checkout;
+# say so rather than quietly rebuilding a megabyte of data mid-deploy.
+for lang in es zh-CN id; do
+  if [ ! -f "src/data/$lang/frequency.json" ]; then
+    echo "!! src/data/$lang/frequency.json is missing from the checkout." >&2
+    echo "!! It is committed - this should not happen. Rebuild deliberately with" >&2
+    echo "!!   LANGUAGE=$lang npm run wordlist" >&2
+    echo "!! and check scripts/build-hsk.ts afterwards if this was zh-CN." >&2
+    exit 1
+  fi
+done
 
 echo "==> npm ci (recompiles better-sqlite3 for this host)"
 npm ci
+
+# Prove the native addon actually loads under this host's Node before spending
+# minutes on a build. `require()` is NOT enough and was the version of this
+# guard published first: better-sqlite3 loads its binary inside the Database
+# constructor, so on a genuine ABI mismatch `require` exits 0, the deploy
+# reports success, and the site 500s on its first database request. Constructing
+# something is the whole point.
+#
+# `:memory:` opens no file and touches no live database.
+echo "==> checking better-sqlite3 loads under $(node -v)"
+node -e "new (require('better-sqlite3'))(':memory:').close()" \
+  || { echo "!! better-sqlite3 cannot load under $(node -v) — ABI mismatch" >&2; exit 1; }
 
 # THE SITE IS BROKEN WHILE THIS RUNS, for the length of a build - a few minutes.
 # `.next` is removed, so the running server's own directory is gone: pages still
