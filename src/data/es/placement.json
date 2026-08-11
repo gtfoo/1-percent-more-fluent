@@ -1,0 +1,173 @@
+{
+  "maxRank": 20000,
+  "bands": [
+    {
+      "minRank": 51,
+      "maxRank": 120,
+      "words": [
+        "tengo",
+        "ser",
+        "vez",
+        "tienes",
+        "usted",
+        "sus",
+        "mucho",
+        "también"
+      ],
+      "pseudowords": [
+        "tingo",
+        "caando",
+        "nes",
+        "neda",
+        "sar"
+      ]
+    },
+    {
+      "minRank": 121,
+      "maxRank": 300,
+      "words": [
+        "hombre",
+        "parece",
+        "momento",
+        "allí",
+        "parte",
+        "razón",
+        "debería",
+        "buenas"
+      ],
+      "pseudowords": [
+        "hembre",
+        "saempre",
+        "antos",
+        "nache",
+        "pirece"
+      ]
+    },
+    {
+      "minRank": 301,
+      "maxRank": 700,
+      "words": [
+        "esas",
+        "dijiste",
+        "doctor",
+        "auto",
+        "tuve",
+        "correcto",
+        "fuego",
+        "vuelve"
+      ],
+      "pseudowords": [
+        "esis",
+        "rápedo",
+        "paerta",
+        "jantos",
+        "haja"
+      ]
+    },
+    {
+      "minRank": 701,
+      "maxRank": 1500,
+      "words": [
+        "dejó",
+        "bonito",
+        "terminar",
+        "doy",
+        "joder",
+        "nivel",
+        "nota",
+        "cine"
+      ],
+      "pseudowords": [
+        "dajó",
+        "sapone",
+        "dasculpe",
+        "abagado",
+        "tanías"
+      ]
+    },
+    {
+      "minRank": 1501,
+      "maxRank": 3000,
+      "words": [
+        "preguntar",
+        "nacional",
+        "china",
+        "claramente",
+        "equivocada",
+        "bolsillo",
+        "matando",
+        "ganó"
+      ],
+      "pseudowords": [
+        "praguntar",
+        "calegio",
+        "pered",
+        "narvioso",
+        "estúpada"
+      ]
+    },
+    {
+      "minRank": 3001,
+      "maxRank": 6000,
+      "words": [
+        "marcas",
+        "concurso",
+        "escándalo",
+        "golpeado",
+        "población",
+        "imaginas",
+        "actividades",
+        "vigilar"
+      ],
+      "pseudowords": [
+        "mircas",
+        "daspedida",
+        "pentalla",
+        "meleta",
+        "estavieras"
+      ]
+    },
+    {
+      "minRank": 6001,
+      "maxRank": 11000,
+      "words": [
+        "barro",
+        "yang",
+        "perfección",
+        "teorías",
+        "ratones",
+        "camisetas",
+        "repentinamente",
+        "honores"
+      ],
+      "pseudowords": [
+        "birro",
+        "prategiendo",
+        "cedenas",
+        "ocapo",
+        "pertículas"
+      ]
+    },
+    {
+      "minRank": 11001,
+      "maxRank": 20000,
+      "words": [
+        "hilos",
+        "cereza",
+        "robe",
+        "empapado",
+        "cariñosa",
+        "norteamericana",
+        "vagar",
+        "consumido"
+      ],
+      "pseudowords": [
+        "helos",
+        "aplestar",
+        "praferirías",
+        "acampañado",
+        "vegabundos"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "maxRank": 20000,
+  "bands": [
+    {
+      "minRank": 51,
+      "maxRank": 120,
+      "words": [
+        "mungkin",
+        "pernah",
+        "datang",
+        "terjadi",
+        "bagus",
+        "mana",
+        "memiliki",
+        "ayah"
+      ],
+      "pseudowords": [
+        "mungkun",
+        "kaliin",
+        "lakukin",
+        "kirena",
+        "sangut"
+      ]
+    },
+    {
+      "minRank": 121,
+      "maxRank": 300,
+      "words": [
+        "tunggu",
+        "selalu",
+        "tinggal",
+        "luar",
+        "tanpa",
+        "segera",
+        "sebentar",
+        "untukmu"
+      ],
+      "pseudowords": [
+        "tanggu",
+        "semuunya",
+        "mengatakin",
+        "masik",
+        "dengir"
+      ]
+    },
+    {
+      "minRank": 301,
+      "maxRank": 700,
+      "words": [
+        "cuma",
+        "mendapat",
+        "lari",
+        "membutuhkan",
+        "mencintaimu",
+        "menghancurkan",
+        "begini",
+        "hukum"
+      ],
+      "pseudowords": [
+        "cama",
+        "memberikin",
+        "ciba",
+        "secira",
+        "berirti"
+      ]
+    },
+    {
+      "minRank": 701,
+      "maxRank": 1500,
+      "words": [
+        "udara",
+        "ditemukan",
+        "emas",
+        "pangeran",
+        "dendam",
+        "adik",
+        "kembalikan"
+      ],
+      "pseudowords": [
+        "udira",
+        "putah",
+        "keamanin",
+        "menyerih",
+        "akul"
+      ]
+    },
+    {
+      "minRank": 1501,
+      "maxRank": 3000,
+      "words": [
+        "juara",
+        "ukuran",
+        "membahas",
+        "kutemukan",
+        "banget",
+        "tuamu",
+        "petani"
+      ],
+      "pseudowords": [
+        "cana",
+        "kolanel",
+        "teknolagi",
+        "keberuntungin",
+        "diantira"
+      ]
+    },
+    {
+      "minRank": 3001,
+      "maxRank": 6000,
+      "words": [
+        "kedinginan",
+        "pistolnya",
+        "tragedi",
+        "jubah",
+        "tampilan",
+        "janda",
+        "mengingatkanmu",
+        "bertanding"
+      ],
+      "pseudowords": [
+        "kedinginin",
+        "kekuatinnya",
+        "logim",
+        "menundik",
+        "undangin"
+      ]
+    },
+    {
+      "minRank": 6001,
+      "maxRank": 11000,
+      "words": [
+        "ambisi",
+        "sengsara",
+        "mendidih",
+        "membuatkanmu",
+        "terompet",
+        "melatihnya",
+        "bumbu",
+        "poni"
+      ],
+      "pseudowords": [
+        "ambasi",
+        "penasihit",
+        "penghubang",
+        "membantii",
+        "pribadaku"
+      ]
+    },
+    {
+      "minRank": 11001,
+      "maxRank": 20000,
+      "words": [
+        "sudi",
+        "sejatimu",
+        "mendatanginya",
+        "regenerasi",
+        "merayunya",
+        "bervariasi",
+        "terucap"
+      ],
+      "pseudowords": [
+        "didepinku",
+        "dicintaanya",
+        "pengantonnya",
+        "menghargaamu",
+        "kelompaknya"
+      ]
+    }
+  ]
+}
