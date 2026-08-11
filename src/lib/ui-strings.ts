@@ -357,6 +357,11 @@ export interface UiFormatters {
    */
   upFrom(band: string): string;
   downFrom(band: string): string;
+  /**
+   * The rest of the reading list, behind a toggle. Only ever called with n > 0
+   * - a summary offering "0 more" is a control that does nothing.
+   */
+  morePieces(n: number): string;
   acrossPieces(n: number): string;
   coveredCells(filled: number, total: number): string;
   otherPieces(n: number): string;
@@ -380,6 +385,7 @@ export const EN_FORMAT: UiFormatters = {
   aimingFor: (sentenceWords, newWordPercent) =>
     `Aiming for ~${sentenceWords}-word sentences and ${newWordPercent}% new vocabulary`,
   metInPieces: (n) => `You needed this one in ${n} different pieces`,
+  morePieces: (n) => `${n} more`,
   upFrom: (band) => `Up from ${band},`,
   downFrom: (band) =>
     `Down from ${band} — the check was a guess from a word list, and this is measured from what you have actually read —`,

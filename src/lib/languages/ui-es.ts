@@ -7,6 +7,7 @@ export const FORMAT_ES: UiFormatters = {
   aimingFor: (sentenceWords, newWordPercent) =>
     `Busca frases de unas ${sentenceWords} palabras y un ${newWordPercent}% de vocabulario nuevo`,
   metInPieces: (n) => `Has necesitado esta palabra en ${n} textos distintos`,
+  morePieces: (n) => `${n} más`,
   upFrom: (band) => `Has subido desde ${band},`,
   downFrom: (band) =>
     `Has bajado desde ${band} — la prueba era una estimación a partir de una lista, y esto se mide con lo que has leído de verdad —`,

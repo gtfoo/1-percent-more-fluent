@@ -5,6 +5,7 @@ export const FORMAT_ID: UiFormatters = {
   aimingFor: (sentenceWords, newWordPercent) =>
     `Menargetkan kalimat sekitar ${sentenceWords} kata dengan ${newWordPercent}% kosakata baru`,
   metInPieces: (n) => `Kata ini kamu cari di ${n} bacaan berbeda`,
+  morePieces: (n) => `${n} lagi`,
   upFrom: (band) => `Naik dari ${band},`,
   downFrom: (band) =>
     `Turun dari ${band} — tes itu menebak dari daftar kata, sedangkan ini diukur dari yang benar-benar kamu baca —`,

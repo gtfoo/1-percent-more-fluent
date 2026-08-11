@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getLanguage } from "@/lib/languages";
 import { splitTurns, type Speaker } from "@/lib/dialogue";
 import { mergeTermTokens, termSpans, type TopicTerm } from "@/lib/terms";
+import { phraseSpans, withPhrase, type PhraseShape } from "@/lib/phrases";
 
 // `import type`, so this is erased at compile time and no server code - or the
 // better-sqlite3 binary behind it - reaches the client bundle. The shape was
@@ -77,6 +78,23 @@ export function Reader({
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(
     null,
   );
+  /**
+   * Phrases the reader has BUILT out of more than one token, as
+   * `{ key, length }` - the normalised text and how many word tokens it spans.
+   *
+   * `glosses` is keyed by text, so a phrase like 我们 is stored under "我们"
+   * and matches neither 我 nor 们 when each token asks "have I been looked
+   * up?". The result was that assembling a compound with the arrows underlined
+   * nothing, and tapping either half afterwards started a fresh one-character
+   * selection - so the reader had to rebuild the same phrase every time they
+   * met it. The whole point of the arrows is to overrule the segmenter, and the
+   * overrule lasted exactly one lookup.
+   *
+   * Stored as a length rather than a range so it applies to EVERY occurrence,
+   * the way a single-word lookup already does: build 我们 once and it is joined
+   * wherever it appears in the piece.
+   */
+  const [phrases, setPhrases] = useState<PhraseShape[]>([]);
   const [glossLoading, setGlossLoading] = useState(false);
   const [wordAudio, setWordAudio] = useState<string | null>(null);
   const [wordAudioBusy, setWordAudioBusy] = useState(false);
@@ -359,6 +377,14 @@ export function Reader({
   async function lookUpRange(range: { start: number; end: number }) {
     const raw = textOf(range);
 
+    // Remember the shape before anything can return early. A phrase the reader
+    // assembled is worth keeping whether the lookup hits the cache, succeeds,
+    // or fails - what is being recorded is "these tokens belong together",
+    // which the reader decided, not the dictionary.
+    setPhrases((prev) =>
+      withPhrase(prev, glossKeyFor(raw), range.end - range.start + 1),
+    );
+
     // A declared topic term already carries its meaning, so tapping one costs
     // no API call. It also stays out of the lookup rate, which is the point:
     // the reader is MEANT not to know these words, so tapping one is not
@@ -478,6 +504,24 @@ export function Reader({
     }
   }
 
+  /**
+   * Every word index that sits inside a phrase, mapped to that phrase's range.
+   *
+   * Rebuilt from the phrase SHAPES rather than remembered as ranges, so one
+   * lookup joins every occurrence. Longest first: having built both 我们 and
+   * 我们的, a tap should get the longer reading rather than whichever was
+   * looked up first.
+   *
+   * Blocks are respected the same way `extend` respects them - a phrase cannot
+   * straddle two speakers' turns just because the characters line up.
+   */
+  const spans = useMemo(
+    () => phraseSpans(words, (start, end) => glossKeyFor(textOf({ start, end })), phrases),
+    // textOf and glossKeyFor are pure over exactly these.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [phrases, words, sourceText, piece.terms],
+  );
+
   const selectedText = selection ? textOf(selection) : null;
   const activeGloss = selectedText
     ? glosses.get(glossKeyFor(selectedText))
@@ -489,6 +533,22 @@ export function Reader({
     setSelection(range);
     setWordAudio(null);
     void lookUpRange(range);
+  }
+
+  /**
+   * Tapping a word: take the whole phrase if this word is inside one the reader
+   * has already built, otherwise just the word.
+   *
+   * This is what makes the arrows worth using more than once. Without it,
+   * tapping 我 after building 我们 dropped straight back to one character and
+   * the compound had to be reassembled every time.
+   */
+  function selectAt(i: number) {
+    const span = spans.get(i);
+    if (!span) return selectWord(i);
+    setSelection(span);
+    setWordAudio(null);
+    void lookUpRange(span);
   }
 
   /**
@@ -642,9 +702,13 @@ export function Reader({
               {block.tokens.map((token, j) => {
                 if (!token.isWord) return <span key={j}>{token.text}</span>;
                 const key = glossKeyFor(token.text);
-                const isLookedUp = glosses.has(key);
-                const isTerm = Boolean(termFor(token.text));
                 const w = token.wordIndex!;
+                // A token counts as looked up on its own account, or because it
+                // is part of a phrase the reader assembled - which is what
+                // draws 我们 as one underline rather than leaving both halves
+                // bare.
+                const isLookedUp = glosses.has(key) || spans.has(w);
+                const isTerm = Boolean(termFor(token.text));
                 const inSelection =
                   selection !== null && w >= selection.start && w <= selection.end;
                 return (
@@ -655,9 +719,9 @@ export function Reader({
                     }}
                     role="button"
                     tabIndex={0}
-                    onClick={() => selectWord(w)}
+                    onClick={() => selectAt(w)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") selectWord(w);
+                      if (e.key === "Enter") selectAt(w);
                     }}
                     className={`word${isLookedUp ? " looked-up" : ""}${
                       isTerm ? " term" : ""

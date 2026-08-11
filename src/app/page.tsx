@@ -10,6 +10,16 @@ import { getLanguage, LANGUAGES } from "@/lib/languages";
 import { uiFor } from "@/lib/ui";
 import { Compose } from "@/components/Compose";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import type { Language } from "@/lib/languages";
+
+/**
+ * How much of the reading history stays open.
+ *
+ * listPieces returns twenty, and all twenty sat expanded beneath the two things
+ * a returning reader is here for. Five is enough to recognise "the one I was
+ * partway through" without pushing everything else off the screen.
+ */
+const RECENT_SHOWN = 5;
 
 export default async function Home() {
   const userId = await getUserId();
@@ -161,21 +171,40 @@ export default async function Home() {
           <h2 className="mb-4 text-xl font-semibold tracking-tight">
             {t.everythingRead}
           </h2>
+          {/* The newest few, then the rest behind a toggle. This list runs to
+              twenty and sat fully expanded under the two things people
+              actually come here for - the compose box and the level - so a
+              regular reader had to scroll past their whole history to reach
+              anything below it.
+
+              A <details> rather than a button: it needs no JavaScript, no
+              client component and no state, it is keyboard-operable and
+              screen-reader-announced for free, and the browser remembers
+              nothing between visits - which is right, since collapsed is the
+              state that suits the page. */}
           <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
-            {recent.map((p) => (
-              <li key={p.id}>
-                <Link
-                  href={`/read/${p.id}`}
-                  className="flex items-baseline justify-between gap-4 px-5 py-3 hover:bg-accent-soft"
-                >
-                  <span className="font-medium">{p.title}</span>
-                  <span className="shrink-0 text-sm text-muted">
-                    {p.format} · {labelFor(p.level, language)}
-                  </span>
-                </Link>
-              </li>
+            {recent.slice(0, RECENT_SHOWN).map((p) => (
+              <PieceRow key={p.id} piece={p} language={language} />
             ))}
           </ul>
+          {recent.length > RECENT_SHOWN && (
+            <details className="group mt-3">
+              <summary className="cursor-pointer list-none text-sm text-muted underline-offset-4 hover:text-accent hover:underline">
+                {f.morePieces(recent.length - RECENT_SHOWN)}
+                <span aria-hidden="true" className="ml-1 inline-block group-open:hidden">
+                  ▾
+                </span>
+                <span aria-hidden="true" className="ml-1 hidden group-open:inline-block">
+                  ▴
+                </span>
+              </summary>
+              <ul className="mt-3 divide-y divide-border rounded-xl border border-border bg-surface">
+                {recent.slice(RECENT_SHOWN).map((p) => (
+                  <PieceRow key={p.id} piece={p} language={language} />
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
       )}
 
@@ -192,5 +221,28 @@ export default async function Home() {
         </p>
       )}
     </div>
+  );
+}
+
+/** One row of the reading history, rendered the same above and below the fold. */
+function PieceRow({
+  piece,
+  language,
+}: {
+  piece: { id: string; title: string; format: string; level: number };
+  language: Language;
+}) {
+  return (
+    <li>
+      <Link
+        href={`/read/${piece.id}`}
+        className="flex items-baseline justify-between gap-4 px-5 py-3 hover:bg-accent-soft"
+      >
+        <span className="font-medium">{piece.title}</span>
+        <span className="shrink-0 text-sm text-muted">
+          {piece.format} · {labelFor(piece.level, language)}
+        </span>
+      </Link>
+    </li>
   );
 }

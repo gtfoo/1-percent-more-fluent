@@ -7,6 +7,8 @@ export const FORMAT_ZH_CN: UiFormatters = {
   // 篇 is the measure word for a piece of writing.
   metInPieces: (n) => `这个词你在 ${n} 篇里都查过`,
   // 篇 for pieces, 天 for days - a bare number slot would drop every one of them.
+  // 篇 for pieces again.
+  morePieces: (n) => `还有 ${n} 篇`,
   upFrom: (band) => `从 ${band} 升上来，`,
   downFrom: (band) =>
     `从 ${band} 降下来 —— 当初那是照词表估的，现在这个是照你真正读过的算的 ——`,
