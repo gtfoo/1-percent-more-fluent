@@ -22,15 +22,28 @@ import { FORMATS, type Format } from "@/lib/formats";
 import { DAY_FINISHED, DAY_LOOKED, DAY_MADE, type DayWeight, type ReadingDay } from "@/lib/streaks";
 
 export interface ProgressSummary {
-  /** Words the placement test guessed, or the earliest level we ever saw. */
-  thenWords: number;
+  /**
+   * Where the reader started and where they are, as LEVELS - never as a
+   * number of words.
+   *
+   * The app used to publish "you can read about 2,269 words", which was the
+   * count of entries in the top N of an OpenSubtitles frequency list. That
+   * list holds word forms, not words: at least a third of the top 20,000
+   * Spanish entries are a plural or a conjugation of a base form already in
+   * the same list, and its tail is proper nouns and English. The number read
+   * roughly three times higher than any honest reading of "words you know",
+   * and the readers best placed to judge it were the ones who did not believe
+   * it.
+   *
+   * The level survives because it is not a claim about the world: it is this
+   * app's own dial, calibrated against how much a reader actually looks up.
+   * The band it maps to - B2, HSK 4 - is what a reader recognises. Both are
+   * kept; the count is gone.
+   */
   thenLevel: number;
-  /** Words the current level implies. */
-  nowWords: number;
   nowLevel: number;
-  /** Signed. A reader who has gone backwards is told so. */
-  deltaWords: number;
-  percent: number;
+  /** Signed, in level points. A reader who has gone backwards is told so. */
+  delta: number;
   /** Readings finished in this language. */
   sessions: number;
   /** True when the "then" is the placement rather than a guess from a reading. */
@@ -57,27 +70,26 @@ export function progressSummary(userId: string, code: string): ProgressSummary |
     .get(userId, code) as { sessions: number; earliest: number | null };
 
   const nowLevel = profile.level;
-  const nowWords = vocabSizeFor(nowLevel);
 
   // The placement is the honest starting point when we have it. Falling back
   // to the earliest level we ever recorded is second best and flagged as such,
   // because it is not where they started - it is the first time we looked.
+  //
+  // vocab_estimate is still what the placement wrote, so it is still converted
+  // through levelForVocab to get a level. That conversion is internal: the
+  // estimate is the test's own raw output, and the level is what anyone sees.
   const fromPlacement = profile.vocabEstimate !== null;
-  const thenWords = fromPlacement
-    ? profile.vocabEstimate!
-    : vocabSizeFor(row.earliest ?? nowLevel);
-  const thenLevel = levelForVocab(thenWords);
+  const thenLevel = fromPlacement
+    ? levelForVocab(profile.vocabEstimate!)
+    : (row.earliest ?? nowLevel);
 
   return {
-    thenWords,
     thenLevel,
-    nowWords,
     nowLevel,
-    deltaWords: nowWords - thenWords,
-    // NOT clamped at zero. A reader whose level has come down is shown a
-    // negative number, because the alternative is a progress page that lies
-    // on exactly the days it matters.
-    percent: thenWords > 0 ? Math.round((nowWords / thenWords - 1) * 100) : 0,
+    // NOT clamped at zero. A reader whose level has come down is told so,
+    // because the alternative is a progress page that lies on exactly the
+    // days it matters.
+    delta: nowLevel - thenLevel,
     sessions: row.sessions,
     fromPlacement,
   };

@@ -2,13 +2,12 @@ import type { UiFormatters, UiStrings } from "../ui-strings";
 
 /** Server-only, because these are functions. See UiFormatters. */
 export const FORMAT_ID: UiFormatters = {
-  aboutWords: (band) => `· sekitar ${band} kata`,
   aimingFor: (sentenceWords, newWordPercent) =>
     `Menargetkan kalimat sekitar ${sentenceWords} kata dengan ${newWordPercent}% kosakata baru`,
   metInPieces: (n) => `Kata ini kamu cari di ${n} bacaan berbeda`,
-  grownBy: (words, percent) => `${words} kata lebih banyak daripada waktu kamu mulai — naik ${percent}%.`,
-  shrunkBy: (words, percent) =>
-    `${words} kata lebih sedikit daripada tebakan tes, ${percent}% di bawahnya. Tes itu menebak dari daftar kata; angka ini diukur dari yang benar-benar kamu baca.`,
+  upFrom: (band) => `Naik dari ${band},`,
+  downFrom: (band) =>
+    `Turun dari ${band} — tes itu menebak dari daftar kata, sedangkan ini diukur dari yang benar-benar kamu baca —`,
   acrossPieces: (n) => `dari ${n} bacaan yang kamu selesaikan`,
   coveredCells: (filled, total) => `${filled} dari ${total} kotak`,
   otherPieces: (n) => `Ditambah ${n} bacaan yang tidak masuk ke bidang mana pun di atas.`,
@@ -127,7 +126,7 @@ export const UI_ID: UiStrings = {
 
   progressNav: "Perkembanganmu",
   progressHeading: "Sejauh apa kamu sudah melangkah",
-  wordsYouCanRead: "Kata yang bisa kamu baca",
+  yourLevel: "Levelmu",
   whenYouStarted: "Waktu kamu mulai",
   rightNow: "Sekarang",
   levelHeading: "Levelmu, bacaan demi bacaan",

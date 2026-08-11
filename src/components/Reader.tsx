@@ -532,9 +532,10 @@ export function Reader({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "could not adjust");
-      setOverride(
-        `Level moved to ${data.label} (about ${data.vocabBand.toLocaleString()} words). The next piece will be ${direction}.`,
-      );
+      // The band, without the parenthetical word count that used to follow it.
+      // See ProgressSummary: that figure was the size of a slice of a subtitle
+      // frequency list, not a count of anything the reader knows.
+      setOverride(`Level moved to ${data.label}. The next piece will be ${direction}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.couldNotAdjust);
     }

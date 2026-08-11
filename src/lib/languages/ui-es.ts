@@ -2,15 +2,14 @@ import type { UiFormatters, UiStrings } from "../ui-strings";
 
 /** Server-only, because these are functions. See UiFormatters. */
 export const FORMAT_ES: UiFormatters = {
-  aboutWords: (band) => `· unas ${band} palabras`,
   // Word order moves - Spanish puts the percentage phrase differently - which is
   // exactly why these are functions rather than templates with numbered slots.
   aimingFor: (sentenceWords, newWordPercent) =>
     `Busca frases de unas ${sentenceWords} palabras y un ${newWordPercent}% de vocabulario nuevo`,
   metInPieces: (n) => `Has necesitado esta palabra en ${n} textos distintos`,
-  grownBy: (words, percent) => `${words} palabras más que al empezar — un ${percent}% más.`,
-  shrunkBy: (words, percent) =>
-    `${words} menos de las que calculó la prueba, un ${percent}% por debajo. La prueba era una estimación a partir de una lista; esto se mide con lo que has leído de verdad.`,
+  upFrom: (band) => `Has subido desde ${band},`,
+  downFrom: (band) =>
+    `Has bajado desde ${band} — la prueba era una estimación a partir de una lista, y esto se mide con lo que has leído de verdad —`,
   acrossPieces: (n) => `en ${n} textos que terminaste`,
   coveredCells: (filled, total) => `${filled} de ${total} cuadros`,
   otherPieces: (n) => `Y ${n} textos que no encajaban en ninguno de estos temas.`,
@@ -118,7 +117,7 @@ export const UI_ES: UiStrings = {
 
   progressNav: "Tu progreso",
   progressHeading: "Cuánto has avanzado",
-  wordsYouCanRead: "Palabras que puedes leer",
+  yourLevel: "Tu nivel",
   whenYouStarted: "Cuando empezaste",
   rightNow: "Ahora mismo",
   levelHeading: "Tu nivel, texto a texto",

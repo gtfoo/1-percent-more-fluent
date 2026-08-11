@@ -53,29 +53,38 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -b "fluent_uid=$USER_ID" "$BASE/pr
 [ "$code" = "200" ] && ok "HTTP 200" 1 || ok "HTTP 200" 0 "HTTP $code"
 # Level 41 is over Spanish's uiFromLevel of 40, so the chrome is Spanish.
 has "heading, in Spanish" "Cuánto has avanzado" "$html"
-has "the headline is words, not a level" "Palabras que puedes leer" "$html"
+has "the headline is the band" "Tu nivel" "$html"
 has "the level section" "Tu nivel, texto a texto" "$html"
 has "the breadth grid" "Sobre qué has leído" "$html"
 has "the reading days" "Días que leíste" "$html"
 hasnt "no empty state, this reader has read" "Todavía no hay nada que mostrar" "$html"
 
 echo
-echo "--- the numbers ---"
-# The placement wrote 1400; the profile sits at level 41. Both halves of the
-# then-vs-now must be present, and they must not be the same number.
-#
-# Written the SPANISH way, exactly: Spanish groups from five digits, so 1400 is
-# "1400" with no separator at all. The English form "1,400" appearing here would
-# mean the page had fallen back to the server's own locale, which is the bug
-# these assertions exist to catch. See localeFor.
-has "where the placement put them, written in Spanish" ">1400" "$html"
-has "where they are now" ">2269" "$html"
-hasnt "and not with English separators" "1,400" "$html"
+echo "--- bands, and no vocabulary count anywhere ---"
+# The fixture placed at 1400 words (level ~28, A2) and now sits at level 41
+# (B1). Both ends of the journey must be present, as BANDS.
+has "where they are now" ">B1<" "$html"
+has "and where the check put them" "A2" "$html"
 has "nine finished readings counted" "en 9 textos que terminaste" "$html"
-# The fixture went 32 -> 41 and 1400 -> ~2269, so the growth sentence is the one
-# that must appear. The shrunk one is a DIFFERENT sentence, not a sign flip, and
-# picking the wrong one is the failure this catches.
-has "growth is worded as growth" "palabras más que al empezar" "$html"
+# The growth sentence, not the shrink one. They are different sentences rather
+# than one with a sign, and picking the wrong one is what this catches.
+has "going up is worded as going up" "Has subido desde A2" "$html"
+
+# The whole point of the change. That figure was the size of a slice of an
+# OpenSubtitles frequency list - word forms, proper nouns and English included -
+# presented as a count of what the reader knows. It must not survive anywhere on
+# the page, in any locale's spelling of it.
+for n in "1400" "1.400" "1,400" "2269" "2.269" "2,269"; do
+  hasnt "no vocabulary count on the page ($n)" "$n" "$html"
+done
+# ...nor on the home page, which used to carry "· unas 2269 palabras" beside
+# the band and a raw count in the row that opens this page.
+home=$(get /)
+# Matched on the middot that aboutWords carried, not on the word "palabras" -
+# the home page legitimately says "frases de unas 14 palabras" in the aiming
+# line, and matching that would fail whatever the level card did.
+hasnt "nor beside the level on the home page" "· unas" "$home"
+hasnt "nor in the row that links here" ">2269<" "$home"
 # Six distinct cells, from nine readings: philosophy/story was read twice, and
 # the 'other' and unlabelled ones are footnotes rather than cells.
 has "six of twenty-four squares covered" "6 de 24 cuadros" "$html"
@@ -104,7 +113,12 @@ echo "$html" | grep -q 'vectorEffect\|vector-effect' && ok "strokes do not scale
 echo "$html" | grep -q 'stroke-dasharray="3 3"' && ok "the self-adjusted gap is drawn dotted" 1 \
   || ok "the self-adjusted gap is drawn dotted" 0
 has "the legend says what dotted means" "ajustaste el nivel tú mismo" "$html"
-has "and where the check put them" "Donde te situó la prueba de nivel" "$html"
+has "and the legend names the placement dot" "Donde te situó la prueba de nivel" "$html"
+# The y axis is ticked in bands. A tick reading "2054" was quoting the same
+# discredited count as the old headline, in smaller type.
+echo "$html" | grep -qE '>(A1|A2|B1|B2|C1|C2)</text>' \
+  && ok "the axis is ticked in bands, not word counts" 1 \
+  || ok "the axis is ticked in bands, not word counts" 0
 # --warn is this app's error colour. A level coming down is the app working.
 hasnt "a drop is not coloured as an error" "var(--warn)" "$html"
 
@@ -143,9 +157,11 @@ en=$(get /progress ";fluent_ui=english")
 has "the same page in English" "How far you’ve come" "$en"
 has "English field labels too" "Money" "$en"
 hasnt "and no Spanish left behind" "Sobre qué has leído" "$en"
-# The same figure, the English way. Both halves of this pair have to hold for
-# the locale to be following the chrome rather than the server.
-has "and English separators with it" "1,400" "$en"
+# The locale still has to follow the chrome, but there are no thousands left on
+# this page to prove it with. The calendar's month names carry it instead:
+# Spanish gives "ago"/"sept" lowercase, English gives "Aug"/"Sep" capitalised.
+echo "$en" | grep -qE '>(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)</text>' \
+  && ok "and the months are English too" 1 || ok "and the months are English too" 0
 
 echo
 echo "--- the day boundary is the reader's, not Greenwich's ---"
@@ -166,7 +182,7 @@ junk=$(get /progress ";fluent_tz=nonsense")
 has "junk in the cookie falls back rather than blanking" "2026-07-19 — 1" "$junk"
 home=$(get /)
 has "a row linking to it" 'href="/progress"' "$home"
-has "saying what it shows, not naming a section" "Palabras que puedes leer" "$home"
+has "saying what it shows, not naming a section" "Tu nivel" "$home"
 
 echo
 echo "--- a reader who has not read anything yet ---"

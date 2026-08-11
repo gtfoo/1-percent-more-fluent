@@ -20,7 +20,7 @@ export function LevelChart({
   summary,
   firstDay,
   lastDay,
-  locale,
+  tickLabel,
 }: {
   points: LevelPoint[];
   t: UiStrings;
@@ -29,8 +29,12 @@ export function LevelChart({
   /** The ends of the series, already reduced to a day. */
   firstDay?: string;
   lastDay?: string;
-  /** For the axis figures, which are word counts in the thousands. */
-  locale: string;
+  /**
+   * The y axis, in the reader's own terms. Takes a level and returns the band
+   * - "B2", "HSK 4" - because that is the only reading of the axis this app
+   * can defend; it used to print a word count off a subtitle frequency list.
+   */
+  tickLabel: (level: number) => string;
 }) {
   const box = DEFAULT_BOX;
   const plot = plotLevels(points, box);
@@ -54,9 +58,10 @@ export function LevelChart({
       >
         <title>{summary}</title>
 
-        {/* Gridlines and the words each one is worth. The axis is labelled in
-            words rather than levels because that is the promise in the app's
-            name; the level number is the machinery underneath. */}
+        {/* Gridlines, labelled with the band each one falls in. Several ticks
+            can land in the same band - the scale is continuous and the bands
+            are not - so a repeated label is correct rather than a bug: it says
+            this stretch of the axis is all B1. */}
         {plot.ticks.map((tick) => (
           <g key={tick.level}>
             <line
@@ -78,7 +83,7 @@ export function LevelChart({
               fontSize={12}
               fill="var(--muted)"
             >
-              {tick.words.toLocaleString(locale)}
+              {tickLabel(tick.level)}
             </text>
           </g>
         ))}

@@ -132,7 +132,11 @@ export interface UiStrings {
   // Progress. Read back out of data the app was already keeping.
   progressNav: string;
   progressHeading: string;
-  wordsYouCanRead: string;
+  /**
+   * Labels the band, not a word count. This used to be "Words you can read"
+   * over a number derived from a subtitle frequency list - see UiFormatters.
+   */
+  yourLevel: string;
   whenYouStarted: string;
   rightNow: string;
   levelHeading: string;
@@ -269,7 +273,7 @@ export const EN: UiStrings = {
 
   progressNav: "Your progress",
   progressHeading: "How far you’ve come",
-  wordsYouCanRead: "Words you can read",
+  yourLevel: "Your level",
   whenYouStarted: "When you started",
   rightNow: "Right now",
   levelHeading: "Your level, piece by piece",
@@ -313,20 +317,24 @@ export const EN: UiStrings = {
  * fill a slot.
  */
 export interface UiFormatters {
-  aboutWords(band: string): string;
   aimingFor(sentenceWords: number, newWordPercent: number): string;
   /** Only ever called with n > 1 - "met in 1 piece" is noise, not information. */
   metInPieces(n: number): string;
 
   /**
-   * Growth and its opposite, as TWO functions rather than one with a sign
+   * Which way the level has gone, as TWO functions rather than one with a sign
    * branch. The honest negative wording is a different sentence, not the same
    * sentence with a minus in it - a translator has to be able to write it as
-   * one. Both take the word count pre-formatted, like aboutWords, and the
-   * percentage as a number.
+   * one.
+   *
+   * Both take the band the reader STARTED at, already formatted - "A2", "HSK 3"
+   * - and never a number of words. The app used to say "869 more words than
+   * when you started", which was counting entries in a subtitle-derived list:
+   * word forms, proper nouns and English included. The band is the part that
+   * survived scrutiny.
    */
-  grownBy(words: string, percent: number): string;
-  shrunkBy(words: string, percent: number): string;
+  upFrom(band: string): string;
+  downFrom(band: string): string;
   acrossPieces(n: number): string;
   coveredCells(filled: number, total: number): string;
   otherPieces(n: number): string;
@@ -347,13 +355,12 @@ export interface UiFormatters {
 }
 
 export const EN_FORMAT: UiFormatters = {
-  aboutWords: (band) => `· about ${band} words`,
   aimingFor: (sentenceWords, newWordPercent) =>
     `Aiming for ~${sentenceWords}-word sentences and ${newWordPercent}% new vocabulary`,
   metInPieces: (n) => `You needed this one in ${n} different pieces`,
-  grownBy: (words, percent) => `${words} more words than when you started — ${percent}% more.`,
-  shrunkBy: (words, percent) =>
-    `${words} fewer than the check first guessed, and ${percent}% below it. The check was a guess from a word list; this is measured from what you have actually read.`,
+  upFrom: (band) => `Up from ${band},`,
+  downFrom: (band) =>
+    `Down from ${band} — the check was a guess from a word list, and this is measured from what you have actually read —`,
   acrossPieces: (n) => `across ${n} pieces you finished`,
   coveredCells: (filled, total) => `${filled} of ${total} squares`,
   otherPieces: (n) => `Plus ${n} pieces that did not fit any of these subjects.`,

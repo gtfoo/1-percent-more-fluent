@@ -7,7 +7,7 @@ import { uiFor } from "@/lib/ui";
 import { fieldLabels } from "@/lib/field-labels";
 import { FIELDS } from "@/lib/suggestions";
 import { FORMATS, type Format } from "@/lib/formats";
-import { levelForVocab } from "@/lib/level";
+import { labelFor } from "@/lib/level";
 import { cookies } from "next/headers";
 import { TZ_COOKIE } from "@/lib/cookies";
 import { currentRun, dayShift, daysRead, fillDays, localDay, longestRun } from "@/lib/streaks";
@@ -37,11 +37,10 @@ export default async function ProgressPage() {
     profile.level,
     await getUiPreference(),
   );
-  // Every number on this page is a word count in the thousands, so the
-  // separator is doing real work: "2.269" and "2,269" are the same figure in
-  // Spanish and English and a thousandfold apart if you read them the other
-  // way round. See localeFor.
-  const num = (n: number) => n.toLocaleString(locale);
+  // Levels are shown as the band the reader recognises - B2, HSK 4 - and never
+  // as a number of words. See ProgressSummary for what the count was actually
+  // counting and why it is gone.
+  const band = (level: number) => labelFor(level, language);
 
   const summary = progressSummary(profile.userId, language.code);
   if (!summary) redirect("/");
@@ -82,7 +81,7 @@ export default async function ProgressPage() {
             <p className="font-medium">{t.noProgressYet}</p>
             <p className="mx-auto mt-2 max-w-sm text-sm text-muted">{t.noProgressYetNote}</p>
             <p className="mt-4 text-sm text-muted">
-              {t.whenYouStarted}: {num(summary.thenWords)}
+              {t.whenYouStarted}: {band(summary.thenLevel)}
             </p>
             <Link
               href="/"
@@ -93,24 +92,32 @@ export default async function ProgressPage() {
           </div>
         ) : (
           <>
-            <p className="text-sm uppercase tracking-wide text-muted">{t.wordsYouCanRead}</p>
+            <p className="text-sm uppercase tracking-wide text-muted">{t.yourLevel}</p>
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-              <span className="text-4xl font-semibold tabular-nums">
-                {num(summary.nowWords)}
-              </span>
+              {/* The band, not a word count. See ProgressSummary for why the
+                  count went - it was measuring a subtitle corpus, not a
+                  reader. */}
+              <span className="text-4xl font-semibold">{band(summary.nowLevel)}</span>
               <span className="text-muted">
-                {t.whenYouStarted}: {num(summary.thenWords)}
+                {t.whenYouStarted}: {band(summary.thenLevel)}
               </span>
             </div>
-            {/* Two sentences, not one with a minus sign. A reader whose level
-                has come down is told so plainly - that was the whole point of
-                showing the level honestly rather than only letting it rise. */}
-            <p className="text-muted">
-              {summary.deltaWords >= 0
-                ? f.grownBy(num(summary.deltaWords), summary.percent)
-                : f.shrunkBy(num(Math.abs(summary.deltaWords)), Math.abs(summary.percent))}{" "}
-              {f.acrossPieces(summary.sessions)}
-            </p>
+            {/* Three sentences, not one with a sign. A reader whose level has
+                come down is told so plainly - that was the whole point of
+                showing it honestly rather than only letting it rise - and a
+                level that has not moved must not be dressed up as either. */}
+            {Math.abs(summary.delta) < 0.5 ? (
+              <p className="text-muted">
+                {t.levelHeld} {f.acrossPieces(summary.sessions)}
+              </p>
+            ) : (
+              <p className="text-muted">
+                {summary.delta > 0
+                  ? f.upFrom(band(summary.thenLevel))
+                  : f.downFrom(band(summary.thenLevel))}{" "}
+                {f.acrossPieces(summary.sessions)}
+              </p>
+            )}
           </>
         )}
       </section>
@@ -121,10 +128,13 @@ export default async function ProgressPage() {
           <LevelChart
             points={pointsFor(summary, readings, f, t)}
             t={t}
-            summary={`${t.levelHeading} — ${t.wordsYouCanRead}`}
+            summary={`${t.levelHeading} — ${t.yourLevel}`}
             firstDay={readings[0]!.at.slice(0, 10)}
             lastDay={readings.at(-1)!.at.slice(0, 10)}
-            locale={locale}
+            // The y axis is ticked in bands now. A tick reading "2,054" was
+            // quoting the same discredited count as the headline, and in
+            // smaller type where nobody could weigh it.
+            tickLabel={band}
           />
           <p className="text-sm text-muted">{t.levelNote}</p>
         </section>
@@ -202,8 +212,8 @@ function pointsFor(
     ? [
         {
           at: "",
-          levelBefore: levelForVocab(summary.thenWords),
-          levelAfter: levelForVocab(summary.thenWords),
+          levelBefore: summary.thenLevel,
+          levelAfter: summary.thenLevel,
           note: null,
           origin: true,
         },

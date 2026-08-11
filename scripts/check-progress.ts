@@ -322,17 +322,24 @@ async function main() {
     profile("u1", "es", 50, 2000);
     check("placed but nothing read yet does not throw", progressSummary("u1", "es")!.sessions, 0);
     const s = progressSummary("u1", "es")!;
-    check("...and 'then' is the placement", s.thenWords, 2000);
-    ok("...with 'now' from the level", s.nowWords > 0, String(s.nowWords));
+    // The placement still writes a vocabulary estimate - that is the test's own
+    // raw output - but the summary converts it to a LEVEL and nothing on the
+    // page ever sees a word count again. levelForVocab(2000) is that level.
+    check("...and 'then' is the placement, as a level", Math.round(s.thenLevel), 38);
+    ok("...with 'now' from the profile", s.nowLevel === 50, String(s.nowLevel));
     check("a reader with no profile gets nothing", progressSummary("u1", "de"), null);
+    ok(
+      "no word count survives on the summary at all",
+      !("nowWords" in s) && !("thenWords" in s) && !("deltaWords" in s),
+      Object.keys(s).join(","),
+    );
 
     // The decision the owner made, as an executable assertion: a level that has
     // come down since placement produces a NEGATIVE number, not a zero.
     user("u2");
     profile("u2", "es", 20, 6000);
     const down = progressSummary("u2", "es")!;
-    ok("going backwards is reported honestly", down.percent < 0, `${down.percent}%`);
-    ok("...and so is the word count", down.deltaWords < 0, String(down.deltaWords));
+    ok("going backwards is reported honestly", down.delta < 0, String(down.delta));
 
     // No placement (an anonymous reader who never took the check) falls back to
     // the earliest level we ever saw, and says so.
@@ -342,7 +349,7 @@ async function main() {
     session("s-u3", "p-u3", "u3", 30, 33, "2026-02-01T10:00:00.000Z");
     const guessed = progressSummary("u3", "es")!;
     ok("a missing placement falls back to the first level seen", !guessed.fromPlacement);
-    ok("...which is lower than now", guessed.thenWords < guessed.nowWords);
+    ok("...which is lower than now", guessed.thenLevel < guessed.nowLevel);
   }
 
   console.log("\n--- the series ---");

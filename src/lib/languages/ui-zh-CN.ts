@@ -2,17 +2,14 @@ import type { UiFormatters, UiStrings } from "../ui-strings";
 
 /** Server-only, because these are functions. See UiFormatters. */
 export const FORMAT_ZH_CN: UiFormatters = {
-  // 个 is the measure word; a template with a bare number slot would drop it.
-  aboutWords: (band) => `· 约 ${band} 个词`,
   aimingFor: (sentenceWords, newWordPercent) =>
     `目标是每句约 ${sentenceWords} 个词，其中 ${newWordPercent}% 是生词`,
   // 篇 is the measure word for a piece of writing.
   metInPieces: (n) => `这个词你在 ${n} 篇里都查过`,
-  // 个 for words, 篇 for pieces, 天 for days - a bare number slot would drop
-  // every one of them.
-  grownBy: (words, percent) => `比刚开始多认识 ${words} 个词，多了 ${percent}%。`,
-  shrunkBy: (words, percent) =>
-    `比测试当初估的少 ${words} 个词，低了 ${percent}%。当初那是照词表估的，现在这个是照你真正读过的算的。`,
+  // 篇 for pieces, 天 for days - a bare number slot would drop every one of them.
+  upFrom: (band) => `从 ${band} 升上来，`,
+  downFrom: (band) =>
+    `从 ${band} 降下来 —— 当初那是照词表估的，现在这个是照你真正读过的算的 ——`,
   acrossPieces: (n) => `来自你读完的 ${n} 篇`,
   coveredCells: (filled, total) => `${total} 格里填了 ${filled} 格`,
   otherPieces: (n) => `另外还有 ${n} 篇，不属于上面任何一个话题。`,
@@ -122,7 +119,7 @@ export const UI_ZH_CN: UiStrings = {
 
   progressNav: "你的进步",
   progressHeading: "你走了多远",
-  wordsYouCanRead: "你能读懂的词",
+  yourLevel: "你的水平",
   whenYouStarted: "刚开始的时候",
   rightNow: "现在",
   levelHeading: "你的水平，一篇一篇看",

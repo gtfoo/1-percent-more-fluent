@@ -108,12 +108,13 @@ export default async function Home() {
               available={available}
               uiInTarget={inTarget}
             />
-            <p className="text-2xl font-semibold">
-              {params.label}{" "}
-              <span className="text-base font-normal text-muted">
-                {f.aboutWords(params.vocabBand.toLocaleString(locale))}
-              </span>
-            </p>
+            {/* The band alone. This used to be followed by "· about 2,269
+                words", which was the size of the slice of an OpenSubtitles
+                frequency list the generator aims at - a real number about a
+                word list, presented as a fact about the reader. That band is
+                still the ruler the generator uses; it is just not a claim
+                anyone should read. */}
+            <p className="text-2xl font-semibold">{params.label}</p>
           </div>
           <p className="text-sm text-muted">
             {f.aimingFor(params.sentenceWords, Math.round(params.newWordBudget * 100))}
@@ -135,15 +136,10 @@ export default async function Home() {
               href="/progress"
               className="flex items-baseline justify-between gap-4 rounded-xl border border-border bg-surface px-5 py-4 hover:bg-accent-soft"
             >
-              {/* Labelled with what it shows, not with the section's name.
-                  Words rather than readings: the row has to say the same thing
-                  the page says, and the page's headline is the app's own name.
-                  aboutWords is not reusable here - it carries a leading middot
-                  because it trails the level label upstairs. */}
-              <span className="font-medium">{t.wordsYouCanRead}</span>
-              <span className="shrink-0 text-sm text-muted">
-                {params.vocabBand.toLocaleString(locale)}
-              </span>
+              {/* Labelled with what it shows, not with the section's name, and
+                  carrying the same band as the page it opens. */}
+              <span className="font-medium">{t.yourLevel}</span>
+              <span className="shrink-0 text-sm text-muted">{params.label}</span>
             </Link>
           )}
           {words > 0 && (
