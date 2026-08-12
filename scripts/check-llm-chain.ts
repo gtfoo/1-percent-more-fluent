@@ -176,6 +176,16 @@ for (const [what, message] of [
   ["anthropic: overloaded", "529 overloaded_error: Overloaded"],
   ["anthropic: rate limited", "429 rate_limit_error: Number of requests has exceeded your rate limit"],
   ["any: model not available for this key", "404 model not found: claude-nonexistent"],
+  [
+    // Google's transient-overload wording, seen in production while building
+    // the streaming route. No status code, no "overloaded", no "quota" - so the
+    // regex matched none of it and the chain stopped dead on a model that was
+    // merely busy. It stayed hidden while the SDK retried three times and
+    // usually rode it out; removing those retries made it a failed generation.
+    "google: transient overload",
+    "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.",
+  ],
+  ["any: temporarily unavailable", "503 Service Unavailable, please try again later"],
 ] as const) {
   check(`falls back on ${what}`, shouldFallback(new Error(message)), true);
 }

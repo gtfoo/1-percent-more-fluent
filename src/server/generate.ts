@@ -17,7 +17,7 @@ import { paramsFor, LENGTH_WORDS, type Length, type LevelParams } from "@/lib/le
 import { asTopicField, TOPIC_FIELDS } from "@/lib/suggestions";
 import type { TopicHistory } from "@/lib/rank-suggestions";
 import type { Language } from "@/lib/languages";
-import { generateStructured } from "./llm";
+import { generateStructured, streamStructured } from "./llm";
 import { measure, type DifficultyReport } from "./difficulty";
 import { getDb } from "./db";
 import { seedGlossary } from "./gloss";
@@ -339,6 +339,41 @@ export async function generatePiece(args: {
     corrections = report.problems;
   }
 
+  return persistPiece({
+    userId: args.userId,
+    language,
+    format: args.format,
+    topic: args.topic,
+    level: args.level,
+    piece: piece!,
+    report: report!,
+    modelId,
+    attempts,
+  });
+}
+
+/**
+ * Store a finished piece and return it in the shape the reader wants.
+ *
+ * Shared by the streaming and non-streaming paths rather than written twice.
+ * Both have to add pronunciations, seed the glossary and write the same
+ * sixteen columns, and two copies of that would drift - the streaming path
+ * would quietly stop seeding the glossary, or store a raw `field` the chips
+ * cannot order by, and nothing would error.
+ */
+function persistPiece(args: {
+  userId: string;
+  language: Language;
+  format: Format;
+  topic: string;
+  level: number;
+  piece: Piece;
+  report: DifficultyReport;
+  modelId: string;
+  attempts: number;
+}): GeneratedPiece {
+  const { language, piece, report } = args;
+
   // Even a failing attempt is kept. An over-budget text with a full glossary is
   // more useful to the reader than an error page, and the report travels with
   // it so the UI can be honest about what happened.
@@ -348,11 +383,14 @@ export async function generatePiece(args: {
   // confidently wrong about a polyphone. Both lists get it: terms are the words
   // worth saying to somebody, and the glossary is where most taps land.
   const say = (text: string) => pronounce(language.code, text);
-  const terms: TopicTerm[] = piece!.terms.map((t) => ({
+  const terms: TopicTerm[] = (piece.terms ?? []).map((t) => ({
     ...t,
     pronunciation: say(t.term),
   }));
-  const glossary = piece!.glossary.map((g) => ({ ...g, pronunciation: say(g.word) }));
+  const glossary = (piece.glossary ?? []).map((g) => ({
+    ...g,
+    pronunciation: say(g.word),
+  }));
 
   // The glossary came free with the text, so put it where taps will find it.
   seedGlossary(language.code, glossary);
@@ -370,20 +408,121 @@ export async function generatePiece(args: {
       args.topic,
       // Cleaned before storage, so nothing downstream has to wonder whether the
       // model invented a domain.
-      asTopicField(piece!.field),
+      asTopicField(piece.field),
       args.level,
-      piece!.title,
-      JSON.stringify(piece!.paragraphs),
+      piece.title,
+      JSON.stringify(piece.paragraphs),
       JSON.stringify(glossary),
-      JSON.stringify(piece!.questions),
-      JSON.stringify(piece!.speakers ?? []),
+      JSON.stringify(piece.questions ?? []),
+      JSON.stringify(piece.speakers ?? []),
       JSON.stringify(terms),
-      JSON.stringify(report!),
-      modelId,
+      JSON.stringify(report),
+      args.modelId,
       new Date().toISOString(),
     );
 
-  return { id, piece: { ...piece!, terms, glossary }, report: report!, modelId, attempts };
+  return {
+    id,
+    piece: { ...piece, terms, glossary },
+    report,
+    modelId: args.modelId,
+    attempts: args.attempts,
+  };
+}
+
+/** What the streaming generator emits, one object per line over the wire. */
+export type PieceEvent =
+  | { type: "text"; title: string; paragraphs: string[] }
+  | { type: "done"; id: string; passes: boolean; outOfBandRate: number }
+  | { type: "error"; error: string };
+
+/**
+ * Generate a piece, handing the prose over as it is written.
+ *
+ * NO RETRY, deliberately, and this is the trade the whole feature rests on.
+ * The verifier needs the finished text to measure it, so streaming means the
+ * reader sees words before anything has checked them. Regenerating at that
+ * point would mean pulling back text somebody is already reading, which is
+ * worse than letting a slightly-off piece stand.
+ *
+ * It is coherent with the calibration change already shipped: the reader's own
+ * lookup rate is a better difficulty signal than the proxy, and the tolerance
+ * was widened accordingly. The report is still measured and still stored, so
+ * calibration and the honesty of the UI are unaffected - the only thing dropped
+ * is the second attempt.
+ */
+export async function* streamPiece(args: {
+  userId: string;
+  level: number;
+  format: Format;
+  topic: string;
+  language: Language;
+  length: Length;
+}): AsyncGenerator<PieceEvent> {
+  const language = args.language;
+  const params = paramsFor(args.level, language);
+
+  const { partials, object, modelId } = await streamStructured({
+    schema: pieceSchema(language),
+    system: system(language.name),
+    prompt: buildPrompt(args.format, args.topic, args.length, params),
+    temperature: 0.8,
+  });
+
+  // The body is the second field in the schema and the model emits in schema
+  // order, so paragraphs start arriving almost immediately and everything the
+  // reader is not waiting for - glossary, quiz - comes after.
+  let lastCount = 0;
+  let lastTail = 0;
+  for await (const partial of partials) {
+    const p = partial as { title?: string; paragraphs?: unknown };
+    const paragraphs = Array.isArray(p.paragraphs)
+      ? p.paragraphs.filter((s): s is string => typeof s === "string")
+      : [];
+    const tail = paragraphs.length ? paragraphs[paragraphs.length - 1]!.length : 0;
+    // Only when the prose actually grew. Partials keep arriving while the
+    // glossary and quiz are written, and re-sending an unchanged body would
+    // make the reader's text flicker for the second half of the generation.
+    if (paragraphs.length === lastCount && tail === lastTail) continue;
+    lastCount = paragraphs.length;
+    lastTail = tail;
+    yield { type: "text", title: p.title ?? "", paragraphs };
+  }
+
+  const piece = await object;
+  const speakers = piece.speakers ?? [];
+  const prose =
+    args.format === "conversation"
+      ? splitTurns(piece.paragraphs, speakers)
+          .map((t) => t.text)
+          .join("\n\n")
+      : piece.paragraphs.join("\n\n");
+
+  const report = measure(
+    prose,
+    params,
+    (piece.terms ?? []).map((t) => t.term),
+    speakers.map((s) => s.name),
+  );
+
+  const stored = persistPiece({
+    userId: args.userId,
+    language,
+    format: args.format,
+    topic: args.topic,
+    level: args.level,
+    piece,
+    report,
+    modelId,
+    attempts: 1,
+  });
+
+  yield {
+    type: "done",
+    id: stored.id,
+    passes: report.passes,
+    outOfBandRate: report.outOfBandRate,
+  };
 }
 
 export interface StoredPiece {

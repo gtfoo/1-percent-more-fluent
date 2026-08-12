@@ -25,7 +25,7 @@
 import { google } from "@ai-sdk/google";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
-import { generateText, Output } from "ai";
+import { generateText, streamText, Output } from "ai";
 import type { LanguageModel } from "ai";
 import type { z } from "zod";
 
@@ -177,12 +177,39 @@ export function formatRef(ref: ModelRef): string {
  * says "You have no credits remaining", which matches none of the quota
  * wording and would have stopped the chain dead on a provider that simply
  * needs topping up. `scripts/check-llm-chain.ts` pins the real strings.
+ *
+ * The transient-overload wording is the other half, and it cost a generation to
+ * find: Google says "This model is currently experiencing high demand. Spikes in
+ * demand are usually temporary", which contains no code, no "overloaded" and no
+ * "quota", so the chain stopped dead on it. It used to be invisible because the
+ * SDK retried three times and usually rode it out - so removing those retries
+ * and not widening this at the same time would have traded a slow generation for
+ * a failed one.
  */
 export function shouldFallback(err: unknown): boolean {
   const m = err instanceof Error ? err.message : String(err);
-  return /quota|rate.?limit|429|resource.?exhausted|exhausted|credit|billing|insufficient|not found|no longer available|404|unavailable|overloaded|529|permission|403|401|authentication/i.test(
+  return /quota|rate.?limit|429|resource.?exhausted|exhausted|credit|billing|insufficient|not found|no longer available|404|unavailable|overloaded|529|permission|403|401|authentication|high demand|spikes in demand|temporarily|try again later|capacity|503/i.test(
     m,
   );
+}
+
+/**
+ * How hard to try one model before moving to the next.
+ *
+ * Zero while there is somewhere to fall back to, and this is worth the
+ * explanation. The SDK retries three times by default, which is right when a
+ * model is the only option and wrong when it is not: the failure this chain
+ * exists for is an exhausted quota, and a quota does not recover in the two
+ * seconds between attempts. Measured, with the free tier spent: 20 seconds of
+ * retries before the fallback model was even asked - which then produced the
+ * whole piece in under a second. Every generation for the rest of the day paid
+ * that, on the streaming route and the plain one alike.
+ *
+ * The last model in the chain keeps the retries. By then there is nothing to
+ * fall through to, so riding out a transient blip is the only thing left.
+ */
+function retriesFor(hasNext: boolean): number {
+  return hasNext ? 0 : 2;
 }
 
 /**
@@ -212,6 +239,7 @@ export async function generateStructured<T>(args: {
     try {
       const { output } = await generateText({
         model: resolveModel(ref),
+        maxRetries: retriesFor(i < chain.length - 1),
         system: args.system,
         prompt: args.prompt,
         // Omitted rather than clamped where the provider rejects it: a model
@@ -221,6 +249,119 @@ export async function generateStructured<T>(args: {
         output: Output.object({ schema: args.schema }),
       });
       return { object: output as T, modelId: formatRef(ref) };
+    } catch (err) {
+      lastErr = err;
+      const hasNext = i < chain.length - 1;
+      if (hasNext && shouldFallback(err)) {
+        console.warn(
+          `LLM model "${formatRef(ref)}" unavailable (${
+            err instanceof Error ? err.message.split("\n")[0] : String(err)
+          }); falling back to "${formatRef(chain[i + 1]!)}".`,
+        );
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * The same, handing back the object as it is built rather than when it is done.
+ *
+ * A piece takes about twenty seconds to generate, and roughly half of that is
+ * spent emitting things the reader is not waiting for - the glossary, the quiz.
+ * The model emits fields in schema order and the body comes second, so a reader
+ * who can see partial output starts reading at about two seconds instead of
+ * twenty. Nothing about the request changes; the same tokens are billed.
+ *
+ * FALLBACK ONLY HAPPENS BEFORE THE FIRST CHUNK. Once output has started the
+ * response is committed - switching models mid-piece would splice two different
+ * texts together - so the first partial is pulled here, inside the retry loop,
+ * and only then is the stream handed over. That is exactly where the failures
+ * this chain exists for occur anyway: a quota refusal arrives instead of a first
+ * chunk, not halfway through one.
+ */
+export async function streamStructured<T>(args: {
+  schema: z.ZodType<T>;
+  system?: string;
+  prompt: string;
+  temperature?: number;
+}): Promise<{
+  partials: AsyncIterable<unknown>;
+  object: PromiseLike<T>;
+  modelId: string;
+}> {
+  const chain = getModelChain();
+  if (!chain.length) {
+    const wanted = missingKeys().map((p) => API_KEY_VAR[p]).join(", ");
+    throw new Error(
+      `No text model is configured. Set ${wanted || "GOOGLE_GENERATIVE_AI_API_KEY"} in .env.local.`,
+    );
+  }
+
+  let lastErr: unknown;
+
+  for (let i = 0; i < chain.length; i++) {
+    const ref = chain[i]!;
+    try {
+      // A streaming call does not throw when the model refuses. The rejection
+      // arrives here instead, and the iterator simply ends without yielding -
+      // so a quota error looks identical to a model that finished early, and
+      // the only symptom downstream is the SDK's "No output generated", which
+      // names neither the model nor the cause. Captured so the check below can
+      // rethrow the real thing and let the chain do its job.
+      let streamError: unknown;
+      const result = streamText({
+        model: resolveModel(ref),
+        maxRetries: retriesFor(i < chain.length - 1),
+        system: args.system,
+        prompt: args.prompt,
+        temperature: acceptsTemperature(ref) ? args.temperature : undefined,
+        output: Output.object({ schema: args.schema }),
+        onError({ error }) {
+          streamError = error;
+        },
+      });
+
+      // Pull the first partial here, so a model that refuses outright is caught
+      // while falling back is still possible.
+      const began = Date.now();
+      const iterator = result.partialOutputStream[Symbol.asyncIterator]();
+      const first = await iterator.next();
+      // The number that decides whether streaming is worth anything on a given
+      // provider: how long before there is something to put on screen. If it
+      // lands near the total generation time, that provider is buffering and the
+      // reader gains nothing.
+      console.log(
+        `LLM ${formatRef(ref)}: first partial after ${Date.now() - began}ms`,
+      );
+
+      // No output at all. A working generation always yields at least one
+      // partial, so this is a refusal wearing a clean exit - rethrow it as the
+      // error it is, and the chain below falls through to the next model
+      // exactly as it does for the non-streaming call.
+      if (first.done) {
+        throw (
+          streamError ??
+          new Error(`Model "${formatRef(ref)}" produced no output.`)
+        );
+      }
+
+      return {
+        modelId: formatRef(ref),
+        object: result.output as PromiseLike<T>,
+        partials: {
+          async *[Symbol.asyncIterator]() {
+            yield first.value;
+            for (;;) {
+              const next = await iterator.next();
+              if (next.done) return;
+              yield next.value;
+            }
+          },
+        },
+      };
     } catch (err) {
       lastErr = err;
       const hasNext = i < chain.length - 1;
