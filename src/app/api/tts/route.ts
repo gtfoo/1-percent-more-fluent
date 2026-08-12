@@ -44,12 +44,21 @@ export async function POST(req: NextRequest) {
     // prefixes - so the reader is told which it got and maps offsets to match.
     if (piece.format === "conversation") {
       const turns = splitTurns(piece.paragraphs, piece.speakers);
-      const narration = await narrateDialogue(turns, piece.speakers, piece.id);
+      const narration = await narrateDialogue(
+        turns,
+        piece.speakers,
+        piece.id,
+        piece.language,
+      );
       return Response.json({ ...narration, mode: "dialogue" });
     }
 
     // Must match exactly what the reader renders, or the timings will not line up.
-    const narration = await narrate(piece.paragraphs.join("\n\n"), piece.id);
+    const narration = await narrate(
+      piece.paragraphs.join("\n\n"),
+      piece.id,
+      piece.language,
+    );
     return Response.json({ ...narration, mode: "narration" });
   } catch (err) {
     console.error("tts failed", err);

@@ -25,7 +25,7 @@ import { constants } from "node:fs";
 import { join } from "node:path";
 import { getDb } from "./db";
 import { AUDIO_DIR } from "./paths";
-import { castSpeakers } from "./voices";
+import { castSpeakers, narrationVoiceFor } from "./voices";
 import { splitTurns, type Speaker, type Turn } from "@/lib/dialogue";
 
 const DEFAULTS = {
@@ -162,6 +162,7 @@ function record(
 export function spokenTextFor(piece: {
   id: string;
   format: string;
+  language: string;
   paragraphs: string[];
   speakers: Speaker[];
 }):
@@ -173,7 +174,11 @@ export function spokenTextFor(piece: {
     return { mode: "narration", text: piece.paragraphs.join("\n\n") };
   }
   const turns = splitTurns(piece.paragraphs, piece.speakers);
-  return { mode: "dialogue", turns, inputs: dialogueInputs(turns, piece.speakers, piece.id) };
+  return {
+    mode: "dialogue",
+    turns,
+    inputs: dialogueInputs(turns, piece.speakers, piece.id, piece.language),
+  };
 }
 
 /**
@@ -188,9 +193,10 @@ function dialogueInputs(
   turns: Turn[],
   speakers: Speaker[],
   pieceId: string,
+  languageCode: string,
 ): { text: string; voice_id: string }[] {
-  const cast = castSpeakers(speakers, pieceId);
-  const fallback = config().voiceId;
+  const cast = castSpeakers(speakers, pieceId, languageCode);
+  const fallback = narrationVoiceFor(languageCode);
   return turns
     .filter((t) => t.text.length > 0)
     .map((t) => ({
@@ -216,10 +222,10 @@ interface StreamChunk {
  * It must agree with what narrate/narrateDialogue compute, which is why the
  * two hashing expressions below are the only copies in the file.
  */
-export function narrationHash(text: string): string {
-  const { voiceId, modelId } = config();
+export function narrationHash(text: string, languageCode: string): string {
+  const { modelId } = config();
   return createHash("sha256")
-    .update(`${modelId}:${voiceId}:${text}`)
+    .update(`${modelId}:${narrationVoiceFor(languageCode)}:${text}`)
     .digest("hex")
     .slice(0, 32);
 }
@@ -322,8 +328,10 @@ export async function clipExists(hash: string): Promise<boolean> {
 export async function streamNarration(
   text: string,
   pieceId: string,
+  languageCode: string,
 ): Promise<ReadableStream<Uint8Array>> {
-  const { apiKey, voiceId, modelId, maxChars } = config();
+  const { apiKey, modelId, maxChars } = config();
+  const voiceId = narrationVoiceFor(languageCode);
   if (!apiKey) throw new Error("missing ELEVENLABS_API_KEY");
   if (text.length > maxChars) {
     throw new Error(
@@ -331,7 +339,7 @@ export async function streamNarration(
     );
   }
 
-  const hash = narrationHash(text);
+  const hash = narrationHash(text, languageCode);
   const began = Date.now();
   // Claimed before the request, not after it. ElevenLabs takes a couple of
   // seconds just to return headers, and a slot claimed afterwards would leave
@@ -376,11 +384,12 @@ export async function streamDialogue(
   turns: Turn[],
   speakers: Speaker[],
   pieceId: string,
+  languageCode: string,
 ): Promise<ReadableStream<Uint8Array>> {
   const { apiKey, maxChars, dialogueModelId } = config();
   if (!apiKey) throw new Error("missing ELEVENLABS_API_KEY");
 
-  const inputs = dialogueInputs(turns, speakers, pieceId);
+  const inputs = dialogueInputs(turns, speakers, pieceId, languageCode);
   const characters = inputs.reduce((n, i) => n + i.text.length, 0);
   if (characters > maxChars) {
     throw new Error(
@@ -588,8 +597,13 @@ export function pipeChunks(
  * Synthesise `text`, or return the cached file if this exact text has been
  * spoken before in this voice and model.
  */
-export async function narrate(text: string, pieceId: string): Promise<Narration> {
-  const { apiKey, voiceId, modelId, maxChars } = config();
+export async function narrate(
+  text: string,
+  pieceId: string,
+  languageCode: string,
+): Promise<Narration> {
+  const { apiKey, modelId, maxChars } = config();
+  const voiceId = narrationVoiceFor(languageCode);
   if (!apiKey) throw new Error("missing ELEVENLABS_API_KEY");
 
   if (text.length > maxChars) {
@@ -599,10 +613,7 @@ export async function narrate(text: string, pieceId: string): Promise<Narration>
     );
   }
 
-  const hash = createHash("sha256")
-    .update(`${modelId}:${voiceId}:${text}`)
-    .digest("hex")
-    .slice(0, 32);
+  const hash = narrationHash(text, languageCode);
 
   const cached = await readCached(hash);
   if (cached) return { ...cached, characters: text.length, cached: true };
@@ -680,11 +691,12 @@ export async function narrateDialogue(
   turns: Turn[],
   speakers: Speaker[],
   pieceId: string,
+  languageCode: string,
 ): Promise<Narration> {
   const { apiKey, maxChars, dialogueModelId } = config();
   if (!apiKey) throw new Error("missing ELEVENLABS_API_KEY");
 
-  const inputs = dialogueInputs(turns, speakers, pieceId);
+  const inputs = dialogueInputs(turns, speakers, pieceId, languageCode);
   const characters = inputs.reduce((n, i) => n + i.text.length, 0);
   if (characters > maxChars) {
     throw new Error(
@@ -692,10 +704,7 @@ export async function narrateDialogue(
     );
   }
 
-  const hash = createHash("sha256")
-    .update(`${dialogueModelId}:${JSON.stringify(inputs)}`)
-    .digest("hex")
-    .slice(0, 32);
+  const hash = dialogueHash(inputs);
 
   const cached = await readCached(hash);
   if (cached) return { ...cached, characters, cached: true };

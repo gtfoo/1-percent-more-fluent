@@ -52,7 +52,9 @@ export async function GET(req: NextRequest) {
 
   const spoken = spokenTextFor(piece);
   const hash =
-    spoken.mode === "dialogue" ? dialogueHash(spoken.inputs) : narrationHash(spoken.text);
+    spoken.mode === "dialogue"
+      ? dialogueHash(spoken.inputs)
+      : narrationHash(spoken.text, piece.language);
 
   /**
    * Relative, deliberately.
@@ -99,8 +101,8 @@ export async function GET(req: NextRequest) {
   try {
     const stream =
       spoken.mode === "dialogue"
-        ? await streamDialogue(spoken.turns, piece.speakers, piece.id)
-        : await streamNarration(spoken.text, piece.id);
+        ? await streamDialogue(spoken.turns, piece.speakers, piece.id, piece.language)
+        : await streamNarration(spoken.text, piece.id, piece.language);
 
     return new Response(stream, {
       headers: {

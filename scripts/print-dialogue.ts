@@ -22,9 +22,9 @@ if (!row) {
 const paragraphs = JSON.parse(row.body!) as string[];
 const speakers = JSON.parse(row.speakers ?? "[]") as Speaker[];
 const turns = splitTurns(paragraphs, speakers);
-const cast = castSpeakers(speakers, row.id!);
+const cast = castSpeakers(speakers, row.id!, row.language ?? "");
 
-console.log(`"${row.title}"`);
+console.log(`"${row.title}" (${row.language})`);
 console.log(`\ndeclared speakers: ${speakers.map((s) => `${s.name} (${s.gender})`).join(", ") || "NONE"}`);
 console.log("cast:");
 for (const [name, voiceId] of cast) {

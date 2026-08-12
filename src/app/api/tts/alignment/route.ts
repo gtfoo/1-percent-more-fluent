@@ -26,7 +26,9 @@ export async function GET(req: NextRequest) {
 
   const spoken = spokenTextFor(piece);
   const hash =
-    spoken.mode === "dialogue" ? dialogueHash(spoken.inputs) : narrationHash(spoken.text);
+    spoken.mode === "dialogue"
+      ? dialogueHash(spoken.inputs)
+      : narrationHash(spoken.text, piece.language);
 
   const alignment = await readAlignment(hash);
   if (!alignment) {
