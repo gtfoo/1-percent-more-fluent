@@ -9,6 +9,7 @@ import {
   spokenTextFor,
   streamDialogue,
   streamNarration,
+  synthesisInFlight,
 } from "@/server/tts";
 import { clientIp, PLANS, spendIp, spendUser, tooMany } from "@/server/limits";
 
@@ -53,10 +54,33 @@ export async function GET(req: NextRequest) {
   const hash =
     spoken.mode === "dialogue" ? dialogueHash(spoken.inputs) : narrationHash(spoken.text);
 
+  const toFile = () =>
+    Response.redirect(new URL(`/audio/${hash}.mp3`, req.nextUrl.origin), 302);
+
   // Already spoken. Redirect rather than re-stream: the static file supports
   // range requests and therefore seeking, which a synthesised stream does not.
-  if (await clipExists(hash)) {
-    return Response.redirect(new URL(`/audio/${hash}.mp3`, req.nextUrl.origin), 302);
+  if (await clipExists(hash)) return toFile();
+
+  // Not on disk, which is not the same as nobody having paid for it. If this
+  // clip is being synthesised right now - a double tap on Listen, or a reload
+  // while waiting - wait for that attempt instead of buying a second copy.
+  //
+  // Whoever asked second loses the early playback and gets the finished file,
+  // which is the better half of the trade anyway: a static file seeks. Sharing
+  // the live stream is not an option, since a stream can only be read once.
+  const pending = synthesisInFlight(hash);
+  if (pending) {
+    // Bounded, because a request that hangs for ever is worse than a rare
+    // second charge. Comfortably longer than any synthesis under the character
+    // cap; the longest measured is a few seconds.
+    const timedOut = Symbol("timed out");
+    const outcome = await Promise.race([
+      pending,
+      new Promise((r) => setTimeout(() => r(timedOut), 120_000)),
+    ]);
+    // If that attempt succeeded the file is there now. If it failed, or timed
+    // out, fall through and synthesise properly rather than redirect at a 404.
+    if (outcome !== timedOut && (await clipExists(hash))) return toFile();
   }
 
   try {

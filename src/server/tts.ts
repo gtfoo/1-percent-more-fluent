@@ -232,6 +232,66 @@ export function dialogueHash(inputs: { text: string; voice_id: string }[]): stri
     .slice(0, 32);
 }
 
+/**
+ * Clips being synthesised right now, by hash.
+ *
+ * `clipExists` answers one question - is there a finished clip? - and there are
+ * three states, not two. The third is "somebody is paying for this exact clip at
+ * this exact moment", and without it a second request finds no file and starts
+ * its own synthesis. Two taps on Listen, or a reader who reloads while waiting,
+ * and the same audio is bought twice. That is not hypothetical: it is how the
+ * first live test of this route managed to buy four clips while asking for two.
+ *
+ * Per-process, which is enough here - one Node process serves this app - but it
+ * would need a lock somewhere shared if that ever became several workers.
+ */
+const inFlight = new Map<string, Promise<void>>();
+
+/**
+ * Claim the slot for `hash`. Returns the release, which MUST run on every exit
+ * path: a slot that is never released blocks that clip from being synthesised
+ * again for the life of the process.
+ *
+ * Exported for scripts/check-tts-pipe.ts, which pairs it with pipeChunks the
+ * same way the two stream functions do.
+ */
+export function beginSynthesis(hash: string): () => void {
+  let release!: () => void;
+  inFlight.set(
+    hash,
+    new Promise<void>((resolve) => {
+      release = resolve;
+    }),
+  );
+  return () => {
+    inFlight.delete(hash);
+    release();
+  };
+}
+
+/**
+ * If this clip is already being synthesised, a promise that settles when that
+ * attempt finishes - successfully or not. Await it rather than starting a
+ * second one, then look for the file again.
+ */
+export function synthesisInFlight(hash: string): Promise<void> | null {
+  return inFlight.get(hash) ?? null;
+}
+
+/**
+ * Wait for an in-progress synthesis of this clip, then hand back whatever it
+ * left in the cache. Null means nobody was working on it, or their attempt
+ * failed - either way the caller should synthesise it themselves.
+ */
+async function cachedAfterInFlight(
+  hash: string,
+): Promise<{ url: string; alignment: Alignment | null } | null> {
+  const pending = synthesisInFlight(hash);
+  if (!pending) return null;
+  await pending;
+  return readCached(hash);
+}
+
 /** The alignment written beside a clip, if synthesis has finished. */
 export async function readAlignment(hash: string): Promise<Alignment | null> {
   const path = join(AUDIO_DIR, `${hash}.json`);
@@ -273,30 +333,41 @@ export async function streamNarration(
 
   const hash = narrationHash(text);
   const began = Date.now();
-  const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream/with-timestamps`,
-    {
-      method: "POST",
-      headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text,
-        model_id: modelId,
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-      }),
-    },
-  );
-  if (!res.ok || !res.body) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`ElevenLabs ${res.status}: ${detail.slice(0, 300)}`);
+  // Claimed before the request, not after it. ElevenLabs takes a couple of
+  // seconds just to return headers, and a slot claimed afterwards would leave
+  // that window wide open to a second request paying for the same clip.
+  const release = beginSynthesis(hash);
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream/with-timestamps`,
+      {
+        method: "POST",
+        headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          model_id: modelId,
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        }),
+      },
+    );
+    if (!res.ok || !res.body) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`ElevenLabs ${res.status}: ${detail.slice(0, 300)}`);
+    }
+  } catch (err) {
+    release();
+    throw err;
   }
   console.log(`tts narration ${text.length}ch: headers after ${Date.now() - began}ms`);
 
   return pipeChunks(
-    res.body,
+    res.body!,
     hash,
     () => record(hash, pieceId, voiceId, modelId, text.length),
     began,
     `narration ${text.length}ch`,
+    release,
   );
 }
 
@@ -319,22 +390,29 @@ export async function streamDialogue(
 
   const hash = dialogueHash(inputs);
   const began = Date.now();
-  const res = await fetch(
-    "https://api.elevenlabs.io/v1/text-to-dialogue/stream/with-timestamps",
-    {
-      method: "POST",
-      headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ inputs, model_id: dialogueModelId }),
-    },
-  );
-  if (!res.ok || !res.body) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`ElevenLabs dialogue ${res.status}: ${detail.slice(0, 300)}`);
+  const release = beginSynthesis(hash);
+  let res: Response;
+  try {
+    res = await fetch(
+      "https://api.elevenlabs.io/v1/text-to-dialogue/stream/with-timestamps",
+      {
+        method: "POST",
+        headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ inputs, model_id: dialogueModelId }),
+      },
+    );
+    if (!res.ok || !res.body) {
+      const detail = await res.text().catch(() => "");
+      throw new Error(`ElevenLabs dialogue ${res.status}: ${detail.slice(0, 300)}`);
+    }
+  } catch (err) {
+    release();
+    throw err;
   }
   console.log(`tts dialogue ${characters}ch: headers after ${Date.now() - began}ms`);
 
   return pipeChunks(
-    res.body,
+    res.body!,
     hash,
     () =>
       record(
@@ -346,6 +424,7 @@ export async function streamDialogue(
       ),
     began,
     `dialogue ${characters}ch`,
+    release,
   );
 }
 
@@ -377,6 +456,7 @@ export function pipeChunks(
   onComplete: () => void,
   began: number,
   label: string,
+  release: () => void = () => {},
 ): ReadableStream<Uint8Array> {
   const reader = body.getReader();
   let firstByte = 0;
@@ -431,19 +511,26 @@ export function pipeChunks(
   const save = async () => {
     if (saved) return;
     saved = true;
-    await mkdir(AUDIO_DIR, { recursive: true });
-    await writeFile(join(AUDIO_DIR, `${hash}.mp3`), Buffer.concat(audio));
-    if (characters.length) {
-      await writeFile(
-        join(AUDIO_DIR, `${hash}.json`),
-        JSON.stringify({ characters, starts, ends } satisfies Alignment),
+    try {
+      await mkdir(AUDIO_DIR, { recursive: true });
+      await writeFile(join(AUDIO_DIR, `${hash}.mp3`), Buffer.concat(audio));
+      if (characters.length) {
+        await writeFile(
+          join(AUDIO_DIR, `${hash}.json`),
+          JSON.stringify({ characters, starts, ends } satisfies Alignment),
+        );
+      }
+      onComplete();
+      console.log(
+        `tts ${label}: complete after ${Date.now() - began}ms ` +
+          `(${audio.reduce((n, b) => n + b.length, 0)} bytes, first audio ${firstByte}ms)`,
       );
+    } finally {
+      // Last, and unconditionally: anyone waiting on this clip is waiting to
+      // look for the file, so they must not be woken before it is there - and
+      // must be woken even if writing it failed, or they wait for ever.
+      release();
     }
-    onComplete();
-    console.log(
-      `tts ${label}: complete after ${Date.now() - began}ms ` +
-        `(${audio.reduce((n, b) => n + b.length, 0)} bytes, first audio ${firstByte}ms)`,
-    );
   };
 
   return new ReadableStream<Uint8Array>({
@@ -459,15 +546,22 @@ export function pipeChunks(
       // ~10KB of JSON per chunk and undici hands it over in ~1.8KB pieces - so
       // the first pull produced no audio, and the response stalled on its first
       // byte until the connection was torn down.
-      for (;;) {
-        const { done, bytes } = await step();
-        for (const b of bytes) controller.enqueue(b);
-        if (done) {
-          await save();
-          controller.close();
-          return;
+      try {
+        for (;;) {
+          const { done, bytes } = await step();
+          for (const b of bytes) controller.enqueue(b);
+          if (done) {
+            await save();
+            controller.close();
+            return;
+          }
+          if (bytes.length) return;
         }
-        if (bytes.length) return;
+      } catch (err) {
+        // The upstream broke. Free the clip so the next request can try it,
+        // rather than leaving it claimed by an attempt that is already dead.
+        release();
+        throw err;
       }
     },
     cancel() {
@@ -483,6 +577,7 @@ export function pipeChunks(
           await save();
         } catch (err) {
           console.error("tts stream drain failed", err);
+          release();
         }
       })();
     },
@@ -512,47 +607,58 @@ export async function narrate(text: string, pieceId: string): Promise<Narration>
   const cached = await readCached(hash);
   if (cached) return { ...cached, characters: text.length, cached: true };
 
-  const res = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`,
-    {
-      method: "POST",
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
+  // Somebody may be part-way through buying this exact audio - two taps on the
+  // same word do it easily, since a word is short enough to tap twice inside one
+  // synthesis. Wait for theirs rather than buying a second copy.
+  const shared = await cachedAfterInFlight(hash);
+  if (shared) return { ...shared, characters: text.length, cached: true };
+
+  const release = beginSynthesis(hash);
+  try {
+    const res = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text,
+          model_id: modelId,
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        }),
       },
-      body: JSON.stringify({
-        text,
-        model_id: modelId,
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-      }),
-    },
-  );
+    );
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    if (res.status === 402) {
-      throw new Error(
-        `Voice ${voiceId} needs a paid ElevenLabs plan. Run \`npm run voices\` ` +
-          `and set ELEVENLABS_VOICE_ID to one listed under "premade".`,
-      );
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      if (res.status === 402) {
+        throw new Error(
+          `Voice ${voiceId} needs a paid ElevenLabs plan. Run \`npm run voices\` ` +
+            `and set ELEVENLABS_VOICE_ID to one listed under "premade".`,
+        );
+      }
+      throw new Error(`ElevenLabs ${res.status}: ${detail.slice(0, 300)}`);
     }
-    throw new Error(`ElevenLabs ${res.status}: ${detail.slice(0, 300)}`);
-  }
 
-  const data = (await res.json()) as {
-    audio_base64: string;
-    alignment?: {
-      characters: string[];
-      character_start_times_seconds: number[];
-      character_end_times_seconds: number[];
+    const data = (await res.json()) as {
+      audio_base64: string;
+      alignment?: {
+        characters: string[];
+        character_start_times_seconds: number[];
+        character_end_times_seconds: number[];
+      };
     };
-  };
 
-  const alignment = toAlignment(data.alignment);
-  const url = await persist(hash, data.audio_base64, alignment);
-  record(hash, pieceId, voiceId, modelId, text.length);
+    const alignment = toAlignment(data.alignment);
+    const url = await persist(hash, data.audio_base64, alignment);
+    record(hash, pieceId, voiceId, modelId, text.length);
 
-  return { url, alignment, characters: text.length, cached: false };
+    return { url, alignment, characters: text.length, cached: false };
+  } finally {
+    release();
+  }
 }
 
 /**
@@ -594,41 +700,49 @@ export async function narrateDialogue(
   const cached = await readCached(hash);
   if (cached) return { ...cached, characters, cached: true };
 
-  const res = await fetch(
-    "https://api.elevenlabs.io/v1/text-to-dialogue/with-timestamps",
-    {
-      method: "POST",
-      headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ inputs, model_id: dialogueModelId }),
-    },
-  );
+  const shared = await cachedAfterInFlight(hash);
+  if (shared) return { ...shared, characters, cached: true };
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    if (res.status === 402) {
-      throw new Error(
-        `Multi-voice dialogue needs voices this plan can use. Run \`npm run voices\` ` +
-          `and check src/server/voices.ts lists only "premade" ones.`,
-      );
+  const release = beginSynthesis(hash);
+  try {
+    const res = await fetch(
+      "https://api.elevenlabs.io/v1/text-to-dialogue/with-timestamps",
+      {
+        method: "POST",
+        headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ inputs, model_id: dialogueModelId }),
+      },
+    );
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      if (res.status === 402) {
+        throw new Error(
+          `Multi-voice dialogue needs voices this plan can use. Run \`npm run voices\` ` +
+            `and check src/server/voices.ts lists only "premade" ones.`,
+        );
+      }
+      throw new Error(`ElevenLabs dialogue ${res.status}: ${detail.slice(0, 300)}`);
     }
-    throw new Error(`ElevenLabs dialogue ${res.status}: ${detail.slice(0, 300)}`);
-  }
 
-  const data = (await res.json()) as {
-    audio_base64: string;
-    alignment?: {
-      characters: string[];
-      character_start_times_seconds: number[];
-      character_end_times_seconds: number[];
+    const data = (await res.json()) as {
+      audio_base64: string;
+      alignment?: {
+        characters: string[];
+        character_start_times_seconds: number[];
+        character_end_times_seconds: number[];
+      };
     };
-  };
 
-  const alignment = toAlignment(data.alignment);
-  const url = await persist(hash, data.audio_base64, alignment);
+    const alignment = toAlignment(data.alignment);
+    const url = await persist(hash, data.audio_base64, alignment);
 
-  record(hash, pieceId, [...new Set(inputs.map((i) => i.voice_id))].join("+"), dialogueModelId, characters);
+    record(hash, pieceId, [...new Set(inputs.map((i) => i.voice_id))].join("+"), dialogueModelId, characters);
 
-  return { url, alignment, characters, cached: false };
+    return { url, alignment, characters, cached: false };
+  } finally {
+    release();
+  }
 }
 
 /**

@@ -178,6 +178,67 @@ async function main() {
     );
   }
 
+  // --- two listeners, one synthesis ---------------------------------------
+  //
+  // The state that used to be missing entirely: not "is there a clip" but "is
+  // somebody buying this clip right now". Without it a second request finds no
+  // file and starts paying too.
+  {
+    const { synthesisInFlight, beginSynthesis } = await import("../src/server/tts");
+    let released = false;
+    const claim = beginSynthesis("shared");
+    const stream = pipeChunks(fakeUpstream(3), "shared", () => {}, Date.now(), "check", () => {
+      released = true;
+      claim();
+    });
+    ok("a synthesis in progress is visible to other requests", synthesisInFlight("shared") !== null);
+    ok("...and an unrelated clip is not", synthesisInFlight("some-other-clip") === null);
+
+    const waiter = synthesisInFlight("shared")!;
+    let woken = false;
+    void waiter.then(() => (woken = true));
+
+    const reader = stream.getReader();
+    await within(5000, "first byte", reader.read());
+    ok("...a waiter is not woken while bytes are still arriving", !woken);
+
+    await within(5000, "draining", (async () => {
+      for (;;) if ((await reader.read()).done) break;
+    })());
+    await within(5000, "the waiter being woken", waiter);
+    ok("...and is woken once the clip is finished", released);
+    ok(
+      "...by which time the file it was waiting for exists",
+      (await readdir(AUDIO_DIR)).includes("shared.mp3"),
+    );
+    ok("...and the slot is free again", synthesisInFlight("shared") === null);
+  }
+
+  // A failed attempt must not leave the clip claimed for the life of the
+  // process - that would make one broken connection permanent.
+  {
+    const { synthesisInFlight, beginSynthesis } = await import("../src/server/tts");
+    const upstream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.error(new Error("connection dropped"));
+      },
+    });
+    let released = false;
+    const claim = beginSynthesis("failed");
+    const stream = pipeChunks(upstream, "failed", () => {}, Date.now(), "check", () => {
+      released = true;
+      claim();
+    });
+    const reader = stream.getReader();
+    try {
+      await within(5000, "reading a broken stream", reader.read());
+    } catch {
+      /* expected */
+    }
+    ok("a failed synthesis releases its claim", released);
+    ok("...so the clip can be attempted again", synthesisInFlight("failed") === null);
+  }
+
   console.log(failures === 0 ? "\nall checks passed" : `\n${failures} failing`);
   process.exit(failures === 0 ? 0 : 1);
 }
