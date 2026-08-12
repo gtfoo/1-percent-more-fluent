@@ -245,7 +245,12 @@ export function Reader({
     if (!el) return;
 
     // React bails out when the value is unchanged, so this is cheap.
-    setPlaying(!el.paused && !el.ended);
+    const isPlaying = !el.paused && !el.ended;
+    setPlaying(isPlaying);
+    // "Preparing" now means "asked for, not yet audible" - the wait between
+    // tapping Listen and the first byte arriving, rather than the wait for a
+    // whole file. It ends the moment playback starts.
+    if (isPlaying) setAudioBusy(false);
     if (!alignment || el.paused) {
       // Pausing leaves the current word marked - it is still the one you
       // stopped on - but finishing should not leave the last word lit.
@@ -437,27 +442,56 @@ export function Reader({
     }
   }
 
-  async function loadAudio() {
+  /**
+   * Start playing, rather than wait for a finished file.
+   *
+   * This used to POST /api/tts and sit on the response until the whole clip had
+   * been synthesised - about twenty seconds of nothing. Now the `<audio>`
+   * element is pointed straight at the streaming route and begins playing as
+   * the bytes arrive. Costs the same: ElevenLabs bills per character either
+   * way.
+   *
+   * The character timings cannot come down the same response - that one is
+   * audio/mpeg - so they are fetched separately and the highlight switches on
+   * when they land. Until then the audio simply plays unhighlighted, which is
+   * the trade: before this, the reader got neither until both were ready.
+   */
+  function loadAudio() {
     if (audioUrl) {
       togglePlay();
       return;
     }
-    setAudioBusy(true);
     setError(null);
-    try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pieceId: piece.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "narration failed");
-      setAudioUrl(data.url);
-      setAlignment(data.alignment ?? null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t.couldNotLoadAudio);
-    } finally {
-      setAudioBusy(false);
+    setAudioBusy(true);
+    setAudioUrl(`/api/tts/stream?piece=${encodeURIComponent(piece.id)}`);
+    void followAlignment();
+  }
+
+  /**
+   * Wait for the timings the stream is writing.
+   *
+   * Polling rather than a second synthesis: the stream route writes both the
+   * clip and its alignment, and this reads the file it leaves behind. Asking a
+   * second endpoint to generate the timings would bill every narration twice.
+   *
+   * Bounded. A stream that dies leaves no alignment, and a poll with no ceiling
+   * would run for as long as the tab stayed open.
+   */
+  async function followAlignment() {
+    const url = `/api/tts/alignment?piece=${encodeURIComponent(piece.id)}`;
+    for (let attempt = 0; attempt < 60; attempt++) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setAlignment(data.alignment ?? null);
+          return;
+        }
+        if (res.status !== 202) return;
+      } catch {
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 1000));
     }
   }
 

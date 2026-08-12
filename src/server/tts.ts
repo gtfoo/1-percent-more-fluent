@@ -26,7 +26,7 @@ import { join } from "node:path";
 import { getDb } from "./db";
 import { AUDIO_DIR } from "./paths";
 import { castSpeakers } from "./voices";
-import type { Speaker, Turn } from "@/lib/dialogue";
+import { splitTurns, type Speaker, type Turn } from "@/lib/dialogue";
 
 const DEFAULTS = {
   // "Alice - Clear, Engaging Educator". Chosen from the *premade* set, which is
@@ -152,6 +152,300 @@ function record(
 }
 
 /**
+ * What a piece actually says aloud, and how.
+ *
+ * Three callers need this and all three must agree: the stream route, the
+ * alignment route, and the hash they look the clip up by. Derived once here so
+ * a conversation cannot be hashed as a narration by one of them - which would
+ * not fail, it would quietly synthesise and bill a second copy.
+ */
+export function spokenTextFor(piece: {
+  id: string;
+  format: string;
+  paragraphs: string[];
+  speakers: Speaker[];
+}):
+  | { mode: "narration"; text: string }
+  | { mode: "dialogue"; turns: Turn[]; inputs: { text: string; voice_id: string }[] } {
+  if (piece.format !== "conversation") {
+    // Must match exactly what the reader renders, or the timings will not line
+    // up with the words on screen.
+    return { mode: "narration", text: piece.paragraphs.join("\n\n") };
+  }
+  const turns = splitTurns(piece.paragraphs, piece.speakers);
+  return { mode: "dialogue", turns, inputs: dialogueInputs(turns, piece.speakers, piece.id) };
+}
+
+/**
+ * Cast the turns and drop the empty ones - the exact payload the dialogue
+ * endpoints take.
+ *
+ * Shared by the streaming and non-streaming paths because it is also what the
+ * cache hash is computed over: two copies that drifted would hash differently
+ * and silently re-bill an already-synthesised conversation.
+ */
+function dialogueInputs(
+  turns: Turn[],
+  speakers: Speaker[],
+  pieceId: string,
+): { text: string; voice_id: string }[] {
+  const cast = castSpeakers(speakers, pieceId);
+  const fallback = config().voiceId;
+  return turns
+    .filter((t) => t.text.length > 0)
+    .map((t) => ({
+      text: t.text,
+      voice_id: (t.speaker && cast.get(t.speaker.trim().toLowerCase())) || fallback,
+    }));
+}
+
+/** What the streaming endpoints emit, one JSON object per chunk. */
+interface StreamChunk {
+  audio_base64: string;
+  alignment?: {
+    characters: string[];
+    character_start_times_seconds: number[];
+    character_end_times_seconds: number[];
+  };
+}
+
+/**
+ * The hash a piece's narration is stored under, without synthesising anything.
+ *
+ * Exported so the alignment endpoint can find the file the stream is writing.
+ * It must agree with what narrate/narrateDialogue compute, which is why the
+ * two hashing expressions below are the only copies in the file.
+ */
+export function narrationHash(text: string): string {
+  const { voiceId, modelId } = config();
+  return createHash("sha256")
+    .update(`${modelId}:${voiceId}:${text}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+export function dialogueHash(inputs: { text: string; voice_id: string }[]): string {
+  const { dialogueModelId } = config();
+  return createHash("sha256")
+    .update(`${dialogueModelId}:${JSON.stringify(inputs)}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+/** The alignment written beside a clip, if synthesis has finished. */
+export async function readAlignment(hash: string): Promise<Alignment | null> {
+  const path = join(AUDIO_DIR, `${hash}.json`);
+  if (!(await exists(path))) return null;
+  return JSON.parse(await readFile(path, "utf8")) as Alignment;
+}
+
+export async function clipExists(hash: string): Promise<boolean> {
+  return exists(join(AUDIO_DIR, `${hash}.mp3`));
+}
+
+/**
+ * Speak a piece, handing back audio bytes as they arrive.
+ *
+ * The reader used to wait for the whole clip - twenty seconds of nothing, for a
+ * file the browser could have started playing almost immediately. This returns
+ * a stream the `<audio>` element consumes progressively.
+ *
+ * IT ALSO WRITES BOTH FILES on the way past. That is the load-bearing part: the
+ * character timings cannot ride this response (it is audio/mpeg, they are
+ * JSON), so the reader fetches them separately - and if that second request
+ * synthesised its own copy, every narration would be billed twice. The
+ * alignment endpoint waits for the file this writes instead.
+ *
+ * The cache is unchanged: same hash, same `<hash>.mp3`, so a replay is still
+ * free and still served statically.
+ */
+export async function streamNarration(
+  text: string,
+  pieceId: string,
+): Promise<ReadableStream<Uint8Array>> {
+  const { apiKey, voiceId, modelId, maxChars } = config();
+  if (!apiKey) throw new Error("missing ELEVENLABS_API_KEY");
+  if (text.length > maxChars) {
+    throw new Error(
+      `Text is ${text.length} characters, over the ${maxChars} limit for one request.`,
+    );
+  }
+
+  const hash = narrationHash(text);
+  const res = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream/with-timestamps`,
+    {
+      method: "POST",
+      headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        model_id: modelId,
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+      }),
+    },
+  );
+  if (!res.ok || !res.body) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`ElevenLabs ${res.status}: ${detail.slice(0, 300)}`);
+  }
+
+  return pipeChunks(res.body, hash, () =>
+    record(hash, pieceId, voiceId, modelId, text.length),
+  );
+}
+
+/** The same, for a conversation. See narrateDialogue for the casting rules. */
+export async function streamDialogue(
+  turns: Turn[],
+  speakers: Speaker[],
+  pieceId: string,
+): Promise<ReadableStream<Uint8Array>> {
+  const { apiKey, maxChars, dialogueModelId } = config();
+  if (!apiKey) throw new Error("missing ELEVENLABS_API_KEY");
+
+  const inputs = dialogueInputs(turns, speakers, pieceId);
+  const characters = inputs.reduce((n, i) => n + i.text.length, 0);
+  if (characters > maxChars) {
+    throw new Error(
+      `Dialogue is ${characters} characters, over the ${maxChars} limit for one request.`,
+    );
+  }
+
+  const hash = dialogueHash(inputs);
+  const res = await fetch(
+    "https://api.elevenlabs.io/v1/text-to-dialogue/stream/with-timestamps",
+    {
+      method: "POST",
+      headers: { "xi-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ inputs, model_id: dialogueModelId }),
+    },
+  );
+  if (!res.ok || !res.body) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`ElevenLabs dialogue ${res.status}: ${detail.slice(0, 300)}`);
+  }
+
+  return pipeChunks(res.body, hash, () =>
+    record(
+      hash,
+      pieceId,
+      [...new Set(inputs.map((i) => i.voice_id))].join("+"),
+      dialogueModelId,
+      characters,
+    ),
+  );
+}
+
+/**
+ * Turn ElevenLabs' newline-delimited JSON into audio bytes, accumulating the
+ * timings and writing both files when the stream ends.
+ *
+ * The endpoint does NOT return raw mp3: each line is a JSON object carrying a
+ * base64 chunk plus the alignment for that chunk. So this cannot be a plain
+ * pipe-through - every line has to be parsed and decoded.
+ *
+ * Files are written only after the upstream stream ends cleanly. A half-written
+ * cache entry would be served to the next reader as a complete clip, and the
+ * hash would stop anyone ever regenerating it.
+ *
+ * Which is why a reader who navigates away mid-clip does NOT abort the upstream
+ * read. ElevenLabs bills per character synthesised, and by then it has already
+ * synthesised them: dropping the connection would throw away audio that has been
+ * paid for, and the next tap on Listen would pay for it a second time. So the
+ * download is drained to the end regardless of who is still listening, and the
+ * clip lands in the cache either way.
+ */
+function pipeChunks(
+  body: ReadableStream<Uint8Array>,
+  hash: string,
+  onComplete: () => void,
+): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const audio: Buffer[] = [];
+  const characters: string[] = [];
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let pending = "";
+  let saved = false;
+
+  const take = (line: string) => {
+    if (!line.trim()) return null;
+    const chunk = JSON.parse(line) as StreamChunk;
+    if (chunk.alignment) {
+      characters.push(...chunk.alignment.characters);
+      starts.push(...chunk.alignment.character_start_times_seconds);
+      ends.push(...chunk.alignment.character_end_times_seconds);
+    }
+    if (!chunk.audio_base64) return null;
+    const bytes = Buffer.from(chunk.audio_base64, "base64");
+    audio.push(bytes);
+    return bytes;
+  };
+
+  /** One upstream read, decoded. `done` means the clip is complete. */
+  const step = async (): Promise<{ done: boolean; bytes: Buffer[] }> => {
+    const { done, value } = await reader.read();
+    if (done) {
+      const last = take(pending);
+      pending = "";
+      return { done: true, bytes: last ? [last] : [] };
+    }
+    pending += decoder.decode(value, { stream: true });
+    const lines = pending.split("\n");
+    // The last piece may be half a line; keep it for the next read.
+    pending = lines.pop() ?? "";
+    const bytes: Buffer[] = [];
+    for (const line of lines) {
+      const b = take(line);
+      if (b) bytes.push(b);
+    }
+    return { done: false, bytes };
+  };
+
+  const save = async () => {
+    if (saved) return;
+    saved = true;
+    await mkdir(AUDIO_DIR, { recursive: true });
+    await writeFile(join(AUDIO_DIR, `${hash}.mp3`), Buffer.concat(audio));
+    if (characters.length) {
+      await writeFile(
+        join(AUDIO_DIR, `${hash}.json`),
+        JSON.stringify({ characters, starts, ends } satisfies Alignment),
+      );
+    }
+    onComplete();
+  };
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, bytes } = await step();
+      for (const b of bytes) controller.enqueue(b);
+      if (done) {
+        await save();
+        controller.close();
+      }
+    },
+    cancel() {
+      // Nobody is listening any more, but the characters are already bought.
+      // Finish the download in the background and cache it; a failure here just
+      // means no file is written, and the next request synthesises cleanly.
+      void (async () => {
+        try {
+          for (;;) {
+            const { done } = await step();
+            if (done) break;
+          }
+          await save();
+        } catch (err) {
+          console.error("tts stream drain failed", err);
+        }
+      })();
+    },
+  });
+}
+
+/**
  * Synthesise `text`, or return the cached file if this exact text has been
  * spoken before in this voice and model.
  */
@@ -240,17 +534,7 @@ export async function narrateDialogue(
   const { apiKey, maxChars, dialogueModelId } = config();
   if (!apiKey) throw new Error("missing ELEVENLABS_API_KEY");
 
-  const cast = castSpeakers(speakers, pieceId);
-  const fallback = config().voiceId;
-
-  const inputs = turns
-    .filter((t) => t.text.length > 0)
-    .map((t) => ({
-      text: t.text,
-      voice_id:
-        (t.speaker && cast.get(t.speaker.trim().toLowerCase())) || fallback,
-    }));
-
+  const inputs = dialogueInputs(turns, speakers, pieceId);
   const characters = inputs.reduce((n, i) => n + i.text.length, 0);
   if (characters > maxChars) {
     throw new Error(
