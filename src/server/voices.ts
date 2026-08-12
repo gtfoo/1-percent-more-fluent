@@ -1,121 +1,117 @@
 /**
- * Casting a conversation, and choosing who reads a narration.
+ * Who reads a piece, and who plays each part in a conversation.
  *
- * Only ElevenLabs' *premade* voices are usable on a free key - library and
- * professional voices return 402 paid_plan_required, including some that used
- * to be premade. Run `npm run voices` to check what a given key can actually
- * use before changing this list.
+ * THE VOICES ARE NATIVE SPEAKERS OF THE LANGUAGE. That sounds obvious and was
+ * not true here until now: every story and article, in all three languages, was
+ * read by Alice - a British-accented English voice - because the pool was built
+ * from ElevenLabs' *premade* set, which is entirely English. In Chinese it
+ * sounded like an English speaker doing their best with Mandarin.
  *
- * None of these are native speakers of anything but English; the multilingual
- * model drives the pronunciation. What the lists below encode is narrower and
- * more useful than nativeness: ElevenLabs publishes, per voice, the languages
- * it has actually been VERIFIED in, and the app was ignoring it.
+ * Two corrections got us here, and the second undid an assumption in the first:
  *
- * That is not academic. Every story and article in every language was read by
- * Alice, a British-accented English educator voice verified in NONE of the
- * three languages this app teaches - which is audible in Chinese as an English
- * speaker doing their best with Mandarin, mostly clear with some words wrong.
+ *  1. ElevenLabs publishes `verified_languages` per voice, and the app ignored
+ *     it. Choosing a premade voice verified in the language fixed some
+ *     mispronunciation - but verification only means the voice was TESTED in
+ *     that language, not that it is native to it, so the accent stayed.
  *
- * Taken from `GET /v1/voices` → `verified_languages`, filtered to entries whose
- * `model_id` is the model this app narrates with. Verification is per model, and
- * only `eleven_multilingual_v2` and `eleven_turbo_v2_5` carry any: `eleven_v3`,
- * which the dialogue endpoint uses, publishes none at all. So these lists are
- * evidence for narration and an educated guess for dialogue.
+ *  2. The pool was restricted to premade voices because library and
+ *     professional ones "return 402 paid_plan_required". That was observed on a
+ *     free key. THIS ACCOUNT IS PAY-AS-YOU-GO, and the whole voice library is
+ *     available to it - including hundreds of native speakers. Every id below
+ *     was confirmed to synthesise on this key, on the narration endpoint and,
+ *     for a pair of them, on the multi-voice dialogue endpoint.
+ *
+ * So the accent labels here are real: "beijing mandarin" is a Beijing speaker.
+ * Run `npm run voices` before changing anything - a library voice belongs to
+ * whoever published it and can be withdrawn, which is why the English pool
+ * survives below as a last resort.
  */
 import type { Speaker } from "@/lib/dialogue";
 
-interface PremadeVoice {
+interface Voice {
   id: string;
   name: string;
   gender: "female" | "male";
 }
 
 /**
- * Every premade voice on a free key, regardless of language.
+ * Native speakers, per language, narrator first.
  *
- * Still here because it is the fallback for a language ElevenLabs has verified
- * nobody in - Indonesian today - where an unverified voice is the only option
- * there is.
+ * Keyed by language-code PREFIX, so `zh-CN` and any future `zh-TW` both find
+ * the Chinese list without this file knowing every locale the app might add.
+ *
+ * Ordering is deliberate: the first entry narrates, so it is the calmest and
+ * clearest of each set, and the rest alternate gender so a cast of two or three
+ * gets distinguishable voices before the picker has to wrap.
+ *
+ * Accents chosen to match who the app teaches: mainland Mandarin for Simplified
+ * Chinese rather than Taiwanese or Cantonese, and neutral Latin American Spanish
+ * ahead of peninsular, as the more widely understood starting point.
  */
-const POOL: PremadeVoice[] = [
+const NATIVE: Record<string, Voice[]> = {
+  zh: [
+    { id: "NchRhc5KPgHwZagz6MrZ", name: "Macy", gender: "female" }, // standard
+    { id: "cIgfFHYNnHGsenWoEwaO", name: "Zhan", gender: "male" }, // beijing mandarin
+    { id: "m7QGIiNrWASyI5oJn4I8", name: "Xiaoran", gender: "female" }, // beijing mandarin
+    { id: "007rapvffUWW4JvRagws", name: "Bo", gender: "male" }, // beijing mandarin
+    { id: "APSIkVZudNbPAwyPoeVO", name: "Sage", gender: "female" }, // standard
+    { id: "d8IR2QHf65bKkLRMo3sk", name: "Wei", gender: "male" }, // standard
+  ],
+  es: [
+    { id: "pXGCH52cHhcAprI7uhY9", name: "Maria", gender: "female" }, // latin american
+    { id: "KV8mzxnpQFd2ysFwOirJ", name: "Edgardo", gender: "male" }, // latin american
+    { id: "irla3teuChAApguKnzms", name: "Diana", gender: "female" }, // colombian
+    { id: "1npscUJu0UbVeHp4b0zt", name: "Juan Gabriel", gender: "male" }, // peninsular
+    { id: "dX2UjlDzOz7RY8kmMXZo", name: "Matilda Paz", gender: "female" }, // peninsular
+    { id: "Wb1wmVQjMx9g2QSIOTPI", name: "Juan Esteban", gender: "male" }, // colombian
+  ],
+  id: [
+    { id: "wvv6DzcHyOVTDgDY7SMW", name: "Andi", gender: "male" }, // standard
+    { id: "d15jrIAARvF899pDoC6T", name: "Kak Ceria", gender: "female" }, // standard
+    { id: "5YVVTVlHuEcIu0JBLbEF", name: "Ongky", gender: "male" }, // standard
+    { id: "BfwyZzLnL4udYd1qYpiN", name: "Luna", gender: "female" }, // standard
+    { id: "GmkWJneRwj7Dm7KM5NPf", name: "BonaErwin", gender: "male" }, // standard
+    { id: "TrU3igk19A4aIUi2GAA2", name: "Velora", gender: "female" }, // standard
+  ],
+};
+
+/**
+ * ElevenLabs' premade voices - all English natives.
+ *
+ * No longer what anything is read in. Kept as the floor: a library voice
+ * belongs to whoever published it and can be withdrawn, and an English voice
+ * reading Mandarin is bad where silence is worse.
+ */
+const FALLBACK: Voice[] = [
   { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", gender: "female" },
   { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", gender: "female" },
   { id: "XrExE9yKIg1WjnnlVkGX", name: "Matilda", gender: "female" },
   { id: "cgSgspJ2msm6clMCkdW9", name: "Jessica", gender: "female" },
   { id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", gender: "female" },
-  { id: "hpp4J3VqNfWAUOO0d1Us", name: "Bella", gender: "female" },
   { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", gender: "female" },
   { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", gender: "male" },
   { id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", gender: "male" },
   { id: "cjVigY5qzO86Huf0OWal", name: "Eric", gender: "male" },
   { id: "CwhRBWXzGAHq8TQ4Fs17", name: "Roger", gender: "male" },
-  { id: "iP95p4xoKVk53GoZ742B", name: "Chris", gender: "male" },
   { id: "nPczCjzI2devNBz1zQrb", name: "Brian", gender: "male" },
   { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", gender: "male" },
-  { id: "bIHbv24MWmeRgasZH58o", name: "Will", gender: "male" },
-  { id: "pqHfZKP75CvOlQylNhV4", name: "Bill", gender: "male" },
 ];
 
-const byId = (id: string): PremadeVoice => POOL.find((v) => v.id === id)!;
-
-/**
- * Voices ElevenLabs has verified in each language, best first.
- *
- * Keyed by the language-code PREFIX, so `zh-CN` and any future `zh-TW` both
- * find the Chinese list without this file having to know every locale the app
- * might add.
- *
- * `River` is verified for Chinese and deliberately absent: its published gender
- * is "neutral", and casting reads gender to keep two characters distinguishable.
- * A voice that cannot answer that question is more use as a narrator than in a
- * scene, and narration here does not need a third option.
- */
-const VERIFIED: Record<string, string[]> = {
-  // 9 premade voices verified; these are the 8 with a stated gender.
-  zh: [
-    "EXAVITQu4vr4xnSDxMaL", // Sarah
-    "pFZP5JQG7iQjIQuC4Bku", // Lily
-    "cgSgspJ2msm6clMCkdW9", // Jessica
-    "FGY2WhTYpPnrIDTdsKH5", // Laura
-    "nPczCjzI2devNBz1zQrb", // Brian
-    "IKne3meq5aSn9XLyUdCD", // Charlie
-    "bIHbv24MWmeRgasZH58o", // Will
-    "pqHfZKP75CvOlQylNhV4", // Bill
-  ],
-  es: [
-    "EXAVITQu4vr4xnSDxMaL", // Sarah
-    "XrExE9yKIg1WjnnlVkGX", // Matilda
-    "JBFqnCBsd6RMkjVDRZzb", // George
-    "CwhRBWXzGAHq8TQ4Fs17", // Roger
-    "cjVigY5qzO86Huf0OWal", // Eric
-    "IKne3meq5aSn9XLyUdCD", // Charlie
-    "bIHbv24MWmeRgasZH58o", // Will
-  ],
-  // Indonesian: ElevenLabs has verified NO premade voice in it. The one
-  // Indonesian voice on the account, "Andi (Indonesian)", is a professional
-  // voice, which is the category a free key cannot use. Deliberately absent
-  // rather than listed-and-broken: an empty entry falls through to POOL below,
-  // which is exactly what happened before this file knew about languages.
-};
-
-/** The pool to cast a piece from, narrowed to voices verified in its language. */
-function poolFor(languageCode: string): PremadeVoice[] {
-  const ids = VERIFIED[languageCode.slice(0, 2).toLowerCase()];
-  return ids?.length ? ids.map(byId) : POOL;
+/** The voices a piece in this language may be read by, best first. */
+function poolFor(languageCode: string): Voice[] {
+  return NATIVE[languageCode.slice(0, 2).toLowerCase()] ?? FALLBACK;
 }
 
 /**
  * Who reads a narration, for this language.
  *
  * `ELEVENLABS_VOICE_ID` still wins, because an operator who has picked a voice
- * has more context than this table. Without it, the first verified voice for the
- * language - and only if the language has none does this land back on Alice,
- * which is the old behaviour and the reason for the change.
+ * has more context than this table - but note it applies to EVERY language, so
+ * setting it puts one voice back in charge of all of them, which is the thing
+ * this file exists to undo.
  */
 export function narrationVoiceFor(languageCode: string): string {
-  const override = process.env.ELEVENLABS_VOICE_ID;
-  if (override) return override;
-  return poolFor(languageCode)[0]?.id ?? "Xb7hH8MSUJpSbSDYk0k2";
+  return process.env.ELEVENLABS_VOICE_ID || poolFor(languageCode)[0]!.id;
 }
 
 /** Stable per-piece variation, so two conversations do not sound identical. */
@@ -129,18 +125,16 @@ function hash(seed: string): number {
 }
 
 /**
- * Assign each speaker a distinct, gender-matched voice from that language's
- * verified pool.
+ * Assign each speaker a distinct, gender-matched native voice.
  *
  * Distinctness matters more than the gender match: two characters sharing a
  * voice makes a conversation impossible to follow, which is the whole problem
  * this solves. So if a gender pool runs dry, we borrow from the other rather
  * than reuse - better a wrongly-gendered voice than an ambiguous scene.
  *
- * The language pool is narrowed FIRST, so borrowing happens inside the verified
- * set rather than reaching for an unverified voice. A wrongly-gendered voice
- * that pronounces the language is a better trade than a right-gendered one that
- * does not.
+ * The language pool is narrowed FIRST, so borrowing stays among native
+ * speakers rather than reaching for an English voice. A wrongly-gendered
+ * speaker of the language beats a right-gendered foreigner.
  */
 export function castSpeakers(
   speakers: Speaker[],
@@ -152,7 +146,7 @@ export function castSpeakers(
   const taken = new Set<string>();
   const cast = new Map<string, string>();
 
-  const pick = (gender: "female" | "male"): PremadeVoice | undefined => {
+  const pick = (gender: "female" | "male"): Voice | undefined => {
     const matching = pool.filter((v) => v.gender === gender && !taken.has(v.id));
     const usable = matching.length ? matching : pool.filter((v) => !taken.has(v.id));
     if (!usable.length) return undefined;
@@ -170,9 +164,13 @@ export function castSpeakers(
 }
 
 export function voiceName(id: string): string | undefined {
-  return POOL.find((v) => v.id === id)?.name;
+  for (const list of [...Object.values(NATIVE), FALLBACK]) {
+    const hit = list.find((v) => v.id === id);
+    if (hit) return hit.name;
+  }
+  return undefined;
 }
 
 /** Exposed for scripts/check-voices.ts. */
-export const VOICE_POOL = POOL;
-export const VERIFIED_BY_LANGUAGE = VERIFIED;
+export const NATIVE_BY_LANGUAGE = NATIVE;
+export const FALLBACK_POOL = FALLBACK;

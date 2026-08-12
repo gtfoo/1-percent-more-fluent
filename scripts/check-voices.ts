@@ -1,22 +1,24 @@
 /**
- * Assert nobody reads a language ElevenLabs has never verified them in.
+ * Assert nobody reads a language they are not a native speaker of.
  *
  *   npx tsx scripts/check-voices.ts
  *
  * Offline: no key, no network, no synthesis. What it guards is a table that
- * rots quietly. Before this, every story and article in all three languages was
- * read by Alice - a British-accented English educator voice verified in none of
- * them - and nothing anywhere said so. It was audible only as a slightly wrong
- * accent in Chinese, which is exactly the kind of fault nobody files a bug for.
+ * rots quietly. Every story and article in all three languages used to be read
+ * by Alice, a British-accented English voice, and nothing anywhere said so - it
+ * was audible only as a wrong accent in Chinese, which is the kind of fault
+ * nobody files a bug for.
  *
- * To refresh the underlying data against the account, run `npm run voices`.
+ * The ids themselves are checked against the account by `npm run voices`, which
+ * needs a key. This file checks the shape: that every language has natives, that
+ * casting cannot leak outside them, and that a conversation can be cast at all.
  */
 import {
   castSpeakers,
   narrationVoiceFor,
   voiceName,
-  VOICE_POOL,
-  VERIFIED_BY_LANGUAGE,
+  NATIVE_BY_LANGUAGE,
+  FALLBACK_POOL,
 } from "../src/server/voices";
 import type { Speaker } from "../src/lib/dialogue";
 
@@ -27,98 +29,105 @@ function ok(name: string, condition: boolean, detail = "") {
   console.log(`${condition ? "ok  " : "FAIL"} ${name}${detail ? `  ${detail}` : ""}`);
 }
 
-// The app's own codes, not bare language names: `zh-CN` has to find the Chinese
-// list, or every Chinese piece silently falls back to the unverified pool.
+/** The app's own codes, not bare language names - `zh-CN` must find `zh`. */
 const LANGUAGES = ["es", "zh-CN", "id"];
 
-// --- the tables are internally consistent ---------------------------------
-for (const [code, ids] of Object.entries(VERIFIED_BY_LANGUAGE)) {
-  for (const id of ids) {
-    ok(
-      `${code}: ${id} is a voice we actually have`,
-      VOICE_POOL.some((v) => v.id === id),
-      voiceName(id) ?? "NOT IN POOL",
-    );
-  }
-  ok(`${code}: no duplicates`, new Set(ids).size === ids.length);
-  const genders = new Set(
-    ids.map((id) => VOICE_POOL.find((v) => v.id === id)!.gender),
-  );
-  // A conversation needs both, or every mixed-gender scene borrows immediately.
-  ok(`${code}: has both genders to cast from`, genders.size === 2, [...genders].join("+"));
-}
-
-// --- narration picks a verified voice where one exists --------------------
 delete process.env.ELEVENLABS_VOICE_ID;
+
+// --- every language the app teaches has native voices ---------------------
 for (const code of LANGUAGES) {
-  const chosen = narrationVoiceFor(code);
-  const verified = VERIFIED_BY_LANGUAGE[code.slice(0, 2).toLowerCase()];
-  if (verified?.length) {
-    ok(
-      `${code}: narrator is verified in the language`,
-      verified.includes(chosen),
-      `${voiceName(chosen)}`,
-    );
-  } else {
-    // Indonesian. Honest rather than silent: there is no verified premade voice,
-    // so it lands in the general pool, and the assertion records that we know.
-    ok(
-      `${code}: no verified voice exists, falls back to the pool`,
-      VOICE_POOL.some((v) => v.id === chosen),
-      `${voiceName(chosen)} - unverified, see voices.ts`,
-    );
-  }
+  const natives = NATIVE_BY_LANGUAGE[code.slice(0, 2).toLowerCase()];
+  ok(`${code}: has native voices`, Boolean(natives?.length), `${natives?.length ?? 0}`);
+  if (!natives?.length) continue;
+
+  ok(`${code}: no duplicate ids`, new Set(natives.map((v) => v.id)).size === natives.length);
+  // Both genders, or every mixed-gender scene borrows on the first speaker.
+  const genders = new Set(natives.map((v) => v.gender));
+  ok(`${code}: has both genders to cast from`, genders.size === 2, [...genders].join("+"));
+  // Enough for a normal cast without wrapping onto a voice already used.
+  ok(`${code}: at least two of each gender`, ["female", "male"].every(
+    (g) => natives.filter((v) => v.gender === g).length >= 2,
+  ));
+  // None of the English premades may appear in a native list - that is exactly
+  // the bug this file exists to prevent.
+  ok(
+    `${code}: no English fallback voice smuggled in`,
+    !natives.some((v) => FALLBACK_POOL.some((f) => f.id === v.id)),
+  );
 }
 
-// The locale suffix must not defeat the lookup.
+// --- the narrator is a native speaker -------------------------------------
+for (const code of LANGUAGES) {
+  const natives = NATIVE_BY_LANGUAGE[code.slice(0, 2).toLowerCase()]!;
+  const chosen = narrationVoiceFor(code);
+  ok(
+    `${code}: narrator is a native speaker`,
+    natives.some((v) => v.id === chosen),
+    `${voiceName(chosen)}`,
+  );
+}
+
 ok(
   "zh-CN resolves to the same narrator as zh",
   narrationVoiceFor("zh-CN") === narrationVoiceFor("zh"),
 );
 
-// An operator's explicit choice still wins over the table.
+// A language nobody has recorded still gets a voice rather than an exception.
+ok(
+  "an unknown language falls back rather than throwing",
+  FALLBACK_POOL.some((v) => v.id === narrationVoiceFor("xx")),
+  voiceName(narrationVoiceFor("xx")),
+);
+
 process.env.ELEVENLABS_VOICE_ID = "some-chosen-voice";
 ok("ELEVENLABS_VOICE_ID overrides the table", narrationVoiceFor("zh") === "some-chosen-voice");
 delete process.env.ELEVENLABS_VOICE_ID;
 
-// --- casting stays inside the verified set --------------------------------
-const cast3: Speaker[] = [
+// --- casting stays native --------------------------------------------------
+const three: Speaker[] = [
   { name: "Ana", gender: "female" },
   { name: "Bo", gender: "male" },
   { name: "Cai", gender: "female" },
 ];
 
-for (const code of ["zh-CN", "es"]) {
-  const cast = castSpeakers(cast3, "seed-piece-id", code);
-  const verified = VERIFIED_BY_LANGUAGE[code.slice(0, 2)]!;
-  ok(`${code}: everyone gets a voice`, cast.size === cast3.length, `${cast.size}`);
+for (const code of LANGUAGES) {
+  const natives = NATIVE_BY_LANGUAGE[code.slice(0, 2).toLowerCase()]!;
+  const cast = castSpeakers(three, "seed-piece-id", code);
+  ok(`${code}: everyone gets a voice`, cast.size === three.length, `${cast.size}`);
   ok(
-    `${code}: every voice is verified in the language`,
-    [...cast.values()].every((id) => verified.includes(id)),
+    `${code}: every voice is a native speaker`,
+    [...cast.values()].every((id) => natives.some((v) => v.id === id)),
     [...cast.values()].map((id) => voiceName(id)).join(", "),
   );
+  ok(`${code}: no two speakers share a voice`, new Set(cast.values()).size === cast.size);
   ok(
-    `${code}: no two speakers share a voice`,
-    new Set(cast.values()).size === cast.size,
+    `${code}: genders match where the pool allows`,
+    [...cast.entries()].every(([name, id]) => {
+      const want = three.find((s) => s.name.toLowerCase() === name)!.gender;
+      return natives.find((v) => v.id === id)!.gender === want;
+    }),
   );
 }
 
-// Borrowing across genders must not escape the language, because an audible
-// mispronunciation is worse than a wrongly-gendered voice.
-const manyWomen: Speaker[] = Array.from({ length: 6 }, (_, i) => ({
+// Borrowing across genders must not escape the language: an audible foreign
+// accent is worse than a wrongly-gendered speaker.
+const manyWomen: Speaker[] = Array.from({ length: 5 }, (_, i) => ({
   name: `W${i}`,
   gender: "female" as const,
 }));
 const stretched = castSpeakers(manyWomen, "seed", "zh-CN");
 ok(
   "running a gender dry borrows within the language, not outside it",
-  [...stretched.values()].every((id) => VERIFIED_BY_LANGUAGE.zh!.includes(id)),
+  [...stretched.values()].every((id) =>
+    NATIVE_BY_LANGUAGE.zh!.some((v) => v.id === id),
+  ),
   [...stretched.values()].map((id) => voiceName(id)).join(", "),
 );
 
-// Indonesian has no verified list, so it must still cast rather than fail.
-const idCast = castSpeakers(cast3, "seed", "id");
-ok("a language with no verified voices still casts", idCast.size === cast3.length);
+// Every id must be nameable, or the dialogue dump prints raw ids.
+for (const [code, list] of Object.entries(NATIVE_BY_LANGUAGE)) {
+  ok(`${code}: every voice has a name`, list.every((v) => voiceName(v.id) === v.name));
+}
 
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} failing`);
 process.exit(failures === 0 ? 0 : 1);
