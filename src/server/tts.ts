@@ -272,6 +272,7 @@ export async function streamNarration(
   }
 
   const hash = narrationHash(text);
+  const began = Date.now();
   const res = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream/with-timestamps`,
     {
@@ -288,9 +289,14 @@ export async function streamNarration(
     const detail = await res.text().catch(() => "");
     throw new Error(`ElevenLabs ${res.status}: ${detail.slice(0, 300)}`);
   }
+  console.log(`tts narration ${text.length}ch: headers after ${Date.now() - began}ms`);
 
-  return pipeChunks(res.body, hash, () =>
-    record(hash, pieceId, voiceId, modelId, text.length),
+  return pipeChunks(
+    res.body,
+    hash,
+    () => record(hash, pieceId, voiceId, modelId, text.length),
+    began,
+    `narration ${text.length}ch`,
   );
 }
 
@@ -312,6 +318,7 @@ export async function streamDialogue(
   }
 
   const hash = dialogueHash(inputs);
+  const began = Date.now();
   const res = await fetch(
     "https://api.elevenlabs.io/v1/text-to-dialogue/stream/with-timestamps",
     {
@@ -324,15 +331,21 @@ export async function streamDialogue(
     const detail = await res.text().catch(() => "");
     throw new Error(`ElevenLabs dialogue ${res.status}: ${detail.slice(0, 300)}`);
   }
+  console.log(`tts dialogue ${characters}ch: headers after ${Date.now() - began}ms`);
 
-  return pipeChunks(res.body, hash, () =>
-    record(
-      hash,
-      pieceId,
-      [...new Set(inputs.map((i) => i.voice_id))].join("+"),
-      dialogueModelId,
-      characters,
-    ),
+  return pipeChunks(
+    res.body,
+    hash,
+    () =>
+      record(
+        hash,
+        pieceId,
+        [...new Set(inputs.map((i) => i.voice_id))].join("+"),
+        dialogueModelId,
+        characters,
+      ),
+    began,
+    `dialogue ${characters}ch`,
   );
 }
 
@@ -354,13 +367,19 @@ export async function streamDialogue(
  * paid for, and the next tap on Listen would pay for it a second time. So the
  * download is drained to the end regardless of who is still listening, and the
  * clip lands in the cache either way.
+ *
+ * Exported only so scripts/check-tts-pipe.ts can drive it with a fake upstream -
+ * the stall this used to have was invisible to every other kind of test.
  */
-function pipeChunks(
+export function pipeChunks(
   body: ReadableStream<Uint8Array>,
   hash: string,
   onComplete: () => void,
+  began: number,
+  label: string,
 ): ReadableStream<Uint8Array> {
   const reader = body.getReader();
+  let firstByte = 0;
   const decoder = new TextDecoder();
   const audio: Buffer[] = [];
   const characters: string[] = [];
@@ -380,6 +399,12 @@ function pipeChunks(
     if (!chunk.audio_base64) return null;
     const bytes = Buffer.from(chunk.audio_base64, "base64");
     audio.push(bytes);
+    if (!firstByte) {
+      firstByte = Date.now() - began;
+      // The number this whole change exists to move: how long the reader waits
+      // before hearing anything, as opposed to how long the clip takes to make.
+      console.log(`tts ${label}: first audio after ${firstByte}ms`);
+    }
     return bytes;
   };
 
@@ -415,15 +440,34 @@ function pipeChunks(
       );
     }
     onComplete();
+    console.log(
+      `tts ${label}: complete after ${Date.now() - began}ms ` +
+        `(${audio.reduce((n, b) => n + b.length, 0)} bytes, first audio ${firstByte}ms)`,
+    );
   };
 
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
-      const { done, bytes } = await step();
-      for (const b of bytes) controller.enqueue(b);
-      if (done) {
-        await save();
-        controller.close();
+      // Loop until something is actually enqueued, or the clip ends.
+      //
+      // This is not an optimisation, it is the difference between working and
+      // hanging forever. A pull() that resolves without enqueuing anything is
+      // never retried: the stream clears its `pulling` flag, finds no reason to
+      // pull again, and the read request that triggered it is left unanswered.
+      //
+      // One upstream read is nowhere near a complete line - the endpoint sends
+      // ~10KB of JSON per chunk and undici hands it over in ~1.8KB pieces - so
+      // the first pull produced no audio, and the response stalled on its first
+      // byte until the connection was torn down.
+      for (;;) {
+        const { done, bytes } = await step();
+        for (const b of bytes) controller.enqueue(b);
+        if (done) {
+          await save();
+          controller.close();
+          return;
+        }
+        if (bytes.length) return;
       }
     },
     cancel() {

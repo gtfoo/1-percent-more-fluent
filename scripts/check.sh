@@ -34,6 +34,7 @@ step "word list" npx tsx scripts/check-vocabulary.ts
 step "sign-in and claiming" npx tsx scripts/check-auth.ts
 step "passkey storage" npx tsx scripts/check-passkeys.ts
 step "dialogue turns" npx tsx scripts/check-dialogue.ts
+step "audio streaming" npx tsx scripts/check-tts-pipe.ts
 step "model chain" npx tsx scripts/check-llm-chain.ts
 step "next build" npx next build
 
