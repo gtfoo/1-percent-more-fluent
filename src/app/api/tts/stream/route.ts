@@ -54,8 +54,21 @@ export async function GET(req: NextRequest) {
   const hash =
     spoken.mode === "dialogue" ? dialogueHash(spoken.inputs) : narrationHash(spoken.text);
 
+  /**
+   * Relative, deliberately.
+   *
+   * `Response.redirect` demands an absolute URL, and the only origin available
+   * here is the one the app sees - which behind Caddy is its own bind address.
+   * In production that sent every reader to `https://localhost:3100/audio/...`:
+   * their own machine, on a port with nothing on it. Silently, because a
+   * redirect the browser cannot follow is not an error the page ever sees.
+   *
+   * A relative Location is resolved against whatever the browser actually asked
+   * for, so it is correct on localhost, behind a proxy, and under any hostname
+   * without the server having to know which it is.
+   */
   const toFile = () =>
-    Response.redirect(new URL(`/audio/${hash}.mp3`, req.nextUrl.origin), 302);
+    new Response(null, { status: 302, headers: { Location: `/audio/${hash}.mp3` } });
 
   // Already spoken. Redirect rather than re-stream: the static file supports
   // range requests and therefore seeking, which a synthesised stream does not.

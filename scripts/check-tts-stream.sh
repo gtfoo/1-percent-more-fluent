@@ -86,6 +86,15 @@ if [ -n "$STORY" ]; then
     || ok "a cached narration redirects rather than streaming" 0 "HTTP $code"
   echo "$loc" | grep -q "/audio/.*\.mp3" \
     && ok "...straight at the static file" 1 || ok "...straight at the static file" 0 "$loc"
+  # RELATIVE, and this assertion is the whole point rather than a detail. The
+  # first version of this check only looked for "/audio/<hash>.mp3" somewhere in
+  # the header, which an absolute URL satisfies too - so it passed while
+  # production was sending every reader to https://localhost:3100/audio/...,
+  # their own machine, on a port with nothing on it. Nothing errored: a redirect
+  # the browser cannot follow is not visible to the page.
+  echo "$loc" | grep -qiE 'location:[[:space:]]*https?://' \
+    && ok "...by a relative path, not this server's own origin" 0 "$loc" \
+    || ok "...by a relative path, not this server's own origin" 1
 else
   ok "a cached narration redirects" 0 "no cached narration in this database"
 fi
