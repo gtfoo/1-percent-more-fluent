@@ -141,6 +141,7 @@ export function buildPrompt(
   length: Length,
   params: LevelParams,
   corrections?: string[],
+  vocabulary?: string[],
 ): string {
   const targetWords = LENGTH_WORDS[length];
 
@@ -185,6 +186,26 @@ export function buildPrompt(
     `Also produce exactly three multiple-choice comprehension questions in ${params.language.name}, each with three options.`,
   ];
 
+  // The experiment. The budget above asks the model to write inside "the N most
+  // common words" - a set defined by a frequency list it cannot see, so it has
+  // to estimate membership by feel. At low levels there is no margin for that:
+  // 86% of pieces below level 25 missed on the first attempt. Showing it the
+  // actual words turns guessing into constraint-following, and at those levels
+  // the whole band is ~1,100 input tokens against the ~600 OUTPUT tokens a
+  // retry costs.
+  //
+  // Passed in rather than looked up here so this file stays free of the
+  // frequency data, and so the harness can vary it.
+  if (vocabulary?.length) {
+    lines.push(
+      "",
+      `These are the ${vocabulary.length.toLocaleString("en")} words the budget above refers to. Build the text from them:`,
+      vocabulary.join(" "),
+      "",
+      "Words NOT in that list are the share you are aiming to spend outside the band - use them deliberately, and put every one in the glossary.",
+    );
+  }
+
   if (corrections?.length) {
     lines.push(
       "",
@@ -218,6 +239,60 @@ export interface GeneratedPiece {
 /** How many times we regenerate before accepting an over-budget text. */
 const MAX_ATTEMPTS = 2;
 
+/**
+ * ONE attempt: ask the model, measure what came back. No retry, no database.
+ *
+ * Split out of generatePiece so the difficulty experiment in
+ * scripts/bench-difficulty.ts measures the REAL prompt and the REAL verifier
+ * rather than a copy that drifts. A harness that reimplements the prompt is
+ * measuring its own reimplementation, which is the failure mode that makes
+ * experiments quietly worthless.
+ *
+ * `vocabulary` is the experiment's variable: the actual words of the band, for
+ * the prompt to show the model. Production passes nothing.
+ */
+export async function draftPiece(args: {
+  language: Language;
+  params: LevelParams;
+  format: Format;
+  topic: string;
+  length: Length;
+  corrections?: string[];
+  vocabulary?: string[];
+}): Promise<{ piece: Piece; report: DifficultyReport; modelId: string }> {
+  const result = await generateStructured({
+    schema: pieceSchema(args.language),
+    system: system(args.language.name),
+    prompt: buildPrompt(
+      args.format,
+      args.topic,
+      args.length,
+      args.params,
+      args.corrections,
+      args.vocabulary,
+    ),
+    temperature: 0.8,
+  });
+
+  const piece = result.object;
+  const speakers = piece.speakers ?? [];
+  const prose =
+    args.format === "conversation"
+      ? splitTurns(piece.paragraphs, speakers)
+          .map((t) => t.text)
+          .join("\n\n")
+      : piece.paragraphs.join("\n\n");
+
+  const report = measure(
+    prose,
+    args.params,
+    (piece.terms ?? []).map((t) => t.term),
+    speakers.map((s) => s.name),
+  );
+
+  return { piece, report, modelId: result.modelId };
+}
+
 export async function generatePiece(args: {
   userId: string;
   level: number;
@@ -244,37 +319,21 @@ export async function generatePiece(args: {
 
   while (attempts < MAX_ATTEMPTS) {
     attempts++;
-    const result = await generateStructured({
-      schema: pieceSchema(language),
-      system: system(language.name),
-      prompt: buildPrompt(args.format, args.topic, args.length, params, corrections),
-      // Some warmth, or every story about "a trip to the market" is the same
-      // story. The verifier is what keeps difficulty honest, not low variance.
-      temperature: 0.8,
+    // One attempt, measured. See draftPiece - the prompt, the temperature and
+    // the "measure the prose, not the speaker labels" rule all live there so
+    // the bench harness exercises exactly what production does.
+    const draft = await draftPiece({
+      language,
+      params,
+      format: args.format,
+      topic: args.topic,
+      length: args.length,
+      corrections,
     });
 
-    piece = result.object;
-    modelId = result.modelId;
-
-    // Measure what the reader actually reads as prose. For a conversation that
-    // is the turns WITHOUT their "Name:" prefixes - the prefix is a label,
-    // rendered separately and never spoken, so counting it as vocabulary is
-    // measuring the wrong string. The names are then passed separately, which
-    // also covers them used as vocatives inside a line.
-    const speakers = piece.speakers ?? [];
-    const isConversation = args.format === "conversation";
-    const prose = isConversation
-      ? splitTurns(piece.paragraphs, speakers)
-          .map((t) => t.text)
-          .join("\n\n")
-      : piece.paragraphs.join("\n\n");
-
-    report = measure(
-      prose,
-      params,
-      (piece.terms ?? []).map((t) => t.term),
-      speakers.map((s) => s.name),
-    );
+    piece = draft.piece;
+    report = draft.report;
+    modelId = draft.modelId;
     if (report.passes) break;
 
     corrections = report.problems;

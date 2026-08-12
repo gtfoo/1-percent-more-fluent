@@ -9,6 +9,7 @@
     "lint": "eslint",
     "wordlist": "tsx scripts/build-wordlist.ts",
     "hsk": "tsx scripts/build-hsk.ts",
+    "bench-difficulty": "tsx scripts/bench-difficulty.ts",
     "icons": "tsx scripts/build-icons.ts",
     "samples": "tsx scripts/build-samples.ts",
     "voices": "tsx scripts/probe-voices.ts",
