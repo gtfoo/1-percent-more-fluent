@@ -57,13 +57,38 @@ export const MAX_TERM_RATE = 0.25;
 /**
  * How far past the budget we tolerate before regenerating.
  *
- * Measured: models reliably land 12-15% out-of-band on the first attempt, and
- * reliably drop to 6-8% when handed the specific offending words. At 2x the
- * budget that first attempt sailed through, which put roughly one unknown word
- * in seven in front of the reader - well past the ~5% that keeps reading
- * fluent. 1.5x costs a second call on some generations and is worth it.
+ * THE TOLERANCE IS DELIBERATELY ASYMMETRIC - see BUDGET_FLOOR below, which is
+ * unchanged and much tighter. Given a piece that misses, the owner would rather
+ * read one slightly too hard than one slightly too easy: a hard piece costs
+ * some taps, an easy one teaches nothing and quietly ratchets the level upward.
+ * So the ceiling is generous and the floor is not.
+ *
+ * Raised from 1.5x, which was rejecting work the model could not reliably
+ * improve on. Replaying 25 stored pieces against their own budgets:
+ *
+ *     ratio achieved   min 0.00  p25 0.39  median 1.17  p75 1.88  p90 2.19
+ *
+ *     ceiling   first-pass   still rejected
+ *       x1.5       40%       too hard 8, too easy 7
+ *       x2.0       56%       too hard 4, too easy 7
+ *       x2.25      64%       too hard 2, too easy 7
+ *       x3.0       64%       too hard 2, too easy 7   <- nothing more to gain
+ *
+ * 2.25x is the knee. Past it the only two pieces still rejected are genuinely
+ * broken - one at 5.35x budget - and those SHOULD cost a second call. Below it
+ * we were paying a full extra round trip to turn a piece the reader would have
+ * been fine with into a marginally easier one.
+ *
+ * What this costs: at the ceiling a level-10 reader meets about one unknown
+ * word in five rather than one in seven. That is a harder read, and it is the
+ * direction chosen on purpose. The lookup rate feeds the calibration loop, so a
+ * piece that really is too hard moves the level down after one reading - which
+ * is a real measurement of this reader, where the budget is a proxy.
+ *
+ * The 1.5x rationale it replaces was sound when written and rested on a
+ * two-piece sample. This rests on 25.
  */
-export const BUDGET_SLACK = 1.5;
+export const BUDGET_SLACK = 2.25;
 
 /**
  * ...and how far BELOW the budget before the text is too easy for its level.
@@ -78,6 +103,13 @@ export const BUDGET_SLACK = 1.5;
  * as the level climbs, so the reader looks nothing up, the controller reads
  * that as "too easy" and pushes the level higher again - all the way to 100
  * regardless of what they can actually read. A floor closes the loop.
+ *
+ * DELIBERATELY NOT RAISED alongside BUDGET_SLACK. Loosening the ceiling was
+ * about accepting a slightly harder read; loosening this would accept a
+ * slightly easier one, which is the direction that teaches nothing and feeds
+ * the runaway above. In the replay it accounts for 7 of the remaining
+ * regenerations at every ceiling tried, and those 7 are the ones worth paying
+ * for.
  */
 export const BUDGET_FLOOR = 0.4;
 

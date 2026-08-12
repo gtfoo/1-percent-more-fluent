@@ -10,7 +10,7 @@
  * estimate got worse instead of self-correcting.
  */
 import { nextLevel, overrideLevel, paramsFor, type SessionSignals } from "../src/lib/level";
-import { measure } from "../src/server/difficulty";
+import { measure, BUDGET_SLACK, BUDGET_FLOOR } from "../src/server/difficulty";
 import { getLanguage } from "../src/lib/languages";
 import { blendReadback } from "../src/app/api/placement/route";
 
@@ -189,6 +189,57 @@ console.log("\n--- difficulty floor ---");
       `${(report.outOfBandRate * 100).toFixed(1)}% out-of-band, budget ${(params.newWordBudget * 100).toFixed(0)}%  ` +
       `-> ${report.passes ? "PASSED (should not)" : "rejected"}`,
   );
+}
+
+// --- The tolerance is asymmetric, on purpose ---------------------------------
+// Given a piece that misses its budget, the owner would rather read one
+// slightly too hard than one slightly too easy: a hard piece costs some taps,
+// an easy one teaches nothing and quietly ratchets the level upward. Nothing
+// enforced that, so a later tidy-up could have symmetrised the two constants
+// and undone the decision without a single test going red.
+console.log("\n--- the ceiling is loose and the floor is not ---");
+{
+  const checks: [string, boolean, string][] = [
+    [
+      // Measured as DRIFT FROM budget, not as a ratio of the two limits. The
+      // out-of-band rate is bounded below by zero, so "x2.25 up" and "x0.4
+      // down" are not comparable as multiples: down can only ever travel one
+      // budget's worth, up is unbounded. At level 10 the budget is 9.5%, and
+      // these limits are +11.9 and -5.7 points.
+      "harder than budget drifts further than easier does",
+      BUDGET_SLACK - 1 > 1 - BUDGET_FLOOR,
+      `+${(BUDGET_SLACK - 1).toFixed(2)} budgets up vs -${(1 - BUDGET_FLOOR).toFixed(2)} down`,
+    ],
+    ["...but not so loose it accepts anything", BUDGET_SLACK < 3, `x${BUDGET_SLACK}`],
+    [
+      "the floor still rejects text well under budget",
+      BUDGET_FLOOR > 0 && BUDGET_FLOOR <= 0.5,
+      `x${BUDGET_FLOOR}`,
+    ],
+  ];
+
+  // The concrete consequence, so those ratios are not abstract: a piece landing
+  // at twice its budget is now READ rather than regenerated, which is the
+  // latency win. Anything wilder still costs the second call.
+  const params = paramsFor(10, getLanguage("es"));
+  const accepts = (rate: number) => rate <= params.newWordBudget * BUDGET_SLACK;
+  checks.push(
+    [
+      "twice the budget is accepted, not regenerated",
+      accepts(params.newWordBudget * 2),
+      `${(params.newWordBudget * 200).toFixed(1)}% out-of-band at level 10`,
+    ],
+    [
+      "four times it is still rejected",
+      !accepts(params.newWordBudget * 4),
+      `${(params.newWordBudget * 400).toFixed(1)}%`,
+    ],
+  );
+
+  for (const [what, ok, detail] of checks) {
+    if (!ok) failures++;
+    console.log(`${ok ? "ok  " : "FAIL"} ${what.padEnd(52)} ${detail}`);
+  }
 }
 
 // --- Read-back asymmetry ----------------------------------------------------
