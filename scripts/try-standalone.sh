@@ -16,7 +16,6 @@ PORT=3009
 ROOT=$(pwd)
 
 bash "$(dirname "$0")/kill-standalone.sh" "$PORT" >/dev/null 2>&1
-exit 0
 sleep 1
 
 set -a
@@ -57,4 +56,7 @@ echo "  (nothing listed above = good)"
 echo "--- server log ---"
 tail -4 /tmp/fluent-standalone.log
 
-pkill -f "standalone/server.j[s]" >/dev/null 2>&1
+# By port, not by pattern: Next rewrites its process title to "next-server (vX)"
+# once running, so a pattern kill matches nothing and quietly reports failure -
+# which is also how this script came to end on a non-zero exit.
+bash "$(dirname "$0")/kill-standalone.sh" "$PORT" >/dev/null 2>&1 || true
