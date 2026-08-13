@@ -58,7 +58,31 @@ export { AUDIO_DIR };
  * It costs one re-synthesis per clip somebody actually replays, and nothing for
  * the rest.
  */
-const SETTINGS_VERSION = "s2";
+const SETTINGS_VERSION = "s3";
+
+/**
+ * How much we let a narrator improvise. Ours, not the voice publisher's.
+ *
+ * ElevenLabs does not generate the same audio twice: the same voice, text and
+ * settings produce different output every run, and at the 0.5 most publishers
+ * ship, the difference is audible - one take is clean, the next is grainy. That
+ * is what "the voice got worse" turned out to be, as much as any setting.
+ *
+ * Stability is the knob that trades expressiveness for consistency, so the
+ * choice is a product one rather than a property of the voice: a reader working
+ * out what the words mean is better served by a steady delivery than a
+ * characterful one. Chosen by listening at 0.5, 0.75 and 1.0 - 1.0 reads flat,
+ * 0.75 is steady without being lifeless.
+ *
+ * Everything else still comes from the publisher. `similarity_boost` and
+ * `speed` describe the VOICE - how close to the original recording, how fast
+ * that person talks - and they knew their recording better than we do.
+ *
+ * Narration only. A conversation is people talking to each other, where
+ * variation is the point, and the dialogue endpoint is left on each voice's own
+ * settings.
+ */
+const NARRATION_STABILITY = 0.75;
 
 /** ElevenLabs' documented defaults, for when a voice will not tell us its own. */
 const FALLBACK_SETTINGS = {
@@ -93,26 +117,31 @@ const settingsCache = new Map<string, VoiceSettings>();
  * A failed lookup is not worth failing a synthesis over, so it falls back to
  * ElevenLabs' documented defaults, which is still better than what we sent
  * before: it at least includes the speaker boost.
+ *
+ * Stability is then overridden for narration - see NARRATION_STABILITY. It is
+ * the one setting that is a decision about this app rather than about the
+ * voice.
  */
 async function settingsFor(voiceId: string): Promise<VoiceSettings> {
   const cached = settingsCache.get(voiceId);
   if (cached) return cached;
 
   const { apiKey } = config();
-  let settings = FALLBACK_SETTINGS;
+  let published = FALLBACK_SETTINGS;
   try {
     const res = await fetch(
       `https://api.elevenlabs.io/v1/voices/${voiceId}/settings`,
       { headers: { "xi-api-key": apiKey ?? "" } },
     );
     if (res.ok) {
-      settings = { ...FALLBACK_SETTINGS, ...((await res.json()) as Partial<VoiceSettings>) };
+      published = { ...FALLBACK_SETTINGS, ...((await res.json()) as Partial<VoiceSettings>) };
     } else {
       console.warn(`tts: no published settings for voice ${voiceId} (${res.status})`);
     }
   } catch (err) {
     console.warn(`tts: could not read settings for voice ${voiceId}`, err);
   }
+  const settings = { ...published, stability: NARRATION_STABILITY };
   settingsCache.set(voiceId, settings);
   return settings;
 }
