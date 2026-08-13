@@ -1,7 +1,10 @@
 /**
- * Text-to-speech via ElevenLabs, with the settings carried over from the
- * Read Any Language extension (same models, same voice_settings, same
- * per-request character cap).
+ * Text-to-speech via ElevenLabs.
+ *
+ * Each voice is driven by the settings ITS OWN PUBLISHER recommends, fetched
+ * per voice. The models and the per-request character cap are still the ones
+ * carried over from the Read Any Language extension; the settings are not, and
+ * see SETTINGS_VERSION for why that mattered.
  *
  * Two things matter here, and both are about money:
  *
@@ -29,14 +32,8 @@ import { castSpeakers, narrationVoiceFor } from "./voices";
 import { splitTurns, type Speaker, type Turn } from "@/lib/dialogue";
 
 const DEFAULTS = {
-  // "Alice - Clear, Engaging Educator". Chosen from the *premade* set, which is
-  // the only category a free key may use via the API - library and
-  // professional voices return 402 paid_plan_required, including some that used
-  // to be premade. Run `npm run voices` to see what a given key can use.
-  //
-  // No premade voice is a native Spanish speaker, but eleven_multilingual_v2
-  // drives the pronunciation, and clarity matters more than character for
-  // someone still decoding the words.
+  // Only a fallback now: who reads what is decided per language in voices.ts,
+  // by native speakers. This is what an unknown language lands on.
   voiceId: "Xb7hH8MSUJpSbSDYk0k2",
   modelId: "eleven_multilingual_v2",
   // The dialogue endpoint's own default, and the only model family that takes
@@ -48,6 +45,77 @@ const DEFAULTS = {
 // Re-exported so the audio route can import it from here alongside everything
 // else it needs; `export ... from` alone would not bind it in this module.
 export { AUDIO_DIR };
+
+/**
+ * Bump when the settings policy below changes.
+ *
+ * The settings are part of the cache key, because they change the audio: a clip
+ * made under the old policy is not the clip this code would make now, and
+ * without this it would be served forever with no way to reach it. That is
+ * exactly what happened - the first native-voice clips were synthesised with
+ * the wrong settings and would have stayed noisy in the cache permanently.
+ *
+ * It costs one re-synthesis per clip somebody actually replays, and nothing for
+ * the rest.
+ */
+const SETTINGS_VERSION = "s2";
+
+/** ElevenLabs' documented defaults, for when a voice will not tell us its own. */
+const FALLBACK_SETTINGS = {
+  stability: 0.5,
+  similarity_boost: 0.75,
+  use_speaker_boost: true,
+  style: 0,
+  speed: 1,
+};
+
+type VoiceSettings = typeof FALLBACK_SETTINGS;
+
+/** One lookup per voice per process; these are static, published data. */
+const settingsCache = new Map<string, VoiceSettings>();
+
+/**
+ * The settings a voice's own publisher recommends for it.
+ *
+ * We used to send `{stability: 0.5, similarity_boost: 0.75}` to every voice,
+ * hardcoded, and nothing else. Two things were wrong with that once the voices
+ * stopped being English premades:
+ *
+ *  - `use_speaker_boost` was never sent. It defaults to true, and governs
+ *    presence and level - which is audible as a voice that is softer than it
+ *    should be and tails off at the end of a piece.
+ *  - The numbers were tuned for premade voices. Library voices are cloned from
+ *    real recordings and each publisher tunes their own: one Chinese voice here
+ *    asks for stability 0.99 and similarity 0.96, against the 0.5/0.75 we forced
+ *    on it. On a cloned voice, the wrong similarity is also what drags source
+ *    recording artifacts into the output - the background hiss.
+ *
+ * A failed lookup is not worth failing a synthesis over, so it falls back to
+ * ElevenLabs' documented defaults, which is still better than what we sent
+ * before: it at least includes the speaker boost.
+ */
+async function settingsFor(voiceId: string): Promise<VoiceSettings> {
+  const cached = settingsCache.get(voiceId);
+  if (cached) return cached;
+
+  const { apiKey } = config();
+  let settings = FALLBACK_SETTINGS;
+  try {
+    const res = await fetch(
+      `https://api.elevenlabs.io/v1/voices/${voiceId}/settings`,
+      { headers: { "xi-api-key": apiKey ?? "" } },
+    );
+    if (res.ok) {
+      settings = { ...FALLBACK_SETTINGS, ...((await res.json()) as Partial<VoiceSettings>) };
+    } else {
+      console.warn(`tts: no published settings for voice ${voiceId} (${res.status})`);
+    }
+  } catch (err) {
+    console.warn(`tts: could not read settings for voice ${voiceId}`, err);
+  }
+  settingsCache.set(voiceId, settings);
+  return settings;
+}
 
 export interface Alignment {
   characters: string[];
@@ -225,7 +293,7 @@ interface StreamChunk {
 export function narrationHash(text: string, languageCode: string): string {
   const { modelId } = config();
   return createHash("sha256")
-    .update(`${modelId}:${narrationVoiceFor(languageCode)}:${text}`)
+    .update(`${modelId}:${narrationVoiceFor(languageCode)}:${SETTINGS_VERSION}:${text}`)
     .digest("hex")
     .slice(0, 32);
 }
@@ -355,7 +423,7 @@ export async function streamNarration(
         body: JSON.stringify({
           text,
           model_id: modelId,
-          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          voice_settings: await settingsFor(voiceId),
         }),
       },
     );
@@ -637,7 +705,7 @@ export async function narrate(
         body: JSON.stringify({
           text,
           model_id: modelId,
-          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          voice_settings: await settingsFor(voiceId),
         }),
       },
     );
