@@ -49,13 +49,20 @@ interface Voice {
  * ahead of peninsular, as the more widely understood starting point.
  */
 const NATIVE: Record<string, Voice[]> = {
+  // Every one of these was listened to on a REAL 70-second piece before being
+  // added. That is not ceremony: the voice this list replaced sounded fine on a
+  // three-sentence sample - better than the alternatives, on that sample - and
+  // fell apart over a full article. A short audition proves nothing here.
   zh: [
-    { id: "NchRhc5KPgHwZagz6MrZ", name: "Macy", gender: "female" }, // standard
-    { id: "cIgfFHYNnHGsenWoEwaO", name: "Zhan", gender: "male" }, // beijing mandarin
-    { id: "m7QGIiNrWASyI5oJn4I8", name: "Xiaoran", gender: "female" }, // beijing mandarin
-    { id: "007rapvffUWW4JvRagws", name: "Bo", gender: "male" }, // beijing mandarin
+    { id: "BqljjWyTnrioXPCNkCd4", name: "Stella Gu", gender: "female" }, // beijing, professional clone
+    { id: "DowyQ68vDpgFYdWVGjc3", name: "Jason Chen", gender: "male" }, // beijing
+    { id: "JZLpE3AGwpKYZI2X65hN", name: "Mingyao Ye", gender: "female" }, // beijing
+    { id: "W8lBaQb9YIoddhxfQNLP", name: "Siqi Liu", gender: "male" }, // beijing
     { id: "APSIkVZudNbPAwyPoeVO", name: "Sage", gender: "female" }, // standard
-    { id: "d8IR2QHf65bKkLRMo3sk", name: "Wei", gender: "male" }, // standard
+    // Singapore Mandarin, and the most-used Chinese voice on the platform. Last
+    // so it colours a conversation rather than narrating every article in an
+    // accent the app is not teaching.
+    { id: "hZTuv9Zqrq4yHYrEmF1r", name: "Adam Li", gender: "male" }, // singapore
   ],
   es: [
     { id: "pXGCH52cHhcAprI7uhY9", name: "Maria", gender: "female" }, // latin american
