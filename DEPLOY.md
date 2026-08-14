@@ -345,8 +345,13 @@ synthesised speech.
 and the audio cache represents money already spent with ElevenLabs. Losing it
 is not fatal but it is not free either.
 
-`src/data/` (the frequency lists) is also gitignored but costs nothing to
-rebuild; `deploy.sh` regenerates it automatically if it is missing.
+`src/data/` (the frequency and placement lists) is **committed**, ~1.4 MB, and a
+deploy never rebuilds it. It was gitignored once, and that was wrong twice over:
+the Chinese build spends a model call vetting its sampled items, so a "free"
+rebuild bills; and regenerating zh-CN would overwrite the HSK placement bands
+with frequency ones and report success. A missing file is now a loud failure
+rather than a silent rebuild — if data is absent from a checkout, something is
+wrong with the checkout, and mid-deploy is the wrong moment to find out.
 
 ## Cost, with no access control
 

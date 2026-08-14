@@ -33,15 +33,30 @@ const { subject, html, text } = signInEmail({
 // --- the link has to survive ------------------------------------------------
 ok("the button carries the link", html.includes(`href="${URL_WITH_TOKEN.replace(/&/g, "&amp;")}"`));
 ok("the ampersands are escaped", !/href="[^"]*&(?!amp;)/.test(html));
+// As VISIBLE TEXT, not just as another href. Counting occurrences of the URL
+// passed when the fallback link was reworded to "click here" - the address was
+// still in the markup twice, in two href attributes, and readable nowhere. A
+// client that strips the button leaves that reader with no way in.
 ok(
-  "the raw URL appears as text too, for clients that strip the button",
-  html.split(URL_WITH_TOKEN.replace(/&/g, "&amp;")).length - 1 >= 2,
+  "the raw URL appears as readable text, for clients that strip the button",
+  html.includes(`>${URL_WITH_TOKEN.replace(/&/g, "&amp;")}</a>`),
 );
 ok("the plain-text part carries the unescaped link", text.includes(URL_WITH_TOKEN));
 
 // --- it says how long it lasts ----------------------------------------------
 // The whole point of the exercise: the reader could not tell before.
-ok(`the email states the ${LINK_MINUTES}-minute expiry`, html.includes(`${LINK_MINUTES} minutes`));
+//
+// EVERY duration in the email has to be the real one, not merely one of them.
+// Checking that "15 minutes" appears somewhere passed while the sentence the
+// reader actually sees said five - the preheader still carried the right number
+// and satisfied the assertion on its own.
+const minutesClaimed = [...html.matchAll(/(\d+)\s*minutes/g)].map((m) => Number(m[1]));
+ok("the email states an expiry at all", minutesClaimed.length > 0);
+ok(
+  `every duration in the email is ${LINK_MINUTES} minutes`,
+  minutesClaimed.every((n) => n === LINK_MINUTES),
+  `found ${[...new Set(minutesClaimed)].join(", ")}`,
+);
 ok("...in the plain-text part as well", text.includes(`${LINK_MINUTES} minutes`));
 ok("...and that it is single use", /once/i.test(html) && /once/i.test(text));
 ok("...and what to do if you did not ask for it", /ignore/i.test(html) && /ignore/i.test(text));
