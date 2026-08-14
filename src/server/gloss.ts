@@ -121,6 +121,7 @@ export async function glossWord(
   if (hit) return hit;
 
   const { object } = await generateStructured({
+    op: "gloss",
     schema: PLAIN,
     system:
       "You are a bilingual dictionary. Answer with the plain dictionary meaning of the word or phrase. Be terse.",

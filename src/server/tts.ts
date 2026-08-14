@@ -29,6 +29,7 @@ import { join } from "node:path";
 import { getDb } from "./db";
 import { AUDIO_DIR } from "./paths";
 import { castSpeakers, narrationVoiceFor } from "./voices";
+import { recordUsage, usageStatusFor } from "./usage";
 import { splitTurns, type Speaker, type Turn } from "@/lib/dialogue";
 
 const DEFAULTS = {
@@ -232,13 +233,20 @@ async function persist(
   return `/audio/${hash}.mp3`;
 }
 
-/** Log the spend. This table is the only record of what audio has cost. */
+/**
+ * Log the spend. This table is the only record of what audio has cost.
+ *
+ * Also emits the shared spend line, because this is the one place every paid
+ * synthesis passes through - four callers, one row. Anything that bills and does
+ * not reach here is invisible to both.
+ */
 function record(
   hash: string,
   pieceId: string,
   voiceId: string,
   modelId: string,
   characters: number,
+  op: string,
 ): void {
   getDb()
     .prepare(
@@ -246,6 +254,30 @@ function record(
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
     .run(hash, pieceId, voiceId, modelId, characters, new Date().toISOString());
+
+  recordUsage({
+    provider: "elevenlabs",
+    model: modelId,
+    op,
+    // Characters, not tokens - this provider does not bill on tokens, which is
+    // what `units` is for.
+    units: characters,
+    // Deliberately not priced here. We know the list rate, but knowing a rate is
+    // not the same as having measured a bill, and the dashboard already polls
+    // the real balance. One place to be wrong about money is enough.
+    usd: null,
+  });
+}
+
+/** A synthesis that was refused. See UsageStatus for why this is worth a line. */
+function recordTtsFailure(op: string, modelId: string, characters: number, err: unknown): void {
+  recordUsage({
+    provider: "elevenlabs",
+    model: modelId,
+    op,
+    units: characters,
+    status: usageStatusFor(err),
+  });
 }
 
 /**
@@ -461,6 +493,7 @@ export async function streamNarration(
       throw new Error(`ElevenLabs ${res.status}: ${detail.slice(0, 300)}`);
     }
   } catch (err) {
+    recordTtsFailure("narration-stream", modelId, text.length, err);
     release();
     throw err;
   }
@@ -469,7 +502,7 @@ export async function streamNarration(
   return pipeChunks(
     res.body!,
     hash,
-    () => record(hash, pieceId, voiceId, modelId, text.length),
+    () => record(hash, pieceId, voiceId, modelId, text.length, "narration-stream"),
     began,
     `narration ${text.length}ch`,
     release,
@@ -512,6 +545,7 @@ export async function streamDialogue(
       throw new Error(`ElevenLabs dialogue ${res.status}: ${detail.slice(0, 300)}`);
     }
   } catch (err) {
+    recordTtsFailure("dialogue-stream", dialogueModelId, characters, err);
     release();
     throw err;
   }
@@ -527,6 +561,7 @@ export async function streamDialogue(
         [...new Set(inputs.map((i) => i.voice_id))].join("+"),
         dialogueModelId,
         characters,
+        "dialogue-stream",
       ),
     began,
     `dialogue ${characters}ch`,
@@ -698,6 +733,12 @@ export async function narrate(
   text: string,
   pieceId: string,
   languageCode: string,
+  /**
+   * Labels the spend line. A whole piece and a single tapped word both come
+   * through here, and they differ by three orders of magnitude - lumping them
+   * together makes the dashboard unreadable.
+   */
+  op = "narration",
 ): Promise<Narration> {
   const { apiKey, modelId, maxChars } = config();
   const voiceId = narrationVoiceFor(languageCode);
@@ -761,7 +802,7 @@ export async function narrate(
 
     const alignment = toAlignment(data.alignment);
     const url = await persist(hash, data.audio_base64, alignment);
-    record(hash, pieceId, voiceId, modelId, text.length);
+    record(hash, pieceId, voiceId, modelId, text.length, op);
 
     return { url, alignment, characters: text.length, cached: false };
   } finally {
@@ -843,7 +884,14 @@ export async function narrateDialogue(
     const alignment = toAlignment(data.alignment);
     const url = await persist(hash, data.audio_base64, alignment);
 
-    record(hash, pieceId, [...new Set(inputs.map((i) => i.voice_id))].join("+"), dialogueModelId, characters);
+    record(
+      hash,
+      pieceId,
+      [...new Set(inputs.map((i) => i.voice_id))].join("+"),
+      dialogueModelId,
+      characters,
+      "dialogue",
+    );
 
     return { url, alignment, characters, cached: false };
   } finally {

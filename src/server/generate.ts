@@ -261,6 +261,7 @@ export async function draftPiece(args: {
   vocabulary?: string[];
 }): Promise<{ piece: Piece; report: DifficultyReport; modelId: string }> {
   const result = await generateStructured({
+    op: "piece",
     schema: pieceSchema(args.language),
     system: system(args.language.name),
     prompt: buildPrompt(
@@ -463,6 +464,7 @@ export async function* streamPiece(args: {
   const params = paramsFor(args.level, language);
 
   const { partials, object, modelId } = await streamStructured({
+    op: "piece-stream",
     schema: pieceSchema(language),
     system: system(language.name),
     prompt: buildPrompt(args.format, args.topic, args.length, params),

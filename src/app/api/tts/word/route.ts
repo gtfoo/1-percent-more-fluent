@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const narration = await narrate(wanted, piece.id, piece.language);
+    const narration = await narrate(wanted, piece.id, piece.language, "word");
     return Response.json({ url: narration.url });
   } catch (err) {
     console.error("word tts failed", err);

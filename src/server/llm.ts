@@ -28,6 +28,7 @@ import { openai } from "@ai-sdk/openai";
 import { generateText, streamText, Output } from "ai";
 import type { LanguageModel } from "ai";
 import type { z } from "zod";
+import { recordUsage, usageStatusFor } from "./usage";
 
 export type ProviderId = "google" | "anthropic" | "openai";
 
@@ -223,6 +224,8 @@ export async function generateStructured<T>(args: {
   system?: string;
   prompt: string;
   temperature?: number;
+  /** Labels the line in the spend log. */
+  op?: string;
 }): Promise<{ object: T; modelId: string }> {
   const chain = getModelChain();
   if (!chain.length) {
@@ -237,7 +240,7 @@ export async function generateStructured<T>(args: {
   for (let i = 0; i < chain.length; i++) {
     const ref = chain[i]!;
     try {
-      const { output } = await generateText({
+      const { output, usage, response } = await generateText({
         model: resolveModel(ref),
         maxRetries: retriesFor(i < chain.length - 1),
         system: args.system,
@@ -248,9 +251,31 @@ export async function generateStructured<T>(args: {
         temperature: acceptsTemperature(ref) ? args.temperature : undefined,
         output: Output.object({ schema: args.schema }),
       });
+      recordUsage({
+        provider: ref.provider,
+        // What answered, not what was asked for: `gemini-flash-latest` is a
+        // moving target and its limits move with it, so a change in behaviour
+        // is only diagnosable if the resolved name was written down.
+        model: response.modelId || ref.id,
+        op: args.op ?? "generate",
+        in_tokens: usage.inputTokens ?? null,
+        out_tokens: usage.outputTokens ?? null,
+        // Null, not zero. Nobody has measured what a call costs here, and the
+        // primary is a free tier where zero would be a lie of a different kind.
+        usd: null,
+      });
       return { object: output as T, modelId: formatRef(ref) };
     } catch (err) {
       lastErr = err;
+      // Recorded even though it produced nothing. A refusal is the most useful
+      // line in the file: on a free tier it is the only honest evidence of
+      // where the ceiling actually is.
+      recordUsage({
+        provider: ref.provider,
+        model: ref.id,
+        op: args.op ?? "generate",
+        status: usageStatusFor(err),
+      });
       const hasNext = i < chain.length - 1;
       if (hasNext && shouldFallback(err)) {
         console.warn(
@@ -287,6 +312,8 @@ export async function streamStructured<T>(args: {
   system?: string;
   prompt: string;
   temperature?: number;
+  /** Labels the line in the spend log. */
+  op?: string;
 }): Promise<{
   partials: AsyncIterable<unknown>;
   object: PromiseLike<T>;
@@ -348,6 +375,26 @@ export async function streamStructured<T>(args: {
         );
       }
 
+      // Only once the stream has finished are the totals known, so this settles
+      // long after the caller has its result. Detached deliberately - the
+      // reader is not waiting on bookkeeping.
+      void Promise.all([result.usage, result.response])
+        .then(([usage, response]) => {
+          recordUsage({
+            provider: ref.provider,
+            model: response.modelId || ref.id,
+            op: args.op ?? "generate-stream",
+            in_tokens: usage.inputTokens ?? null,
+            out_tokens: usage.outputTokens ?? null,
+            usd: null,
+          });
+        })
+        .catch(() => {
+          // The stream died mid-flight; the failure is reported to the caller
+          // through `object` rejecting, and a spend line for a call we cannot
+          // describe would be worse than none.
+        });
+
       return {
         modelId: formatRef(ref),
         object: result.output as PromiseLike<T>,
@@ -364,6 +411,12 @@ export async function streamStructured<T>(args: {
       };
     } catch (err) {
       lastErr = err;
+      recordUsage({
+        provider: ref.provider,
+        model: ref.id,
+        op: args.op ?? "generate-stream",
+        status: usageStatusFor(err),
+      });
       const hasNext = i < chain.length - 1;
       if (hasNext && shouldFallback(err)) {
         console.warn(
