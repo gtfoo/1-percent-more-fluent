@@ -68,3 +68,16 @@ next-env.d.ts
 # Stray curl cookie jars: a mistyped "curl -b " writes a file literally
 # named -b, and git add -A has swept one into a commit before.
 -b
+
+# Correspondence with the other agents. THIS REPO IS PUBLIC, and mail carries
+# systemd units, DATA_DIR paths, ports, env-var names and deploy sequencing -
+# a map, not a key, but published to strangers either way. The gtfoo agent
+# found this across three public repos on 08-14.
+#
+# Cheap to ignore precisely because of the protocol: mail is ephemeral by
+# design and anything durable is promoted to INFRA.md or AGENTS.md, so nothing
+# of lasting value lives only here. All agents share this filesystem, so it
+# still reaches them.
+#
+# Does NOT unpublish what is already in history - see MAIL.md for that thread.
+MAIL.md
