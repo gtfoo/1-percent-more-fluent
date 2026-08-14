@@ -37,7 +37,22 @@ npm run build && bash scripts/try-standalone.sh
 ## The droplet as it actually is
 
 Discovered by inspection, so the commands below use real values rather than
-placeholders:
+placeholders.
+
+**This repo is public and these values stay in it — a decision, not an
+oversight.** Raised 2026-08-14 and closed after measuring rather than guessing:
+
+- The host IP is **already public via DNS** — `1-percent-more-fluent.gtfoo.com`
+  and `gtfoo.com` both resolve straight to it, with nothing in front. Redacting
+  it here would hide it from nobody.
+- The app ports are **verified closed** from outside; every service binds
+  `127.0.0.1` and only Caddy is exposed.
+- What remains — the `deploy` username, a key *filename*, `/home/deploy` paths,
+  the unit and the sudoers line — is only useful to somebody who is already in.
+
+No credentials are here, and none should ever be: `.env.local` is gitignored and
+lives only on the box. If you are about to redact this file or rewrite history
+over it, read the above first — that ground has been covered.
 
 | | |
 |---|---|
