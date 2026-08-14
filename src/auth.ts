@@ -18,6 +18,9 @@ import Resend from "next-auth/providers/resend";
 import Passkey from "next-auth/providers/passkey";
 import { cookies } from "next/headers";
 import { SqliteAdapter, tokenVersion } from "@/server/auth-adapter";
+// LINK_MINUTES lives with the email that promises it, so the token and the
+// message cannot disagree.
+import { signInEmail, LINK_MINUTES } from "@/server/signin-email";
 import { claimAnonymousData } from "@/server/claim";
 import { USER_COOKIE } from "@/lib/cookies";
 
@@ -38,9 +41,41 @@ if (process.env.AUTH_RESEND_KEY) {
       // fails, and the only symptom is that no email ever arrives.
       from: process.env.AUTH_EMAIL_FROM ?? "login@gtfoo.com",
       name: "1 Percent More Fluent sign-in link",
-      // Short-lived: a link that works all day is a link that works for whoever
-      // reads the inbox tomorrow.
-      maxAge: 15 * 60,
+      maxAge: LINK_MINUTES * 60,
+      /**
+       * Our own email instead of the built-in one.
+       *
+       * Auth.js's default is a bare table and a blue button that says "Sign in
+       * to <host>". This is the first thing a new reader sees from the app, and
+       * often the only thing they see before deciding whether the address they
+       * just typed was a good idea.
+       *
+       * Throwing on a failed send is deliberate and matches Auth.js's own
+       * behaviour: the caller turns it into an error on the sign-in page, which
+       * is the honest answer. Returning quietly would send the reader to
+       * "check your email" for a message that was never sent.
+       */
+      async sendVerificationRequest({ identifier: to, url, provider }) {
+        const { host } = new URL(url);
+        const { subject, html, text } = signInEmail({
+          url,
+          host,
+          expiresInMinutes: LINK_MINUTES,
+        });
+
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${provider.apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ from: provider.from, to, subject, html, text }),
+        });
+
+        if (!res.ok) {
+          throw new Error(`Resend: ${(await res.text()).slice(0, 300)}`);
+        }
+      },
     }),
   );
 }
