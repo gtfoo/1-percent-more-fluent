@@ -22,6 +22,7 @@ import { SqliteAdapter, tokenVersion } from "@/server/auth-adapter";
 // message cannot disagree.
 import { signInEmail, LINK_MINUTES } from "@/server/signin-email";
 import { claimAnonymousData } from "@/server/claim";
+import { writeUserCounts } from "@/server/user-counts";
 import { USER_COOKIE } from "@/lib/cookies";
 
 /**
@@ -165,6 +166,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // cookie, which is recoverable; a failed sign-in is not.
         console.error("could not claim anonymous history", err);
       }
+      // The only moment the number can change. Swallows its own failures for
+      // the same reason as the claim above - a dashboard wanting a count is not
+      // worth a failed sign-in. See gtfoo/docs/user-counts.md.
+      writeUserCounts();
     },
   },
 
