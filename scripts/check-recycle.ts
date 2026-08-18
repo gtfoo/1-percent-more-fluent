@@ -137,22 +137,26 @@ async function main() {
     recycledInProse(["a(b"], "sin coincidencia", "es").length === 0,
   );
 
-  // --- the floor scaffold (item 3's half of buildPrompt) --------------------
+  // --- the floor scaffold: DORMANT by measurement ---------------------------
+  // It benched worse than plain (2/9 vs 6/9), so the default is off everywhere
+  // - including below FLOOR_LEVEL - and only the bench turns it on. These
+  // assertions pin that state: if someone re-enables the default without a
+  // green floor-mode bench, this check is the tripwire that asks them for one.
   const floor = paramsFor(10, es);
   const floorPrompt = buildPrompt("story", "mi familia", "long", floor);
-  ok(`scaffold engages below level ${FLOOR_LEVEL}`, /repetition/i.test(floorPrompt));
   ok(
-    "floor pieces are capped short even when 'long' is asked for",
-    /about 220 words in total/.test(floorPrompt),
+    `scaffold stays OFF by default even below level ${FLOOR_LEVEL} (it measured worse)`,
+    !/repetition/i.test(floorPrompt),
+  );
+  ok("...and the length cap stays off with it", /about 600 words in total/.test(floorPrompt));
+  const forcedOn = buildPrompt("story", "mi familia", "long", floor, undefined, undefined, undefined, true);
+  ok("the bench can force the scaffold on", /beginner text works through repetition/i.test(forcedOn));
+  ok(
+    "...which also caps the piece short",
+    /about 220 words in total/.test(forcedOn),
   );
   const normalPrompt = buildPrompt("story", "mi familia", "long", paramsFor(50, es));
-  ok("no scaffold at normal levels", !/beginner text works through repetition/i.test(normalPrompt));
-  ok("normal levels keep their length", /about 600 words in total/.test(normalPrompt));
-  const forcedOff = buildPrompt("story", "mi familia", "long", floor, undefined, undefined, undefined, false);
-  ok(
-    "the bench can force the scaffold off at the same level",
-    !/repetition/i.test(forcedOff) && /about 600 words in total/.test(forcedOff),
-  );
+  ok("no scaffold at normal levels either way", !/repetition/i.test(normalPrompt));
 
   console.log(failures === 0 ? "\nall checks passed" : `\n${failures} failing`);
   process.exit(failures === 0 ? 0 : 1);

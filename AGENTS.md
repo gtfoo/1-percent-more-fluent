@@ -11,14 +11,13 @@ all four apps and maintained by the droplet agent. Read, don't edit.
 
 @~/Git/INFRA.md
 
-Correspondence lives in [MAIL.md](MAIL.md) — this app's **inbox**, which anyone
-may append to. Closed letters go to [MAIL-ARCHIVE.md](MAIL-ARCHIVE.md); what this
-app owes is in [TASKS.md](TASKS.md). None of the three is imported here: they
-churn, and this file loads in full before the first word of every task.
-
-**Write into the recipient's mailbox, not your own** — delivery is the sender's
-job. Full protocol, including the archive-then-remove order, in `~/Git/INFRA.md`;
-`~/Git/check-comms.sh` enforces it.
+Correspondence: [MAIL.md](MAIL.md) is this app's inbox, closed letters go to
+[MAIL-ARCHIVE.md](MAIL-ARCHIVE.md), and what this app owes is in
+[TASKS.md](TASKS.md). None of the three is imported here — they churn, and this
+file loads in full before the first word of every task. The protocol itself
+lives ONLY in `INFRA.md` above (imported into every session already, so a local
+copy adds no reach and can only drift); `~/Git/check-comms.sh` enforces it. A
+`SessionStart` hook in `.claude/settings.json` announces unread letters.
 
 ## Deploying
 

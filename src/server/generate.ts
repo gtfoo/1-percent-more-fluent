@@ -140,16 +140,18 @@ Rules:
  * Below this level the difficulty budget stops being a style request and
  * becomes an arithmetic problem: at level 10 the band is ~720 words, and a
  * 350-word piece needs more distinct content words than the band can supply
- * without repetition. Measured: 33% first-pass at level 10, and showing the
- * model the band's actual words - which lifts every other level - moved
- * nothing there, because the constraint is not knowledge of the band, it is
- * the number of distinct words the text demands.
+ * without repetition. Measured twice now, and both fixes tried have FAILED
+ * their bench:
  *
- * So below the floor the PIECE changes, not just the prompt: shorter, built on
- * deliberate repetition, which is also what human-authored graded readers do
- * at this level. Repetition attacks the arithmetic directly - every reuse of
- * an in-band word grows the denominator of the out-of-band rate without
- * touching the numerator.
+ *  - showing the model the band's actual words lifted every other level and
+ *    moved nothing here (33% first-pass either way);
+ *  - the repetition scaffold below made it WORSE where plain passes (0/3 vs
+ *    3/3 at level 12) and no better at level 8, where nothing passes at all.
+ *
+ * The honest state: below ~12 the budget window itself looks unachievable, and
+ * the open question is whether the failures sit above the ceiling or below the
+ * asymmetric floor - which decides whether the fix is the budget or the
+ * prompt. BENCH_MODE=floor answers it when quota allows.
  */
 export const FLOOR_LEVEL = 20;
 
@@ -161,8 +163,16 @@ export function buildPrompt(
   corrections?: string[],
   vocabulary?: string[],
   recycle?: string[],
-  /** Overridable only so the bench can measure with/without at the same level. */
-  scaffold: boolean = params.level < FLOOR_LEVEL,
+  /**
+   * OFF BY DEFAULT, because it measured worse. BENCH_MODE=floor, first run:
+   * plain passed 6/9 across levels 8-16, scaffold 2/9 - and at level 8, the
+   * level it exists for, NEITHER arm passed anything. The suspected mechanism
+   * (repetition overshooting below BUDGET_FLOOR, failing as too easy) is
+   * unconfirmed: a report bug ate the first run's rates and provider overload
+   * blocked the rerun. Do not turn this on without a green floor-mode bench -
+   * shipping it on a hypothesis is how the floor got two wrong fixes already.
+   */
+  scaffold = false,
 ): string {
   // The cap is part of the floor scaffold: a shorter text simply needs fewer
   // distinct words, and beginner graded readers are short for the same reason.
@@ -329,7 +339,8 @@ export async function draftPiece(args: {
       args.corrections,
       args.vocabulary,
       args.recycle,
-      args.scaffold ?? args.params.level < FLOOR_LEVEL,
+      // False unless the bench forces it - see the scaffold note on buildPrompt.
+      args.scaffold ?? false,
     ),
     temperature: 0.8,
   });

@@ -186,10 +186,17 @@ async function main() {
 function report(rows: Row[]) {
   if (!rows.length) return console.log("no data");
 
+  // Variant names taken from the DATA, not restated. The first floor-mode run
+  // spent its whole free-tier budget and then reported an empty table, because
+  // this section still filtered by the band-mode names - the rows existed and
+  // matched nothing. A report that hardcodes what the experiment varied is a
+  // second copy of the experiment, and second copies drift.
+  const variantNames = [...new Set(rows.map((x) => x.variant))];
+
   console.log("first-pass rate, by level and variant");
   console.log("  level  variant       n   passed   median rate/budget   median s");
   for (const level of LEVELS) {
-    for (const variant of ["current", "band shown"]) {
+    for (const variant of variantNames) {
       const r = rows.filter((x) => x.level === level && x.variant === variant);
       if (!r.length) continue;
       const ratios = r.map((x) => x.rate / x.budget).sort((a, b) => a - b);
@@ -209,20 +216,28 @@ function report(rows: Row[]) {
     return r.length ? Math.round((100 * r.filter((x) => x.passes).length) / r.length) : 0;
   };
   console.log("");
-  console.log(`overall   current ${rate("current")}%   band shown ${rate("band shown")}%`);
+  console.log(`overall   ${variantNames.map((v) => `${v} ${rate(v)}%`).join("   ")}`);
 
-  // Latency is the other half: showing the band costs input tokens on every
+  // Latency is the other half: a heavier prompt costs input tokens on every
   // call, and only pays if it avoids more retries than it costs.
   const med = (v: string) => {
     const s = by(v).map((x) => x.ms).sort((a, b) => a - b);
     return s.length ? (s[Math.floor(s.length / 2)]! / 1000).toFixed(1) : "-";
   };
-  console.log(`median s  current ${med("current")}    band shown ${med("band shown")}`);
+  console.log(`median s  ${variantNames.map((v) => `${v} ${med(v)}`).join("    ")}`);
 
-  const worse = by("band shown").filter((x) => !x.passes && x.rate < x.budget);
-  if (worse.length) {
-    console.log(`\nnote: ${worse.length} band-shown pieces failed for being TOO EASY -`);
-    console.log("      showing the band can push the model to stay inside it.");
+  // WHICH WAY did failures miss? The tolerance is asymmetric (see difficulty.ts)
+  // so "failed" is two different findings: over the ceiling means the variant
+  // did not tame the model; under the floor means it overshot into text the
+  // verifier calls too easy. A variant meant to help beginners can fail its
+  // bench entirely on the second - which is a budget conversation, not a
+  // prompt one.
+  for (const v of variantNames) {
+    const under = by(v).filter((x) => !x.passes && x.rate < x.budget).length;
+    const over = by(v).filter((x) => !x.passes && x.rate >= x.budget).length;
+    if (under + over) {
+      console.log(`fails     ${v}: ${over} over the ceiling, ${under} under the floor`);
+    }
   }
 }
 

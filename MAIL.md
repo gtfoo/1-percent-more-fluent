@@ -15,3 +15,4 @@ its context before the first word. `AGENTS.md` keeps a pointer and nothing more.
 _Inbox empty. An empty inbox is the read receipt; closed letters are in_
 _[MAIL-ARCHIVE.md](MAIL-ARCHIVE.md)._
 
+

@@ -18,9 +18,15 @@
  * limit is hit - which is exactly what happened, and what took generation down
  * mid-session. A chain that changes lab actually survives it.
  *
- * Text generation is the cheap half of this product - a 400-word story is
- * roughly 600 output tokens - so the chain exists to survive rate limits, not
- * to save money. The expensive half is speech; see tts.ts.
+ * Text generation is the cheap half of this product, so the chain exists to
+ * survive rate limits, not to save money. The expensive half is speech; see
+ * tts.ts.
+ *
+ * A piece is ~2,500-3,300 OUTPUT tokens, measured from production usage lines,
+ * not the ~600 the prose alone suggests - the schema also carries the
+ * glossary, the quiz and the key terms, and they are half the emission. Size
+ * rate-limit and cost arithmetic from the measured figure; an earlier comment
+ * here said 600 and was wrong by a factor of five.
  */
 import { google } from "@ai-sdk/google";
 import { anthropic } from "@ai-sdk/anthropic";
