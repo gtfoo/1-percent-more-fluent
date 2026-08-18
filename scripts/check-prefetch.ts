@@ -23,7 +23,7 @@ function ok(name: string, condition: boolean, detail = "") {
 
 async function main() {
   process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "check-prefetch-"));
-  const { followOnTopic, lengthLike, existingFollowOn } = await import(
+  const { followOnTopic, lengthLike, existingFollowOn, unreadFollowOn } = await import(
     "../src/server/generate"
   );
   const { getDb } = await import("../src/server/db");
@@ -86,6 +86,26 @@ async function main() {
   ok("the follow-on is findable by its parent", found?.id === child);
   ok("...with the title the chip needs", found?.title === "the follow-on");
   ok("a child is not its own parent's parent", existingFollowOn(child) === null);
+
+  // --- the home-page card: an unread follow-on is findable, a read one gone --
+  // This query exists because the post-session chip measurably failed alone:
+  // both live follow-ons landed after the reader had left the panel, unmarked.
+  const found2 = unreadFollowOn(user, "es");
+  ok("an unread follow-on surfaces for the home page", found2?.id === child);
+  ok(
+    "it is scoped to the reader",
+    unreadFollowOn(randomUUID(), "es") === null,
+  );
+  ok("and to the language", unreadFollowOn(user, "zh-CN") === null);
+
+  db.prepare(
+    `INSERT INTO sessions (id, piece_id, user_id, level_before, level_after, lookup_rate, created_at)
+     VALUES (?, ?, ?, 30, 30, 0.05, ?)`,
+  ).run(randomUUID(), child, user, new Date().toISOString());
+  ok(
+    "once read, the card goes - a session is what 'read' means",
+    unreadFollowOn(user, "es") === null,
+  );
 
   console.log(failures === 0 ? "\nall checks passed" : `\n${failures} failing`);
   process.exit(failures === 0 ? 0 : 1);

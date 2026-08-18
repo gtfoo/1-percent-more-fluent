@@ -123,6 +123,7 @@ export const UI_ES: UiStrings = {
   seeProgress: "Ver cuánto has avanzado",
   bringsBack: "Retoma palabras que buscaste:",
   nextUp: "A continuación:",
+  writingNext: "Escribiendo tu próxima lectura…",
 
   progressNav: "Tu progreso",
   progressHeading: "Cuánto has avanzado",

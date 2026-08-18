@@ -126,6 +126,7 @@ export const UI_ZH_CN: UiStrings = {
   seeProgress: "看看你走了多远",
   bringsBack: "复习你查过的词：",
   nextUp: "下一篇：",
+  writingNext: "正在为你写下一篇……",
 
   progressNav: "你的进步",
   progressHeading: "你走了多远",

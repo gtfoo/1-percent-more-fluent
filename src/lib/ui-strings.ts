@@ -148,6 +148,8 @@ export interface UiStrings {
   bringsBack: string;
   /** Button prefix for the prefetched follow-on piece. */
   nextUp: string;
+  /** Quiet note while the follow-on is still generating. */
+  writingNext: string;
 
   // Progress. Read back out of data the app was already keeping.
   progressNav: string;
@@ -298,6 +300,7 @@ export const EN: UiStrings = {
   seeProgress: "See how far you’ve come",
   bringsBack: "Brings back words you looked up:",
   nextUp: "Next up:",
+  writingNext: "Writing your next piece…",
 
   progressNav: "Your progress",
   progressHeading: "How far you’ve come",

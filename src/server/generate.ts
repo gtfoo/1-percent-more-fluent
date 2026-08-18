@@ -502,6 +502,33 @@ export function existingFollowOn(
 }
 
 /**
+ * The newest prefetched piece this reader has not yet read.
+ *
+ * Exists because the post-session chip measurably fails alone: generation takes
+ * 20-35s and the first real reader left the panel in under ten, twice - both
+ * follow-ons landed, went into the list unmarked, and were never seen. The home
+ * page is where an already-written piece can actually be found, so it gets the
+ * same "Next up" framing there.
+ *
+ * "Unread" is "no session", the same definition prefetch itself uses for
+ * "finished" - a piece merely opened and abandoned still deserves its flag.
+ */
+export function unreadFollowOn(
+  userId: string,
+  language: string,
+): { id: string; title: string } | null {
+  const row = getDb()
+    .prepare(
+      `SELECT p.id, p.title FROM pieces p
+        WHERE p.user_id = ? AND p.language = ? AND p.parent_id IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM sessions s WHERE s.piece_id = p.id AND s.user_id = ?)
+        ORDER BY p.created_at DESC LIMIT 1`,
+    )
+    .get(userId, language, userId) as { id: string; title: string } | undefined;
+  return row ?? null;
+}
+
+/**
  * The piece's length bucket, recovered from its measured word count.
  *
  * Length is not stored on the piece - only the report's totalWords - so the

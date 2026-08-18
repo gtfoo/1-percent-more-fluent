@@ -151,6 +151,14 @@ export function Reader({
   const [result, setResult] = useState<SessionResult | null>(null);
   /** The prefetched follow-on piece, once its generation lands. */
   const [next, setNext] = useState<{ id: string; title: string } | null>(null);
+  /**
+   * True while the follow-on is still being written. Shown as a quiet line,
+   * because the first version showed nothing - and the first real reader left
+   * the panel inside ten seconds, twice, while a 20-35s generation finished
+   * into a chip nobody was there to see. Not knowing more is coming IS the
+   * reason to leave.
+   */
+  const [nextPending, setNextPending] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Lifted out of finish(), because the review below needs them too - and the
@@ -539,6 +547,7 @@ export function Reader({
       // generation runs behind the review panel the reader is about to look at,
       // and the chip appears when it lands. Fire-and-forget: a failed prefetch
       // costs the reader nothing they ever knew they had.
+      setNextPending(true);
       void fetch("/api/generate/next", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -548,7 +557,8 @@ export function Reader({
         .then((d) => {
           if (d?.id && d?.title) setNext({ id: d.id, title: d.title });
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setNextPending(false));
     } catch (err) {
       setError(err instanceof Error ? err.message : t.couldNotSave);
       // Only on failure. On success the result panel replaces the button, so
@@ -1008,11 +1018,13 @@ export function Reader({
             {result.labelAfter})
           </p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-            {/* The prefetched follow-on, when its generation has landed. First
-                in the row deliberately: it is the zero-wait path, written while
-                the reader was looking at this panel. Absent (not loading) until
-                ready - a spinner here would advertise the very wait the
-                prefetch exists to remove. */}
+            {/* The prefetched follow-on. While it is still being written, say
+                so quietly - the reader who leaves now still finds it as the
+                "Next up" card on the home page, and the line tells them there
+                is a reason to. */}
+            {!next && nextPending && (
+              <span className="text-sm text-muted">{t.writingNext}</span>
+            )}
             {next && (
               <Link
                 href={`/read/${next.id}`}

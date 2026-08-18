@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getUserId, getProfile, getProfiles, getUiPreference } from "@/server/user";
-import { listPieces, toTopicHistory } from "@/server/generate";
+import { listPieces, toTopicHistory, unreadFollowOn } from "@/server/generate";
 import { rankAll } from "@/lib/rank-suggestions";
 import { countVocabulary } from "@/server/vocabulary";
 import { finishedReadings } from "@/server/progress";
@@ -76,6 +76,7 @@ export default async function Home() {
     await getUiPreference(),
   );
   const recent = listPieces(profile.userId, language.code);
+  const nextUp = unreadFollowOn(profile.userId, language.code);
   // No extra query and no network: listPieces already fetched the topics and
   // this page already threw them away. The seed is the reader plus how much
   // they have read, so the two exploration slots rotate when there is something
@@ -133,6 +134,28 @@ export default async function Home() {
           </p>
         </div>
       </section>
+
+      {/* The prefetched piece, if one is waiting unread. This is its REAL home:
+          the post-session chip needs the reader to linger 20-35s on a panel the
+          first real reader left in under ten - both follow-ons landed and were
+          never seen. Above Compose deliberately: a piece that already exists
+          beats writing a new one, on wait and on quota alike. */}
+      {nextUp && (
+        <Link
+          href={`/read/${nextUp.id}`}
+          className="flex items-baseline justify-between gap-4 rounded-xl border border-accent bg-accent-soft px-5 py-4 hover:opacity-90"
+        >
+          <span className="font-medium">
+            {t.nextUp}{" "}
+            <span lang={language.code} style={{ fontFamily: language.fontStack }}>
+              {nextUp.title}
+            </span>
+          </span>
+          <span aria-hidden className="text-muted">
+            ›
+          </span>
+        </Link>
+      )}
 
       <section>
         <h2 className="mb-4 text-xl font-semibold tracking-tight">

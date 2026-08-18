@@ -132,6 +132,7 @@ export const UI_ID: UiStrings = {
   seeProgress: "Lihat sejauh apa kamu melangkah",
   bringsBack: "Mengulang kata yang pernah kamu cari:",
   nextUp: "Berikutnya:",
+  writingNext: "Sedang menulis bacaan berikutnya…",
 
   progressNav: "Perkembanganmu",
   progressHeading: "Sejauh apa kamu sudah melangkah",
