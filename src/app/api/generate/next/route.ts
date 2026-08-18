@@ -6,6 +6,7 @@ import {
   generatePiece,
   getPiece,
   lengthLike,
+  unreadFollowOn,
 } from "@/server/generate";
 import { isLlmConfigured } from "@/server/llm";
 import { getLanguage } from "@/lib/languages";
@@ -50,6 +51,17 @@ export async function POST(req: NextRequest) {
   // double-taps and reloads.
   const existing = existingFollowOn(parent.id);
   if (existing) return Response.json(existing);
+
+  // AT MOST ONE speculative piece outstanding, ever. Without this, a reader
+  // who finishes pieces but always composes their own next topic spawns one
+  // unread generation per finish - a quota leak that grows with exactly the
+  // behaviour it fails to serve. If something written ahead is still unread,
+  // the answer to "what's next?" is THAT, not a fresh spend; the chip and the
+  // home card point at it, and no new prefetch happens until it is read. The
+  // feature self-calibrates: readers who follow suggestions get a fresh one
+  // each time, readers who ignore them stop costing anything.
+  const outstanding = unreadFollowOn(userId, parent.language);
+  if (outstanding) return Response.json(outstanding);
 
   // Only a FINISHED piece earns a follow-on. The reader proves they finish
   // things before the app starts writing ahead of them - without this, opening
