@@ -130,6 +130,8 @@ export const UI_ID: UiStrings = {
   levelWord: "Level",
   readSomethingElse: "Baca yang lain",
   seeProgress: "Lihat sejauh apa kamu melangkah",
+  bringsBack: "Mengulang kata yang pernah kamu cari:",
+  nextUp: "Berikutnya:",
 
   progressNav: "Perkembanganmu",
   progressHeading: "Sejauh apa kamu sudah melangkah",

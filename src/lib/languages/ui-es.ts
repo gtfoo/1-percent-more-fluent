@@ -121,6 +121,8 @@ export const UI_ES: UiStrings = {
   levelWord: "Nivel",
   readSomethingElse: "Leer otra cosa",
   seeProgress: "Ver cuánto has avanzado",
+  bringsBack: "Retoma palabras que buscaste:",
+  nextUp: "A continuación:",
 
   progressNav: "Tu progreso",
   progressHeading: "Cuánto has avanzado",

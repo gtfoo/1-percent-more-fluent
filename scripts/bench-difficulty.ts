@@ -50,7 +50,19 @@ function loadEnv(path = ".env.local") {
 /** One Google model, named explicitly. See COST SAFETY above. */
 const MODEL = process.env.BENCH_MODEL ?? "google:gemini-3.5-flash";
 
-const LEVELS = [10, 30, 50];
+/**
+ * Which experiment.
+ *
+ *  - "band"  (default): show the model the band's actual words, or not. The
+ *    original experiment; it lifted first-pass everywhere EXCEPT level 10,
+ *    which is what proved the floor is not a knowledge-of-the-band problem.
+ *  - "floor": the beginner scaffold (deliberate repetition + a short cap), on
+ *    vs off, at the levels the band experiment could not move. This arm
+ *    decides whether the floor gets fixed or honestly scoped out.
+ */
+const MODE = process.env.BENCH_MODE ?? "band";
+
+const LEVELS = MODE === "floor" ? [8, 12, 16] : [10, 30, 50];
 const SAMPLES = Number(process.env.BENCH_SAMPLES ?? 3);
 const LANGUAGE = process.env.BENCH_LANGUAGE ?? "es";
 
@@ -83,6 +95,7 @@ async function main() {
 
   console.log(`model     ${MODEL}   (pinned - cannot fall through to a paid provider)`);
   console.log(`language  ${language.name}`);
+  console.log(`mode      ${MODE}`);
   console.log(`plan      ${LEVELS.length} levels x ${SAMPLES} samples x 2 variants = ${calls} calls`);
   console.log(`          Gemini's free tier is 20/day/model.`);
   if (!run) {
@@ -114,10 +127,21 @@ async function main() {
 
   outer: for (const level of LEVELS) {
     const params = paramsFor(level, language);
-    for (const [variant, vocabulary] of [
-      ["current", undefined],
-      ["band shown", freq.words.slice(0, params.vocabBand)],
-    ] as const) {
+    // Each mode varies exactly one thing. In "floor" mode the scaffold is
+    // forced explicitly BOTH ways - left to its level-derived default, the
+    // baseline arm at level 8 would silently get the scaffold too and the
+    // experiment would compare the scaffold with itself.
+    const variants: [string, { vocabulary?: string[]; scaffold?: boolean }][] =
+      MODE === "floor"
+        ? [
+            ["plain", { scaffold: false }],
+            ["scaffold", { scaffold: true }],
+          ]
+        : [
+            ["current", {}],
+            ["band shown", { vocabulary: freq.words.slice(0, params.vocabBand) }],
+          ];
+    for (const [variant, extra] of variants) {
       for (let s = 0; s < SAMPLES; s++) {
         const started = Date.now();
         try {
@@ -127,7 +151,7 @@ async function main() {
             format: "story",
             topic: TOPICS[s % TOPICS.length]!,
             length: "short",
-            vocabulary,
+            ...extra,
           });
           rows.push({
             level,

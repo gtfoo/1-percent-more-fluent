@@ -130,6 +130,16 @@ export function getDb(): Database.Database {
   // vote on what to suggest next, which is different from voting "other".
   addColumn("pieces", "topic_field", "TEXT");
 
+  // Looked-up words this piece deliberately wove back in - the true half only:
+  // requested words the model did not use are not stored, so the "brings back
+  // words you looked up" note can never name a word that is not in the text.
+  addColumn("pieces", "recycled", "TEXT NOT NULL DEFAULT '[]'");
+
+  // The piece this one was prefetched FROM, while its reader was still on it.
+  // NULL for everything reader-requested; the value is what makes "is there
+  // already a next piece for this one?" a lookup instead of a guess.
+  addColumn("pieces", "parent_id", "TEXT");
+
   // Which language the learner is currently reading. Null until they place.
   addColumn("users", "active_language", "TEXT");
 

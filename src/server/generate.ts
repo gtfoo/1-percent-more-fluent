@@ -25,6 +25,7 @@ import type { Format } from "@/lib/formats";
 import { splitTurns, type Speaker } from "@/lib/dialogue";
 import type { TopicTerm } from "@/lib/terms";
 import { pronounce } from "./pronounce";
+import { wordsToRecycle } from "./vocabulary";
 
 /**
  * Built per language rather than declared once: the field descriptions carry
@@ -135,6 +136,23 @@ Rules:
 - The comprehension questions must be answerable from the text alone, and must
   use the same restricted vocabulary as the text.`;
 
+/**
+ * Below this level the difficulty budget stops being a style request and
+ * becomes an arithmetic problem: at level 10 the band is ~720 words, and a
+ * 350-word piece needs more distinct content words than the band can supply
+ * without repetition. Measured: 33% first-pass at level 10, and showing the
+ * model the band's actual words - which lifts every other level - moved
+ * nothing there, because the constraint is not knowledge of the band, it is
+ * the number of distinct words the text demands.
+ *
+ * So below the floor the PIECE changes, not just the prompt: shorter, built on
+ * deliberate repetition, which is also what human-authored graded readers do
+ * at this level. Repetition attacks the arithmetic directly - every reuse of
+ * an in-band word grows the denominator of the out-of-band rate without
+ * touching the numerator.
+ */
+export const FLOOR_LEVEL = 20;
+
 export function buildPrompt(
   format: Format,
   topic: string,
@@ -142,8 +160,16 @@ export function buildPrompt(
   params: LevelParams,
   corrections?: string[],
   vocabulary?: string[],
+  recycle?: string[],
+  /** Overridable only so the bench can measure with/without at the same level. */
+  scaffold: boolean = params.level < FLOOR_LEVEL,
 ): string {
-  const targetWords = LENGTH_WORDS[length];
+  // The cap is part of the floor scaffold: a shorter text simply needs fewer
+  // distinct words, and beginner graded readers are short for the same reason.
+  // The reader still gets their chosen length back as they level out of it.
+  const targetWords = scaffold
+    ? Math.min(LENGTH_WORDS[length], 220)
+    : LENGTH_WORDS[length];
 
   const shape =
     format === "story"
@@ -185,6 +211,34 @@ export function buildPrompt(
     "",
     `Also produce exactly three multiple-choice comprehension questions in ${params.language.name}, each with three options.`,
   ];
+
+  // The floor scaffold. Instructions, not just the shorter target above,
+  // because the model's instinct at every level is variety - synonyms, changed
+  // framings - and variety is precisely what a 700-word vocabulary cannot
+  // afford. Human graded readers at this level repeat deliberately; asking for
+  // that by name works better than hoping a small band forces it.
+  if (scaffold) {
+    lines.push(
+      "",
+      `This is for a beginner, and beginner text works through repetition:`,
+      `- Reuse the same nouns and verbs deliberately instead of reaching for synonyms or elegant variation. Meeting the same word three times is a feature of the text, not a flaw.`,
+      `- Keep to concrete, here-and-now subject matter. Abstract framing pulls in rare words; people, objects, places and actions stay inside the budget.`,
+      `- One idea per sentence.`,
+    );
+  }
+
+  // The reader's own half-known words, woven back in. A word they tapped for a
+  // definition is one they half-know, and re-meeting it in a NEW context is
+  // what moves it to known - spaced repetition wearing the clothes of ordinary
+  // reading. Exempt from the budget like the key terms, because their presence
+  // is deliberate.
+  if (recycle?.length) {
+    lines.push(
+      "",
+      `This reader recently needed help with these words: ${recycle.join(", ")}.`,
+      `Weave in as many of them as fit the topic NATURALLY - do not force one in where it bends the text. They are exempt from the vocabulary limit, and any you use must appear in the glossary.`,
+    );
+  }
 
   // The experiment. The budget above asks the model to write inside "the N most
   // common words" - a set defined by a frequency list it cannot see, so it has
@@ -259,6 +313,9 @@ export async function draftPiece(args: {
   length: Length;
   corrections?: string[];
   vocabulary?: string[];
+  recycle?: string[];
+  /** Bench override only; production lets the level decide. */
+  scaffold?: boolean;
 }): Promise<{ piece: Piece; report: DifficultyReport; modelId: string }> {
   const result = await generateStructured({
     op: "piece",
@@ -271,6 +328,8 @@ export async function draftPiece(args: {
       args.params,
       args.corrections,
       args.vocabulary,
+      args.recycle,
+      args.scaffold ?? args.params.level < FLOOR_LEVEL,
     ),
     temperature: 0.8,
   });
@@ -287,11 +346,38 @@ export async function draftPiece(args: {
   const report = measure(
     prose,
     args.params,
-    (piece.terms ?? []).map((t) => t.term),
+    // Recycled words are exempt like the terms: both are in the text because
+    // we asked for them, and a deliberate inclusion must not read as the model
+    // missing the budget.
+    [...(piece.terms ?? []).map((t) => t.term), ...(args.recycle ?? [])],
     speakers.map((s) => s.name),
   );
 
   return { piece, report, modelId: result.modelId };
+}
+
+/**
+ * Which of the requested recycle words the model actually used.
+ *
+ * Stored so the reader can be told "this piece brings back words you looked
+ * up" - and only the true half of that. The model is asked to weave words in
+ * where they fit, so some requests go unused; showing an unused word in that
+ * note would be a small lie in the one place the feature is visible.
+ */
+export function recycledInProse(
+  recycle: string[],
+  prose: string,
+  languageCode: string,
+): string[] {
+  return recycle.filter((word) => {
+    if (!word) return false;
+    // No word boundaries in Chinese; a substring match is the real test there.
+    if (languageCode.startsWith("zh")) return prose.includes(word);
+    // Latin scripts: boundary-anchored so "casa" does not claim credit for
+    // "casarse". Escape the word - lookups are raw user selections.
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "iu").test(prose);
+  });
 }
 
 export async function generatePiece(args: {
@@ -308,9 +394,12 @@ export async function generatePiece(args: {
    */
   language: Language;
   length: Length;
+  /** Prefetch only: link the new piece back to the one it follows. */
+  parentId?: string;
 }): Promise<GeneratedPiece> {
   const language = args.language;
   const params = paramsFor(args.level, language);
+  const recycle = wordsToRecycle(args.userId, language.code);
 
   let piece: Piece | null = null;
   let report: DifficultyReport | null = null;
@@ -330,6 +419,7 @@ export async function generatePiece(args: {
       topic: args.topic,
       length: args.length,
       corrections,
+      recycle,
     });
 
     piece = draft.piece;
@@ -350,7 +440,69 @@ export async function generatePiece(args: {
     report: report!,
     modelId,
     attempts,
+    recycle,
+    parentId: args.parentId,
   });
+}
+
+/**
+ * What the NEXT piece should be about, derived from the one just finished.
+ *
+ * No model call, deliberately. The finished piece already paid for 6-12 key
+ * terms with glosses - a ready-made map of where this topic can go - and a
+ * prefetch that spent a model call deciding what to prefetch would double the
+ * quota cost of a feature whose whole budget argument is "one extra request".
+ *
+ * Seeded by the piece id so the same piece always proposes the same follow-on:
+ * that is what makes "is there already a next piece for this one?" answerable,
+ * and what the idempotency of prefetch rests on.
+ */
+export function followOnTopic(piece: {
+  id: string;
+  topic: string;
+  terms: TopicTerm[];
+}): string {
+  const terms = piece.terms.filter((t) => t.term?.trim());
+  if (!terms.length) {
+    return `A different angle on the same subject: ${piece.topic}`.slice(0, 200);
+  }
+  let h = 2166136261;
+  for (let i = 0; i < piece.id.length; i++) {
+    h ^= piece.id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const pick = terms[Math.abs(h) % terms.length]!;
+  // The meaning rides along so the model is not left guessing what a bare
+  // term from another language refers to.
+  return `A follow-on about ${pick.term} (${pick.meaning}) - the reader just finished a piece on: ${piece.topic}`.slice(
+    0,
+    200,
+  );
+}
+
+/** The already-prefetched follow-on for a piece, if one exists. */
+export function existingFollowOn(
+  parentId: string,
+): { id: string; title: string } | null {
+  const row = getDb()
+    .prepare(`SELECT id, title FROM pieces WHERE parent_id = ? LIMIT 1`)
+    .get(parentId) as { id: string; title: string } | undefined;
+  return row ?? null;
+}
+
+/**
+ * The piece's length bucket, recovered from its measured word count.
+ *
+ * Length is not stored on the piece - only the report's totalWords - so the
+ * follow-on infers the nearest bucket rather than defaulting everyone back to
+ * "medium" and quietly shrinking every long reader's next piece.
+ */
+export function lengthLike(totalWords: number): Length {
+  const entries = Object.entries(LENGTH_WORDS) as [Length, number][];
+  entries.sort(
+    (a, b) => Math.abs(a[1] - totalWords) - Math.abs(b[1] - totalWords),
+  );
+  return entries[0]![0];
 }
 
 /**
@@ -372,8 +524,21 @@ function persistPiece(args: {
   report: DifficultyReport;
   modelId: string;
   attempts: number;
+  /** The words we ASKED to be woven in; only the ones actually used are stored. */
+  recycle?: string[];
+  /** Set only by prefetch: the piece this one was generated to follow. */
+  parentId?: string;
 }): GeneratedPiece {
   const { language, piece, report } = args;
+
+  // Stored so the reader can be shown "brings back words you looked up" - and
+  // only the true half. The model weaves in what fits, so requested-but-unused
+  // words must not appear in that note.
+  const recycled = recycledInProse(
+    args.recycle ?? [],
+    piece.paragraphs.join("\n\n"),
+    language.code,
+  );
 
   // Even a failing attempt is kept. An over-budget text with a full glossary is
   // more useful to the reader than an error page, and the report travels with
@@ -398,8 +563,8 @@ function persistPiece(args: {
 
   getDb()
     .prepare(
-      `INSERT INTO pieces (id, user_id, language, format, topic, topic_field, level, title, body, glossary, questions, speakers, terms, report, model, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO pieces (id, user_id, language, format, topic, topic_field, level, title, body, glossary, questions, speakers, terms, report, model, recycled, parent_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -419,6 +584,8 @@ function persistPiece(args: {
       JSON.stringify(terms),
       JSON.stringify(report),
       args.modelId,
+      JSON.stringify(recycled),
+      args.parentId ?? null,
       new Date().toISOString(),
     );
 
@@ -462,12 +629,21 @@ export async function* streamPiece(args: {
 }): AsyncGenerator<PieceEvent> {
   const language = args.language;
   const params = paramsFor(args.level, language);
+  const recycle = wordsToRecycle(args.userId, language.code);
 
   const { partials, object, modelId } = await streamStructured({
     op: "piece-stream",
     schema: pieceSchema(language),
     system: system(language.name),
-    prompt: buildPrompt(args.format, args.topic, args.length, params),
+    prompt: buildPrompt(
+      args.format,
+      args.topic,
+      args.length,
+      params,
+      undefined,
+      undefined,
+      recycle,
+    ),
     temperature: 0.8,
   });
 
@@ -503,7 +679,8 @@ export async function* streamPiece(args: {
   const report = measure(
     prose,
     params,
-    (piece.terms ?? []).map((t) => t.term),
+    // Recycled words exempt like the terms - deliberate inclusions, not misses.
+    [...(piece.terms ?? []).map((t) => t.term), ...recycle],
     speakers.map((s) => s.name),
   );
 
@@ -517,6 +694,7 @@ export async function* streamPiece(args: {
     report,
     modelId,
     attempts: 1,
+    recycle,
   });
 
   yield {
@@ -541,6 +719,8 @@ export interface StoredPiece {
   speakers: Speaker[];
   terms: TopicTerm[];
   report: DifficultyReport;
+  /** Looked-up words this piece deliberately brings back. See wordsToRecycle. */
+  recycled: string[];
   createdAt: string;
 }
 
@@ -565,6 +745,7 @@ export function getPiece(id: string): StoredPiece | null {
     speakers: JSON.parse((row.speakers as string) ?? "[]"),
     terms: JSON.parse((row.terms as string) ?? "[]"),
     report: JSON.parse(row.report as string),
+    recycled: JSON.parse((row.recycled as string) ?? "[]"),
     createdAt: row.created_at as string,
   };
 }

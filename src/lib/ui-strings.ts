@@ -144,6 +144,10 @@ export interface UiStrings {
   readSomethingElse: string;
   /** The link to /progress, offered exactly when the level has just moved. */
   seeProgress: string;
+  /** Prefix for the looked-up words a piece deliberately brings back. */
+  bringsBack: string;
+  /** Button prefix for the prefetched follow-on piece. */
+  nextUp: string;
 
   // Progress. Read back out of data the app was already keeping.
   progressNav: string;
@@ -292,6 +296,8 @@ export const EN: UiStrings = {
   levelWord: "Level",
   readSomethingElse: "Read something else",
   seeProgress: "See how far you’ve come",
+  bringsBack: "Brings back words you looked up:",
+  nextUp: "Next up:",
 
   progressNav: "Your progress",
   progressHeading: "How far you’ve come",

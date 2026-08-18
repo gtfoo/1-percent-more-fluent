@@ -117,6 +117,49 @@ export function forgetWord(userId: string, code: string, word: string): void {
 }
 
 /**
+ * The words worth weaving into the reader's NEXT piece.
+ *
+ * A word you tapped is one you half-know, and meeting it again inside a new
+ * text is what moves it from half-known to known - spaced repetition wearing
+ * the clothes of ordinary reading. This is the query `db.ts` promised when it
+ * called `lookups` "the vocabulary feed for spaced repetition".
+ *
+ * The ranking is the pedagogy:
+ *
+ *  - Words needed in SEVERAL pieces come first. A word that keeps being tapped
+ *    is one the reader is circling without landing.
+ *  - Among those, least-recently-seen first, because the word furthest from
+ *    memory is the one a re-encounter helps most.
+ *  - Nothing tapped in the last 30 minutes. Re-meeting a word five minutes
+ *    after tapping it is not a re-encounter, it is the same encounter - and it
+ *    would make every piece echo the one just read.
+ *
+ * Capped small deliberately. Six words woven into ~350 is seasoning; twenty
+ * would bend the whole text around the reader's history and fight the topic.
+ */
+export function wordsToRecycle(userId: string, code: string, limit = 6): string[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT l.word AS word
+         FROM lookups l
+         JOIN pieces p ON p.id = l.piece_id
+        WHERE l.user_id = ? AND p.language = ?
+          -- Selections can sweep in junk (a phrase cut mid-word); a hard cap on
+          -- length keeps a runaway selection out of a prompt. Real words and
+          -- deliberate phrases fit comfortably.
+          AND length(l.word) <= 24
+        GROUP BY l.word
+       HAVING MAX(l.created_at) < ?
+        ORDER BY COUNT(DISTINCT l.piece_id) DESC, MAX(l.created_at) ASC
+        LIMIT ?`,
+    )
+    .all(userId, code, new Date(Date.now() - 30 * 60_000).toISOString(), limit) as {
+    word: string;
+  }[];
+  return rows.map((r) => r.word);
+}
+
+/**
  * Tab-separated, for import into Anki or anything else.
  *
  * Always three columns - word, reading, meaning - even for a language with no

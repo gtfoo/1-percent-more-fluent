@@ -124,6 +124,8 @@ export const UI_ZH_CN: UiStrings = {
   levelWord: "等级",
   readSomethingElse: "读点别的",
   seeProgress: "看看你走了多远",
+  bringsBack: "复习你查过的词：",
+  nextUp: "下一篇：",
 
   progressNav: "你的进步",
   progressHeading: "你走了多远",

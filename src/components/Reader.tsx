@@ -30,6 +30,9 @@ export interface ReaderPiece {
   questions: { question: string; options: string[]; answer: number }[];
   /** The topic terms this piece is about. Glossed from here, never fetched. */
   terms: TopicTerm[];
+  /** Looked-up words this piece deliberately brings back. Only words actually
+      in the text - the server stores the true half of what it asked for. */
+  recycled: string[];
   totalWords: number;
   outOfBandRate: number;
   passes: boolean;
@@ -146,6 +149,8 @@ export function Reader({
   );
   const [rating, setRating] = useState<string | null>(null);
   const [result, setResult] = useState<SessionResult | null>(null);
+  /** The prefetched follow-on piece, once its generation lands. */
+  const [next, setNext] = useState<{ id: string; title: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Lifted out of finish(), because the review below needs them too - and the
@@ -530,6 +535,20 @@ export function Reader({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "could not save");
       setResult(data as SessionResult);
+      // The session is saved, so start writing the NEXT piece now - the ~20s of
+      // generation runs behind the review panel the reader is about to look at,
+      // and the chip appears when it lands. Fire-and-forget: a failed prefetch
+      // costs the reader nothing they ever knew they had.
+      void fetch("/api/generate/next", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pieceId: piece.id }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.id && d?.title) setNext({ id: d.id, title: d.title });
+        })
+        .catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : t.couldNotSave);
       // Only on failure. On success the result panel replaces the button, so
@@ -647,6 +666,18 @@ export function Reader({
           beyond your level
           {!piece.passes && " · ran over budget"}
         </p>
+        {/* The retention loop, made visible. The recycling would work silently,
+            but "your words came back" is the reason to return - invisible
+            spaced repetition motivates nobody. Only words actually in the text
+            ever reach this list; the server stores the true half. */}
+        {piece.recycled.length > 0 && (
+          <p className="text-sm text-muted">
+            {t.bringsBack}{" "}
+            <span lang={language.code} style={{ fontFamily: language.fontStack }}>
+              {piece.recycled.join(" · ")}
+            </span>
+          </p>
+        )}
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -977,9 +1008,29 @@ export function Reader({
             {result.labelAfter})
           </p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            {/* The prefetched follow-on, when its generation has landed. First
+                in the row deliberately: it is the zero-wait path, written while
+                the reader was looking at this panel. Absent (not loading) until
+                ready - a spinner here would advertise the very wait the
+                prefetch exists to remove. */}
+            {next && (
+              <Link
+                href={`/read/${next.id}`}
+                className="inline-block rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
+              >
+                {t.nextUp}{" "}
+                <span lang={language.code} style={{ fontFamily: language.fontStack }}>
+                  {next.title}
+                </span>
+              </Link>
+            )}
             <Link
               href="/"
-              className="inline-block rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
+              className={
+                next
+                  ? "text-muted underline hover:text-accent"
+                  : "inline-block rounded-lg bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
+              }
             >
               {t.readSomethingElse}
             </Link>

@@ -39,6 +39,8 @@ step "voice languages" npx tsx scripts/check-voices.ts
 step "sign-in email" npx tsx scripts/check-signin-email.ts
 step "usage emission" npx tsx scripts/check-usage.ts
 step "user counts" npx tsx scripts/check-user-counts.ts
+step "lookup recycling" npx tsx scripts/check-recycle.ts
+step "prefetch" npx tsx scripts/check-prefetch.ts
 step "model chain" npx tsx scripts/check-llm-chain.ts
 step "next build" npx next build
 
