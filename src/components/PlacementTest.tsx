@@ -128,6 +128,16 @@ export function PlacementTest({
             Each language keeps its own level, so switching later doesn’t lose
             where you got to.
           </p>
+          {/* The product's honest scope, stated where someone decides whether
+              to start. Below ~780 passive words the generator cannot hold its
+              own difficulty budget (measured, twice), so placement floors
+              there - better to say who this is for than to place someone into
+              text the app knows it cannot pitch right. */}
+          <p className="mt-2 max-w-xl text-sm text-muted">
+            Built for readers who already have some basics. If you’re starting
+            from zero, do a beginner course first — this works best once you can
+            read simple sentences.
+          </p>
         </div>
         <div className="flex flex-wrap gap-3">
           {languages.map((l) => (

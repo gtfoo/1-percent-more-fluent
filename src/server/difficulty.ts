@@ -12,6 +12,7 @@
  * both overstates difficulty and pushes the generator into stilted Spanish.
  */
 import type { LevelParams } from "@/lib/level";
+import { FLOOR_ZONE } from "@/lib/level";
 import { isProtected, missingTerms, termSpans } from "@/lib/terms";
 import { rankOf, registerAnchors } from "./frequency";
 
@@ -89,6 +90,30 @@ export const MAX_TERM_RATE = 0.25;
  * two-piece sample. This rests on 25.
  */
 export const BUDGET_SLACK = 2.25;
+
+/**
+ * The ceiling inside the floor zone (level < FLOOR_ZONE), where 2.25x is not a
+ * tolerance but a coin flip: two bench runs put the model's MEDIAN attempt at
+ * 2.2-2.8x budget down there, so the whole distribution straddles the standard
+ * ceiling and pass/fail measures variance, not quality. 36 samples, both runs.
+ *
+ * 2.6 is anchored to evidence, not comfort: the repetition scaffold's measured
+ * medians are 2.16-2.33x, so this sits one spread above the median - typical
+ * attempts pass, genuine outliers still fail and retry. It is NOT set high
+ * enough to make failure impossible; a verifier that cannot fail is not one.
+ *
+ * The honesty cost is accepted by the owner, 2026-08-19, with eyes open: floor
+ * zone readers get text up to ~24% out-of-band labelled as passing. Two things
+ * keep it honest anyway - the reader-facing "% beyond your level" figure shows
+ * the real rate regardless of pass/fail, and MIN_READER_LEVEL keeps out the
+ * true beginners for whom that rate would be a wall rather than a stretch.
+ */
+export const BUDGET_SLACK_FLOOR_ZONE = 2.6;
+
+/** The ceiling that applies at this level. */
+export function slackFor(level: number): number {
+  return level < FLOOR_ZONE ? BUDGET_SLACK_FLOOR_ZONE : BUDGET_SLACK;
+}
 
 /**
  * ...and how far BELOW the budget before the text is too easy for its level.
@@ -213,7 +238,7 @@ export function measure(
     : 0;
 
   const problems: string[] = [];
-  const budgetCeiling = params.newWordBudget * BUDGET_SLACK;
+  const budgetCeiling = params.newWordBudget * slackFor(params.level);
   if (outOfBandRate > budgetCeiling) {
     problems.push(
       `${(outOfBandRate * 100).toFixed(1)}% of words fall outside the ${params.vocabBand.toLocaleString("en")} most common ${language.name} words (limit ${(budgetCeiling * 100).toFixed(0)}%). Replace these with everyday equivalents: ${outOfBand.slice(0, 25).join(", ")}.`,

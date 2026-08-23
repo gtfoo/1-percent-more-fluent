@@ -14,34 +14,19 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
 
 ## Open
 
-- [ ] **Verify audio on a real phone** — playback works (owner confirmed), but
-      the moment word highlighting switches on, when the alignment file lands
-      after synthesis, has never been observed. The browser pane cannot verify
-      audio at all, so this needs a device over `adb reverse` rather than a LAN
-      IP. Not blocking; the server side is verified end to end.
-      *from: own testing gap, 2026-08-12*
+Nothing outstanding.
 
-- [ ] **Does generation feel faster since the retry fix?** One human read, not
-      work. `maxRetries: 0` while a fallback exists took a dead model from ~20s
-      to 434ms; once the Gemini free tier is spent — 20 requests/day *per model*,
-      so most days — that was being paid on every generation. Possibly the
-      largest real latency win of 08-12 and still unconfirmed by anyone using it.
-      *from: owner, parked 2026-08-13*
+## Closed with a decision
 
-- [ ] **The beginner floor: rerun the bench, then decide budget vs scope** —
-      the repetition scaffold FAILED its bench (plain 6/9 at levels 8–16,
-      scaffold 2/9, level 8 passing nothing either way) and now ships
-      **dormant**: default off, bench-only, with a check-recycle tripwire
-      against re-enabling it unmeasured. Two fixes have now failed at the
-      floor, which points at the budget window itself. The rerun that would say
-      whether failures sit over the ceiling or under the asymmetric floor —
-      the fixed report distinguishes them — was blocked twice on 08-17:
-      `gemini-3.5-flash` quota spent by run one (whose report bug ate the
-      rates), `gemini-flash-latest` in transient overload. `BENCH_MODE=floor
-      npx tsx scripts/bench-difficulty.ts --run` on a fresh quota day answers
-      it; the decision after that is the owner's: widen the floor-level budget
-      window, or scope the app honestly to ~A2+.
-      *from: owner, 2026-08-17 (concept review item 3)*
+- [x] **The beginner floor** — decided by the owner 2026-08-19 on the completed
+      bench (36 samples across two runs; combined pass-rate even, rates
+      one-sided). All three levers at once: the repetition scaffold is ON below
+      level 20, the difficulty ceiling widens to 2.6× there (evidence-anchored:
+      scaffold medians 2.16–2.33×), and **no reader places or calibrates below
+      level 12** — the product's stated position is that true beginners belong
+      in a beginner course first, said out loud on the placement page. The
+      sub-12 zone stays reachable to measurement tools; readers never see it.
+      *from: owner, 2026-08-17 (concept review item 3), closed 2026-08-19*
 
 ## Deferred
 
@@ -75,6 +60,14 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
 
 ## Done
 
+- [x] **Generation feels faster since the retry fix** — owner confirmed on
+      2026-08-19, alongside prefetch making the next piece instant. The latency
+      thread that started the whole optimisation arc is closed.
+      *from: owner, parked 2026-08-13, verified 2026-08-19*
+- [x] **Audio verified on a real phone** — playback and the word-highlighting
+      handoff (switching on when the alignment lands after synthesis) both
+      confirmed by the owner on a real device. The last unobserved half of the
+      audio streaming work is now observed. *from: own testing gap, 2026-08-12*
 - [x] **Recycle looked-up words into the next piece** — up to six of the
       reader's tapped words woven into each new generation, exempt from the
       budget like terms, shown as "brings back words you looked up" with only

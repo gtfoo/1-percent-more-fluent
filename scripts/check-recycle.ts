@@ -137,26 +137,47 @@ async function main() {
     recycledInProse(["a(b"], "sin coincidencia", "es").length === 0,
   );
 
-  // --- the floor scaffold: DORMANT by measurement ---------------------------
-  // It benched worse than plain (2/9 vs 6/9), so the default is off everywhere
-  // - including below FLOOR_LEVEL - and only the bench turns it on. These
-  // assertions pin that state: if someone re-enables the default without a
-  // green floor-mode bench, this check is the tripwire that asks them for one.
-  const floor = paramsFor(10, es);
+  // --- the floor zone: scaffold ON, ceiling widened, reader floored ---------
+  // The owner's 2026-08-19 decision after two bench runs (combined pass-rate
+  // even; rates one-sided: scaffold medians closer to budget, zero under-floor
+  // failures in 18 samples). These assertions pin all three levers, so undoing
+  // any of them without a new measurement trips here first.
+  const floor = paramsFor(15, es);
   const floorPrompt = buildPrompt("story", "mi familia", "long", floor);
+  ok(`scaffold is ON below level ${FLOOR_LEVEL}`, /repetition/i.test(floorPrompt));
+  ok("...and caps the piece short", /about 220 words in total/.test(floorPrompt));
+  const forcedOff = buildPrompt("story", "mi familia", "long", floor, undefined, undefined, undefined, false);
   ok(
-    `scaffold stays OFF by default even below level ${FLOOR_LEVEL} (it measured worse)`,
-    !/repetition/i.test(floorPrompt),
-  );
-  ok("...and the length cap stays off with it", /about 600 words in total/.test(floorPrompt));
-  const forcedOn = buildPrompt("story", "mi familia", "long", floor, undefined, undefined, undefined, true);
-  ok("the bench can force the scaffold on", /beginner text works through repetition/i.test(forcedOn));
-  ok(
-    "...which also caps the piece short",
-    /about 220 words in total/.test(forcedOn),
+    "the bench can still force the baseline arm",
+    !/repetition/i.test(forcedOff) && /about 600 words in total/.test(forcedOff),
   );
   const normalPrompt = buildPrompt("story", "mi familia", "long", paramsFor(50, es));
-  ok("no scaffold at normal levels either way", !/repetition/i.test(normalPrompt));
+  ok("no scaffold at normal levels", !/repetition/i.test(normalPrompt));
+
+  // The widened ceiling: a rate the standard slack rejects passes inside the
+  // floor zone, and the identical ratio still fails outside it - the widening
+  // is a floor-zone concession, not a general loosening.
+  const { slackFor, BUDGET_SLACK, BUDGET_SLACK_FLOOR_ZONE } = await import(
+    "../src/server/difficulty"
+  );
+  ok(
+    "the ceiling widens only inside the floor zone",
+    slackFor(15) === BUDGET_SLACK_FLOOR_ZONE && slackFor(20) === BUDGET_SLACK,
+    `${slackFor(15)}x under 20, ${slackFor(20)}x from 20`,
+  );
+  ok("...and not into unfailability", BUDGET_SLACK_FLOOR_ZONE < 3);
+
+  // The reader floor: measurement may go below 12, readers may not.
+  const { clampReaderLevel, MIN_READER_LEVEL, clampLevel } = await import(
+    "../src/lib/level"
+  );
+  ok("no reader lands below the floor", clampReaderLevel(3) === MIN_READER_LEVEL);
+  ok("...while measurement still can", clampLevel(3) === 3);
+  const { overrideLevel } = await import("../src/lib/level");
+  ok(
+    "'too hard' at the floor stays at the floor",
+    overrideLevel(MIN_READER_LEVEL, "easier") === MIN_READER_LEVEL,
+  );
 
   console.log(failures === 0 ? "\nall checks passed" : `\n${failures} failing`);
   process.exit(failures === 0 ? 0 : 1);

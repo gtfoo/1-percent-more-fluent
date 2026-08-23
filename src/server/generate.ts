@@ -13,7 +13,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { paramsFor, LENGTH_WORDS, type Length, type LevelParams } from "@/lib/level";
+import { paramsFor, LENGTH_WORDS, FLOOR_ZONE, type Length, type LevelParams } from "@/lib/level";
 import { asTopicField, TOPIC_FIELDS } from "@/lib/suggestions";
 import type { TopicHistory } from "@/lib/rank-suggestions";
 import type { Language } from "@/lib/languages";
@@ -137,23 +137,28 @@ Rules:
   use the same restricted vocabulary as the text.`;
 
 /**
- * Below this level the difficulty budget stops being a style request and
- * becomes an arithmetic problem: at level 10 the band is ~720 words, and a
- * 350-word piece needs more distinct content words than the band can supply
- * without repetition. Measured twice now, and both fixes tried have FAILED
- * their bench:
+ * Below FLOOR_ZONE the difficulty budget stops being a style request and
+ * becomes an arithmetic problem: at level 12 the band is ~780 words, and a
+ * full-length piece needs more distinct content words than that supplies
+ * without repetition.
  *
- *  - showing the model the band's actual words lifted every other level and
- *    moved nothing here (33% first-pass either way);
- *  - the repetition scaffold below made it WORSE where plain passes (0/3 vs
- *    3/3 at level 12) and no better at level 8, where nothing passes at all.
+ * The floor's history, because it took three measurements to get honest:
  *
- * The honest state: below ~12 the budget window itself looks unachievable, and
- * the open question is whether the failures sit above the ceiling or below the
- * asymmetric floor - which decides whether the fix is the budget or the
- * prompt. BENCH_MODE=floor answers it when quota allows.
+ *  - showing the model the band's words lifted every other level, not this one;
+ *  - the repetition scaffold's two bench runs INVERTED each other (6/9-vs-2/9,
+ *    then 2/9-vs-6/9): the model's median attempt sits at 2.2-2.8x budget, so
+ *    the whole distribution straddled the 2.25x ceiling and pass/fail at n=9
+ *    was measuring variance;
+ *  - the rates were decisive where pass/fail was noise: every failure was OVER
+ *    the ceiling, none under the floor, and the scaffold pulls the median
+ *    toward budget at all three levels while running faster.
+ *
+ * Owner's decision, 2026-08-19, all three levers at once: the scaffold is ON
+ * below FLOOR_ZONE, the ceiling widens there (difficulty.ts slackFor), and no
+ * reader places below MIN_READER_LEVEL - the sub-12 zone where even this
+ * combination cannot hold the budget belongs to beginner courses, not to us.
  */
-export const FLOOR_LEVEL = 20;
+export { FLOOR_ZONE as FLOOR_LEVEL } from "@/lib/level";
 
 export function buildPrompt(
   format: Format,
@@ -164,15 +169,17 @@ export function buildPrompt(
   vocabulary?: string[],
   recycle?: string[],
   /**
-   * OFF BY DEFAULT, because it measured worse. BENCH_MODE=floor, first run:
-   * plain passed 6/9 across levels 8-16, scaffold 2/9 - and at level 8, the
-   * level it exists for, NEITHER arm passed anything. The suspected mechanism
-   * (repetition overshooting below BUDGET_FLOOR, failing as too easy) is
-   * unconfirmed: a report bug ate the first run's rates and provider overload
-   * blocked the rerun. Do not turn this on without a green floor-mode bench -
-   * shipping it on a hypothesis is how the floor got two wrong fixes already.
+   * ON below the floor zone, by the completed measurement. The first bench run
+   * said the scaffold was worse, the second said better, and the combined
+   * pass-rate is dead even (8/18 each) because the distribution straddles the
+   * ceiling - but the rates are one-sided: the scaffold's median sits closer to
+   * budget at every level (2.16-2.33x vs 2.25-2.79x), it is faster, all its
+   * failures are over-ceiling (the fear of overshooting into too-easy is
+   * refuted, zero under-floor in 18 samples), and short repetitive pieces are
+   * what human graded readers do at this level anyway. Overridable both ways so
+   * BENCH_MODE=floor keeps its baseline arm.
    */
-  scaffold = false,
+  scaffold: boolean = params.level < FLOOR_ZONE,
 ): string {
   // The cap is part of the floor scaffold: a shorter text simply needs fewer
   // distinct words, and beginner graded readers are short for the same reason.
@@ -339,8 +346,8 @@ export async function draftPiece(args: {
       args.corrections,
       args.vocabulary,
       args.recycle,
-      // False unless the bench forces it - see the scaffold note on buildPrompt.
-      args.scaffold ?? false,
+      // The level decides, unless the bench forces an arm - see buildPrompt.
+      args.scaffold ?? args.params.level < FLOOR_ZONE,
     ),
     temperature: 0.8,
   });

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { buildTest, score } from "@/server/placement";
 import { getOrCreateUserId, setPlacement } from "@/server/user";
-import { clampLevel, labelFor, levelForVocab } from "@/lib/level";
+import { clampLevel, clampReaderLevel, labelFor, levelForVocab } from "@/lib/level";
 import { DEFAULT_LANGUAGE, getLanguage } from "@/lib/languages";
 import { gradedSamples } from "@/server/frequency";
 import { clientIp, PLANS, spendIp, tooMany } from "@/server/limits";
@@ -90,7 +90,12 @@ export async function POST(req: NextRequest) {
   const readbackLevel =
     typeof body.readbackLevel === "number" ? clampLevel(body.readbackLevel) : null;
 
-  const level = clampLevel(blendReadback(testLevel, readbackLevel));
+  // The READER clamp, not the plain one: nobody places below MIN_READER_LEVEL,
+  // because below it the generator cannot hold its own difficulty budget and
+  // the product position is that true beginners belong in a beginner course
+  // first. The test may honestly MEASURE lower; the floor is about what this
+  // app can serve, and the level display stays honest about the text either way.
+  const level = clampReaderLevel(blendReadback(testLevel, readbackLevel));
 
   const profile = setPlacement(userId, result.vocabEstimate, language.code, level);
 

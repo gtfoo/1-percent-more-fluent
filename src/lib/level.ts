@@ -44,6 +44,33 @@ export function clampLevel(level: number): number {
   return Math.max(0, Math.min(100, level));
 }
 
+/**
+ * No READER sits below this. The scale still starts at 0 - measurement tools
+ * ask paramsFor(8) and must get honest level-8 params, which is why clampLevel
+ * above is untouched - but placement, calibration and the override buttons all
+ * clamp through clampReaderLevel instead.
+ *
+ * Owner's decision, 2026-08-19, on bench data: below ~12 the difficulty budget
+ * is unachievable (2/12 first-pass across two bench runs at level 8; even real
+ * stored pieces land at 1.4-2.0x budget), and the product position is that
+ * someone who does not yet know hello and goodbye is better served by a
+ * beginner course first. Level 12 is ~780 passive words - a Duolingo
+ * graduate - which is exactly the reader this app exists to catch.
+ */
+export const MIN_READER_LEVEL = 12;
+
+/** clampLevel plus the reader floor. Use for anything that SETS a reader's level. */
+export function clampReaderLevel(level: number): number {
+  return Math.max(MIN_READER_LEVEL, clampLevel(level));
+}
+
+/**
+ * Below this, generation changes shape: the repetition scaffold switches on
+ * and the difficulty ceiling widens (see difficulty.ts). One constant shared
+ * by both so the floor zone cannot mean two different things.
+ */
+export const FLOOR_ZONE = 20;
+
 /** The vocabulary size a level corresponds to - i.e. "the top N common words". */
 export function vocabSizeFor(level: number): number {
   return Math.round(MIN_VOCAB * Math.pow(RANGE, clampLevel(level) / 100));
@@ -258,7 +285,7 @@ export function nextLevel(current: number, signals: SessionSignals): number {
   const scaled = delta * gainFor(sessions);
   const limit = maxStepFor(sessions);
 
-  return clampLevel(current + Math.max(-limit, Math.min(limit, scaled)));
+  return clampReaderLevel(current + Math.max(-limit, Math.min(limit, scaled)));
 }
 
 /**
@@ -271,5 +298,5 @@ export function nextLevel(current: number, signals: SessionSignals): number {
 export const OVERRIDE_STEP = 15;
 
 export function overrideLevel(current: number, direction: "easier" | "harder"): number {
-  return clampLevel(current + (direction === "harder" ? OVERRIDE_STEP : -OVERRIDE_STEP));
+  return clampReaderLevel(current + (direction === "harder" ? OVERRIDE_STEP : -OVERRIDE_STEP));
 }
