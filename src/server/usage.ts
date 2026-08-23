@@ -55,6 +55,16 @@ export interface UsageEntry {
   op: string;
   requests?: number;
   in_tokens?: number | null;
+  /**
+   * Cache tokens INSIDE in_tokens, where the provider reports them (rule 9 of
+   * gtfoo's contract). A cache-read token costs ~10% of a fresh one, so
+   * without the split a caching app reads as up to 10x its real cost. This app
+   * configures no caching - but Gemini caches implicitly, and the ~680-token
+   * response schema repeats verbatim on every call, so these fields exist to
+   * catch savings nobody arranged. Null when unreported, never 0.
+   */
+  in_cache_read?: number | null;
+  in_cache_write?: number | null;
   out_tokens?: number | null;
   /**
    * Reasoning tokens INSIDE out_tokens, where the provider reports them.
@@ -96,6 +106,8 @@ export function recordUsage(entry: UsageEntry): void {
       op: entry.op,
       requests: entry.requests ?? 1,
       in_tokens: entry.in_tokens ?? null,
+      in_cache_read: entry.in_cache_read ?? null,
+      in_cache_write: entry.in_cache_write ?? null,
       out_tokens: entry.out_tokens ?? null,
       out_reasoning: entry.out_reasoning ?? null,
       ms: entry.ms ?? null,

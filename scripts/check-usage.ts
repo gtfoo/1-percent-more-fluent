@@ -34,6 +34,7 @@ async function main() {
     model: "gemini-3.5-flash",
     op: "piece",
     in_tokens: 1200,
+    in_cache_read: 680,
     out_tokens: 300,
     out_reasoning: 210,
     ms: 18432,
@@ -48,7 +49,8 @@ async function main() {
   // are ignored by their reader per the JSONL convention).
   for (const field of [
     "ts", "app", "provider", "model", "op",
-    "requests", "in_tokens", "out_tokens", "out_reasoning", "ms",
+    "requests", "in_tokens", "in_cache_read", "in_cache_write",
+    "out_tokens", "out_reasoning", "ms",
     "units", "usd", "status",
   ]) {
     ok(`carries ${field}`, field in line);
@@ -56,6 +58,11 @@ async function main() {
 
   ok("reasoning tokens carried through", line.out_reasoning === 210);
   ok("attempt wall time carried through", line.ms === 18432);
+  ok("cache-read tokens carried through", line.in_cache_read === 680);
+  ok(
+    "cache-write is null when unreported - not 0, rule 9's own wording",
+    line.in_cache_write === null,
+  );
 
   // The DEPLOYED name, not the repo name. carpark's repo is `carpark-sg` and its
   // lines say `carpark`; ours deploys to /home/deploy/1-percent-more-fluent.

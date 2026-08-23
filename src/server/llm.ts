@@ -266,10 +266,12 @@ export async function generateStructured<T>(args: {
         model: response.modelId || ref.id,
         op: args.op ?? "generate",
         in_tokens: usage.inputTokens ?? null,
-        out_tokens: usage.outputTokens ?? null,
+        in_cache_read: usage.inputTokenDetails?.cacheReadTokens ?? null,
+        in_cache_write: usage.inputTokenDetails?.cacheWriteTokens ?? null,
         // The split that settles where the wait goes. Gemini's outputTokens
         // includes its reasoning, so without this a 4,500-token line reads as a
         // 4,500-token piece when ~3/4 of it was thinking nobody sees.
+        out_tokens: usage.outputTokens ?? null,
         out_reasoning: usage.outputTokenDetails?.reasoningTokens ?? null,
         ms: Date.now() - began,
         // Null, not zero. Nobody has measured what a call costs here, and the
@@ -420,6 +422,8 @@ export async function streamStructured<T>(args: {
             model: response?.modelId || ref.id,
             op: args.op ?? "generate-stream",
             in_tokens: usage?.inputTokens ?? null,
+            in_cache_read: usage?.inputTokenDetails?.cacheReadTokens ?? null,
+            in_cache_write: usage?.inputTokenDetails?.cacheWriteTokens ?? null,
             out_tokens: usage?.outputTokens ?? null,
             out_reasoning: usage?.outputTokenDetails?.reasoningTokens ?? null,
             ms: Date.now() - began,
