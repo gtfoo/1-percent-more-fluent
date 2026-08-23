@@ -245,6 +245,7 @@ export async function generateStructured<T>(args: {
 
   for (let i = 0; i < chain.length; i++) {
     const ref = chain[i]!;
+    const began = Date.now();
     try {
       const { output, usage, response } = await generateText({
         model: resolveModel(ref),
@@ -266,6 +267,11 @@ export async function generateStructured<T>(args: {
         op: args.op ?? "generate",
         in_tokens: usage.inputTokens ?? null,
         out_tokens: usage.outputTokens ?? null,
+        // The split that settles where the wait goes. Gemini's outputTokens
+        // includes its reasoning, so without this a 4,500-token line reads as a
+        // 4,500-token piece when ~3/4 of it was thinking nobody sees.
+        out_reasoning: usage.outputTokenDetails?.reasoningTokens ?? null,
+        ms: Date.now() - began,
         // Null, not zero. Nobody has measured what a call costs here, and the
         // primary is a free tier where zero would be a lie of a different kind.
         usd: null,
@@ -275,12 +281,16 @@ export async function generateStructured<T>(args: {
       lastErr = err;
       // Recorded even though it produced nothing. A refusal is the most useful
       // line in the file: on a free tier it is the only honest evidence of
-      // where the ceiling actually is.
+      // where the ceiling actually is. Tokens stay null here KNOWINGLY: a
+      // generation that completed and then failed validation was billed, but
+      // generateText does not surface usage on a throw - that undercount is a
+      // documented gap, not an oversight.
       recordUsage({
         provider: ref.provider,
         model: ref.id,
         op: args.op ?? "generate",
         status: usageStatusFor(err),
+        ms: Date.now() - began,
       });
       const hasNext = i < chain.length - 1;
       if (hasNext && shouldFallback(err)) {
@@ -337,6 +347,7 @@ export async function streamStructured<T>(args: {
 
   for (let i = 0; i < chain.length; i++) {
     const ref = chain[i]!;
+    const began = Date.now();
     try {
       // A streaming call does not throw when the model refuses. The rejection
       // arrives here instead, and the iterator simply ends without yielding -
@@ -358,8 +369,8 @@ export async function streamStructured<T>(args: {
       });
 
       // Pull the first partial here, so a model that refuses outright is caught
-      // while falling back is still possible.
-      const began = Date.now();
+      // while falling back is still possible. `began` is the attempt start
+      // above, so the ledger's ms covers the whole attempt, not just decode.
       const iterator = result.partialOutputStream[Symbol.asyncIterator]();
       const first = await iterator.next();
       // The number that decides whether streaming is worth anything on a given
@@ -384,22 +395,39 @@ export async function streamStructured<T>(args: {
       // Only once the stream has finished are the totals known, so this settles
       // long after the caller has its result. Detached deliberately - the
       // reader is not waiting on bookkeeping.
-      void Promise.all([result.usage, result.response])
-        .then(([usage, response]) => {
+      //
+      // allSettled, not all. A stream that dies AFTER its first partial was the
+      // one billed call this ledger never saw: the old version dropped the line
+      // whenever either promise rejected, on the theory that a call we cannot
+      // describe is better unlogged - but the provider billed it whether we can
+      // describe it or not, and an accounting that omits exactly the failures
+      // undercounts in the one direction that matters. Now whatever resolved is
+      // written, and a rejection becomes the status instead of a silence.
+      void Promise.allSettled([result.usage, result.response]).then(
+        ([usageSettled, responseSettled]) => {
+          const usage =
+            usageSettled.status === "fulfilled" ? usageSettled.value : undefined;
+          const response =
+            responseSettled.status === "fulfilled" ? responseSettled.value : undefined;
+          const failure =
+            usageSettled.status === "rejected"
+              ? usageSettled.reason
+              : responseSettled.status === "rejected"
+                ? responseSettled.reason
+                : undefined;
           recordUsage({
             provider: ref.provider,
-            model: response.modelId || ref.id,
+            model: response?.modelId || ref.id,
             op: args.op ?? "generate-stream",
-            in_tokens: usage.inputTokens ?? null,
-            out_tokens: usage.outputTokens ?? null,
+            in_tokens: usage?.inputTokens ?? null,
+            out_tokens: usage?.outputTokens ?? null,
+            out_reasoning: usage?.outputTokenDetails?.reasoningTokens ?? null,
+            ms: Date.now() - began,
             usd: null,
+            status: failure ? usageStatusFor(streamError ?? failure) : "ok",
           });
-        })
-        .catch(() => {
-          // The stream died mid-flight; the failure is reported to the caller
-          // through `object` rejecting, and a spend line for a call we cannot
-          // describe would be worse than none.
-        });
+        },
+      );
 
       return {
         modelId: formatRef(ref),
@@ -422,6 +450,7 @@ export async function streamStructured<T>(args: {
         model: ref.id,
         op: args.op ?? "generate-stream",
         status: usageStatusFor(err),
+        ms: Date.now() - began,
       });
       const hasNext = i < chain.length - 1;
       if (hasNext && shouldFallback(err)) {

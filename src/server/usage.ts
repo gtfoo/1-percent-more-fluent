@@ -56,6 +56,21 @@ export interface UsageEntry {
   requests?: number;
   in_tokens?: number | null;
   out_tokens?: number | null;
+  /**
+   * Reasoning tokens INSIDE out_tokens, where the provider reports them.
+   *
+   * Added because the accounting could not otherwise say where a generation's
+   * time went: Gemini reports ~4,500 output tokens for a piece whose visible
+   * JSON is ~1,100, and only this split says the other three quarters was
+   * thinking. Null means the provider did not say - which is different from 0,
+   * same rule as usd.
+   */
+  out_reasoning?: number | null;
+  /**
+   * Wall time of the attempt, milliseconds. Reconstructing latency from bench
+   * tables and route logs once was enough; the ledger should carry it.
+   */
+  ms?: number | null;
   /** For providers not billed on tokens - characters for ElevenLabs. */
   units?: number | null;
   /**
@@ -82,6 +97,8 @@ export function recordUsage(entry: UsageEntry): void {
       requests: entry.requests ?? 1,
       in_tokens: entry.in_tokens ?? null,
       out_tokens: entry.out_tokens ?? null,
+      out_reasoning: entry.out_reasoning ?? null,
+      ms: entry.ms ?? null,
       units: entry.units ?? null,
       usd: entry.usd ?? null,
       status: entry.status ?? "ok",

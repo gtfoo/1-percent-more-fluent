@@ -35,19 +35,27 @@ async function main() {
     op: "piece",
     in_tokens: 1200,
     out_tokens: 300,
+    out_reasoning: 210,
+    ms: 18432,
   });
   await settle();
 
   ok("writes to <app>.jsonl", existsSync(file));
   const line = JSON.parse(readFileSync(file, "utf8").trim());
 
-  // Every field gtfoo's example carries, by name. A rename here is invisible.
+  // Every field gtfoo's example carries, by name, plus the two this app added
+  // on 2026-08-19 (out_reasoning, ms - flagged to gtfoo by mail; unknown fields
+  // are ignored by their reader per the JSONL convention).
   for (const field of [
     "ts", "app", "provider", "model", "op",
-    "requests", "in_tokens", "out_tokens", "units", "usd", "status",
+    "requests", "in_tokens", "out_tokens", "out_reasoning", "ms",
+    "units", "usd", "status",
   ]) {
     ok(`carries ${field}`, field in line);
   }
+
+  ok("reasoning tokens carried through", line.out_reasoning === 210);
+  ok("attempt wall time carried through", line.ms === 18432);
 
   // The DEPLOYED name, not the repo name. carpark's repo is `carpark-sg` and its
   // lines say `carpark`; ours deploys to /home/deploy/1-percent-more-fluent.
@@ -67,6 +75,10 @@ async function main() {
   await settle();
   const lines = readFileSync(file, "utf8").trim().split("\n");
   ok("appends rather than replacing", lines.length === 2, `${lines.length} lines`);
+  ok(
+    "reasoning and ms are null when unreported - not 0, same rule as usd",
+    JSON.parse(lines[1]!).out_reasoning === null && JSON.parse(lines[1]!).ms === null,
+  );
   const tts = JSON.parse(lines[1]!);
   ok("characters go in units, not tokens", tts.units === 461 && tts.in_tokens === null);
 
