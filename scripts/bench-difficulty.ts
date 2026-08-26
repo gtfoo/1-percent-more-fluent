@@ -59,10 +59,18 @@ const MODEL = process.env.BENCH_MODEL ?? "google:gemini-3.5-flash";
  *  - "floor": the beginner scaffold (deliberate repetition + a short cap), on
  *    vs off, at the levels the band experiment could not move. This arm
  *    decides whether the floor gets fixed or honestly scoped out.
+ *  - "framing": the SAME budget percentage worded as a ceiling instead of a
+ *    target, in the floor zone. Every floor failure on record is over the
+ *    ceiling, so the standing "a figure to hit, not a ceiling to stay under"
+ *    pushes the wrong way down there. Expectations are low and stated up
+ *    front: a 2026-08-26 study varying the percentage itself from 3% to 30%
+ *    moved realized output only 5.3% -> 10.5% and saturated by 15%, so this
+ *    can shift a median and nothing more. A flat result means the wording is
+ *    not the lever and the floor needs the band pasted instead.
  */
 const MODE = process.env.BENCH_MODE ?? "band";
 
-const LEVELS = MODE === "floor" ? [8, 12, 16] : [10, 30, 50];
+const LEVELS = MODE === "floor" || MODE === "framing" ? [8, 12, 16] : [10, 30, 50];
 const SAMPLES = Number(process.env.BENCH_SAMPLES ?? 3);
 const LANGUAGE = process.env.BENCH_LANGUAGE ?? "es";
 
@@ -131,16 +139,28 @@ async function main() {
     // forced explicitly BOTH ways - left to its level-derived default, the
     // baseline arm at level 8 would silently get the scaffold too and the
     // experiment would compare the scaffold with itself.
-    const variants: [string, { vocabulary?: string[]; scaffold?: boolean }][] =
+    const variants: [
+      string,
+      { vocabulary?: string[]; scaffold?: boolean; capFraming?: boolean },
+    ][] =
       MODE === "floor"
         ? [
             ["plain", { scaffold: false }],
             ["scaffold", { scaffold: true }],
           ]
-        : [
-            ["current", {}],
-            ["band shown", { vocabulary: freq.words.slice(0, params.vocabBand) }],
-          ];
+        : MODE === "framing"
+          ? // The scaffold is pinned ON in both arms: it is production
+            // behaviour below the floor zone, and leaving it to the default
+            // would be fine here but says so only by accident. Framing is the
+            // single variable.
+            [
+              ["target", { scaffold: true, capFraming: false }],
+              ["ceiling", { scaffold: true, capFraming: true }],
+            ]
+          : [
+              ["current", {}],
+              ["band shown", { vocabulary: freq.words.slice(0, params.vocabBand) }],
+            ];
     for (const [variant, extra] of variants) {
       for (let s = 0; s < SAMPLES; s++) {
         const started = Date.now();

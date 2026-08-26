@@ -183,6 +183,13 @@ export function buildPrompt(
    * BENCH_MODE=floor keeps its baseline arm.
    */
   scaffold: boolean = params.level < FLOOR_ZONE,
+  /**
+   * Frame the budget as a CEILING rather than a target. Defaults on below the
+   * floor zone and off above it, because the two zones fail in opposite
+   * directions - see the comment on the vocabulary line below. Overridable both
+   * ways so BENCH_MODE=framing keeps its baseline arm, same as `scaffold`.
+   */
+  capFraming: boolean = params.level < FLOOR_ZONE,
 ): string {
   // The cap is part of the floor scaffold: a shorter text simply needs fewer
   // distinct words, and beginner graded readers are short for the same reason.
@@ -214,13 +221,45 @@ export function buildPrompt(
     `First choose the 6-12 key terms this topic genuinely cannot be discussed without, and build the piece around them. Pick what someone would actually need to say to another person about this subject, not what is merely related to it. They do NOT count against the vocabulary limit below - explaining them is the point - but each one must appear in the text and be listed in the terms field.`,
     "",
     `Difficulty budget (the key terms above are exempt from all of it):`,
-    // The budget is a TARGET, not a cap. Framed as "at most X%" the model
-    // optimises for safety and lands around 1% - which reads fluently, teaches
-    // nothing, and drives the level upward because the reader looks nothing up.
+    // The two zones fail in OPPOSITE directions, so they get opposite framings.
+    //
+    // Above the floor the budget is a TARGET, not a cap: framed as "at most X%"
+    // the model optimises for safety and lands around 1% - which reads
+    // fluently, teaches nothing, and drives the level upward because the reader
+    // looks nothing up.
+    //
+    // Below it that framing is backwards. Every floor-zone failure on record is
+    // OVER the ceiling, so pushing the distribution upward is the last thing
+    // wanted. Measured with BENCH_MODE=framing on 2026-08-26, 18 samples:
+    //
+    //     level    target      ceiling
+    //         8    2.80x        2.10x
+    //        12    2.47x        2.38x
+    //        16    2.14x        1.71x
+    //
+    // Median ratio-to-budget improved at all three levels; first-pass rate did
+    // not move (67% either way, n=3 a cell, and the distribution straddles the
+    // 2.6x floor-zone ceiling). Shipped on the rates rather than the pass
+    // count, the same call the scaffold got and for the same reason.
+    //
+    // The thing that had to be checked was the OTHER direction: "at most X%"
+    // is what makes the model land near 1% above the floor zone, and if it did
+    // that here the cure would be worse. It does not - zero under-floor
+    // failures in nine samples.
+    //
+    // Expect a nudge and no more. A 2026-08-26 study varying this percentage
+    // from 3% to 30% moved realized output only 5.3% -> 10.5% and saturated by
+    // 15%: framing shifts a median, it cannot set a value. The floor still sits
+    // at ~2x budget, and closing that needs the band pasted, not better words.
+    //
     // Pinned to English rather than left to the host's locale: this is a
     // prompt, not copy. The band is a figure the model has to read correctly,
     // and "2.000" is two thousand in Spanish and two in English.
-    `- Vocabulary: build the text from the ${params.vocabBand.toLocaleString("en")} most common ${params.language.name} words, and let about ${Math.round(params.newWordBudget * 100)}% of it fall OUTSIDE that set. That share is the point - unknown words are how the reader learns - so treat it as a figure to hit, not a ceiling to stay under. Every word outside the set must appear in the glossary.`,
+    `- Vocabulary: build the text from the ${params.vocabBand.toLocaleString("en")} most common ${params.language.name} words, and let about ${Math.round(params.newWordBudget * 100)}% of it fall OUTSIDE that set. ${
+      capFraming
+        ? `Keep it at or under that share. Going over is the usual failure at this level, and a reader here meets a wall rather than a stretch.`
+        : `That share is the point - unknown words are how the reader learns - so treat it as a figure to hit, not a ceiling to stay under.`
+    } Every word outside the set must appear in the glossary.`,
     // Models overshoot in one specific way - reaching for a literary register
     // rather than genuinely rare words - so the guidance is about register, not
     // about being easier in general.
@@ -336,6 +375,8 @@ export async function draftPiece(args: {
   recycle?: string[];
   /** Bench override only; production lets the level decide. */
   scaffold?: boolean;
+  /** Bench override only; production lets the level decide. */
+  capFraming?: boolean;
 }): Promise<{ piece: Piece; report: DifficultyReport; modelId: string }> {
   const result = await generateStructured({
     op: "piece",
@@ -351,6 +392,7 @@ export async function draftPiece(args: {
       args.recycle,
       // The level decides, unless the bench forces an arm - see buildPrompt.
       args.scaffold ?? args.params.level < FLOOR_ZONE,
+      args.capFraming ?? args.params.level < FLOOR_ZONE,
     ),
     temperature: 0.8,
   });

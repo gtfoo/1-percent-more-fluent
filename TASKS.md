@@ -74,6 +74,18 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
 
 ## Done
 
+- [x] **The budget framing now flips with the zone** — the prompt had one
+      wording for a problem with two opposite halves. Above the floor the
+      budget must read as a target, or the model plays safe and lands near 1%;
+      below it every failure on record is already OVER the ceiling, so the same
+      words push the wrong way. `BENCH_MODE=framing`, 18 samples on the free
+      tier: median ratio-to-budget improved at all three floor levels
+      (2.80→2.10, 2.47→2.38, 2.14→1.71) with **zero** under-floor failures,
+      which was the risk worth checking. First-pass rate did not move (67%
+      either way, n=3 a cell), so this shipped on the rates rather than the
+      pass count — the same call the scaffold got, for the same reason. It is a
+      nudge, not a fix: the floor still sits near 2× budget.
+      *from: own proposal, 2026-08-26*
 - [x] **Glossary spot-check** — the definitions had never been measured, and a
       gloss is the one thing here that teaches a meaning DIRECTLY, to a reader
       who tapped precisely because they could not judge it. 72 glosses judged by

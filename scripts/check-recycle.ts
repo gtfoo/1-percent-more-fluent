@@ -154,6 +154,42 @@ async function main() {
   const normalPrompt = buildPrompt("story", "mi familia", "long", paramsFor(50, es));
   ok("no scaffold at normal levels", !/repetition/i.test(normalPrompt));
 
+  // The budget framing flips with the zone, because the zones fail in opposite
+  // directions. BENCH_MODE=framing, 2026-08-26, 18 samples: ceiling wording
+  // improved the median ratio at all three floor levels (2.80->2.10, 2.47->2.38,
+  // 2.14->1.71) with zero under-floor failures. Above the zone the target
+  // wording stays, because "at most X%" is what makes the model land near 1%
+  // there. Swapping either without a new bench trips here.
+  ok(
+    "the budget reads as a CEILING inside the floor zone",
+    /Keep it at or under that share/.test(floorPrompt) &&
+      !/a figure to hit/.test(floorPrompt),
+  );
+  ok(
+    "...and as a TARGET outside it",
+    /a figure to hit/.test(normalPrompt) &&
+      !/Keep it at or under that share/.test(normalPrompt),
+  );
+  ok(
+    "...and the bench can force either arm",
+    /a figure to hit/.test(
+      buildPrompt("story", "mi familia", "long", floor, undefined, undefined, undefined, true, false),
+    ) &&
+      /Keep it at or under that share/.test(
+        buildPrompt(
+          "story",
+          "mi familia",
+          "long",
+          paramsFor(50, es),
+          undefined,
+          undefined,
+          undefined,
+          false,
+          true,
+        ),
+      ),
+  );
+
   // The widened ceiling: a rate the standard slack rejects passes inside the
   // floor zone, and the identical ratio still fails outside it - the widening
   // is a floor-zone concession, not a general loosening.
