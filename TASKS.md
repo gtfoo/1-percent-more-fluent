@@ -26,9 +26,27 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
       a twofold move, saturating by 15%. Edge anchors in the *initial* prompt
       were tested and do nothing at the floor (29.2% → 29.3%), so that idea is
       dead and `registerAnchors` stays where it is, in the too-easy correction
-      path, where it did help slightly. What remains: paste the actual band
-      (measured 44% → 78% first-pass, +55% latency), or accept the ceiling.
-      Awaiting the owner. *from: own measurement, 2026-08-26*
+      path, where it did help slightly.
+
+      **This explains the original band experiment; it does not reopen it.**
+      Pasting the band's words lifted levels 30 and 50 and *not* level 10 — see
+      the floor's recorded history in `generate.ts`. The word-level dump says
+      why: at a ~700-word band the words falling outside are "falta", "café",
+      "espacio", "verano", "jardín" — ordinary words with no simpler synonym.
+      Knowing which words are in the set was never the floor's problem; the set
+      being too small for an arbitrary topic is, and pasting it cannot fix that.
+      An earlier draft of this entry cited 44% → 78% as a floor result. It is
+      the aggregate across all three benched levels, carried by the upper two.
+
+      So the floor needs no further decision: the scaffold, the 2.6× ceiling and
+      MIN_READER_LEVEL 12 already scope it, and three measurements now agree no
+      prompt change improves it. What is left is narrower — **paste the band
+      between roughly levels 25 and 70**, the one range where the number is
+      measured inert *and* pasting is measured to work, at +55% latency and
+      ~1,100 input tokens a call. Above ~70 nothing is needed: the model's
+      default register already sits there, which is why 20,000 was the only band
+      that moved it. Awaiting the owner.
+      *from: own measurement, 2026-08-26*
 
 ## Closed with a decision
 
