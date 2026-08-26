@@ -123,12 +123,27 @@ export async function glossWord(
   const { object } = await generateStructured({
     op: "gloss",
     schema: PLAIN,
+    // Ask for the sense the reader actually needs, not a survey of the word.
+    //
+    // This used to say "the plain dictionary meaning" while the prompt below
+    // handed over the sentence - an instruction at odds with its own input.
+    // scripts/judge-glossary.ts settled which way to resolve it: across 72
+    // graded glosses every miss was UNDER-contextualisation, the gloss too
+    // generic for the use ("suelo" served as "ground, soil" where the city was
+    // subsiding and "ground level" was meant). Nothing was over-fitted to its
+    // sentence, so there is no measured cost to asking for the specific sense
+    // and a measured one to asking for the generic.
     system:
-      "You are a bilingual dictionary. Answer with the plain dictionary meaning of the word or phrase. Be terse.",
+      "You are a bilingual dictionary. Give the meaning the word or phrase carries " +
+      "in the sentence you are shown - the sense this reader needs, not a survey of " +
+      "everything the word can mean. Be terse.",
     prompt: [
       `${language.name}: ${key}`,
-      // The sentence disambiguates homographs even though we cache the result
-      // context-free; it costs nothing to pass and improves the common case.
+      // Cached context-free even so, and judge-glossary.ts priced that: one
+      // frozen sense misfits a later context in 2 of 24 sampled words that
+      // appear in more than one piece, and both were mild shades rather than
+      // anything a reader would be misled by. Worth knowing, not worth a
+      // context-keyed cache.
       `It appeared in this sentence: ${sentence}`,
       "Give its dictionary form, part of speech, and a short English meaning.",
     ].join("\n"),

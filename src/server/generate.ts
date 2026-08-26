@@ -131,6 +131,9 @@ Rules:
 - Stay inside the vocabulary and grammar limits you are given.
 - Vary sentence structure. Hitting an average sentence length does not mean
   every sentence should be that length.
+- Keep the piece internally consistent. Names, numbers, places and facts must
+  hold from one sentence to the next. A reader at this level cannot tell a
+  contradiction from a word they have misunderstood, so they take it as true.
 - Do not explain, translate, or annotate inside the text itself. Glosses belong
   in the glossary field.
 - The comprehension questions must be answerable from the text alone, and must

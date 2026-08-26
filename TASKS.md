@@ -14,7 +14,21 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
 
 ## Open
 
-Nothing outstanding.
+- [ ] **The band number is inert below level 70 — decide what replaces it** —
+      measured 2026-08-26 on 23 blind generations scored by the app's own
+      verifier. Changing the stated band from 500 to 6,613 — levels 0 to 70, so
+      most of the range — moved the text not at all: measured against one fixed
+      yardstick those three conditions produced 7.2%, 5.9%, 7.2% out-of-band.
+      Only 20,000 responded, at 11.3%. **The model can be pushed harder but not
+      simpler**, which is exactly the app's known failure profile (every
+      floor-zone failure is over-ceiling). The asked-for percentage is a real
+      but weak lever: 3/7/15/30% delivered 5.3/7.2/10.0/10.5%, a tenfold ask for
+      a twofold move, saturating by 15%. Edge anchors in the *initial* prompt
+      were tested and do nothing at the floor (29.2% → 29.3%), so that idea is
+      dead and `registerAnchors` stays where it is, in the too-easy correction
+      path, where it did help slightly. What remains: paste the actual band
+      (measured 44% → 78% first-pass, +55% latency), or accept the ceiling.
+      Awaiting the owner. *from: own measurement, 2026-08-26*
 
 ## Closed with a decision
 
@@ -60,6 +74,29 @@ Nothing outstanding.
 
 ## Done
 
+- [x] **Glossary spot-check** — the definitions had never been measured, and a
+      gloss is the one thing here that teaches a meaning DIRECTLY, to a reader
+      who tapped precisely because they could not judge it. 72 glosses judged by
+      claude-haiku-4-5, a different lab than wrote them (every stored piece is
+      Gemini's): piece glossaries 33/36 correct, `gloss_cache` 32/36, and **zero
+      "wrong" in either** — nothing in the sample was a meaning the word does
+      not have. Every miss was *under*-contextualisation, which settled the open
+      question about the context-free cache: one frozen sense misfits a later
+      context in 2 of the 24 sampled words that appear in more than one piece,
+      both mild shades ("suelo" served as "ground, soil" where a city was
+      subsiding and "ground level" was meant). So the cache keeps its
+      `(language, word)` key, and the gloss prompt now asks for the sense in the
+      sentence instead of "the plain dictionary meaning" it had been
+      contradicting while handing the model that sentence.
+      `scripts/judge-glossary.ts` reruns it for ~$0.05.
+      *from: own measurement gap, 2026-08-26*
+- [x] **A consistency rule in the piece prompt** — the correctness spot-check's
+      single flagged failure was narrative inconsistency, not grammar, and
+      nothing in the prompt had ever asked for consistency. One line added,
+      naming the reason: a reader at this level cannot tell a contradiction from
+      a word they have misunderstood. Too rare to bench, so the next
+      `judge-correctness.ts` run is the check. *from: 2026-08-17 item 4
+      follow-on, 2026-08-26*
 - [x] **Generation feels faster since the retry fix** — owner confirmed on
       2026-08-19, alongside prefetch making the next piece instant. The latency
       thread that started the whole optimisation arc is closed.
