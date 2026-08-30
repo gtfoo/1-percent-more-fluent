@@ -63,7 +63,7 @@ const MODEL = process.env.BENCH_MODEL ?? "google:gemini-3.5-flash";
  *    target, in the floor zone. Every floor failure on record is over the
  *    ceiling, so the standing "a figure to hit, not a ceiling to stay under"
  *    pushes the wrong way down there. Expectations are low and stated up
- *    front: a 2026-08-26 study varying the percentage itself from 3% to 30%
+ *    front: a 2026-08-30 study varying the percentage itself from 3% to 30%
  *    moved realized output only 5.3% -> 10.5% and saturated by 15%, so this
  *    can shift a median and nothing more. A flat result means the wording is
  *    not the lever and the floor needs the band pasted instead.
