@@ -20,7 +20,7 @@ cd "$(dirname "$0")/.." || exit 1
 
 # shellcheck disable=SC1090
 source ~/.nvm/nvm.sh >/dev/null 2>&1
-nvm use 20 >/dev/null 2>&1
+nvm use 22 >/dev/null 2>&1
 
 LOG=/tmp/fluent-dev.log
 

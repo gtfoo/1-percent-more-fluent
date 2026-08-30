@@ -18,7 +18,7 @@ export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 if [ -s "$NVM_DIR/nvm.sh" ]; then
   # shellcheck disable=SC1090
   . "$NVM_DIR/nvm.sh"
-  nvm use 20 >/dev/null
+  nvm use 22 >/dev/null
 fi
 
 PORT=3003

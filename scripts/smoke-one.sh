@@ -9,7 +9,7 @@
 set -u
 cd "$(dirname "$0")/.." || exit 1
 source ~/.nvm/nvm.sh >/dev/null 2>&1
-nvm use 20 >/dev/null 2>&1
+nvm use 22 >/dev/null 2>&1
 
 BASE="${BASE:-http://127.0.0.1:3003}"
 LANG_CODE="${LANG_CODE:-zh-CN}"
