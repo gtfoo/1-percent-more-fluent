@@ -6,7 +6,7 @@
 set -eu
 cd "$(dirname "$0")/.." || exit 1
 source ~/.nvm/nvm.sh >/dev/null 2>&1
-nvm use 22 >/dev/null 2>&1
+nvm use "$(cat "$(dirname "$0")/../.nvmrc")" >/dev/null 2>&1
 
 TOPIC="${1:-two friends deciding where to eat}"
 USER_ID=$(npx tsx scripts/print-user.ts)

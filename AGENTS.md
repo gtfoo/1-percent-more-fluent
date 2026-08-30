@@ -25,3 +25,23 @@ Push to `main` → GitHub Actions SSHes to the droplet and runs `scripts/deploy.
 (shared lock, ABI guard, `npm ci`, clean build, assemble standalone, restart,
 then `verify-serving.sh` to prove the assets actually load). `.env.local` and
 `data/` are gitignored and survive deploys.
+
+### The Node version lives in `.nvmrc`, and nowhere else
+
+Production has always run Node 22. Local pinned Node 20 in nineteen separate
+scripts, and nobody noticed for weeks — which meant a green local check was
+proving nothing about the box, the same class of gap that once took the site
+down. `.nvmrc` is now the single source; every script reads it as
+
+```
+nvm use "$(cat "$(dirname "$0")/../.nvmrc")"
+```
+
+**Relative to `$0`, never a bare `nvm use`.** Seven of the nineteen run their
+nvm block before `cd`-ing to the repo root and five never `cd` at all, so a bare
+`nvm use` reads whatever directory the caller was standing in and silently falls
+back to nvm's default — which is still 20. Bump the version in `.nvmrc` alone.
+
+`better-sqlite3` is compiled per ABI (22 → 127). After any Node change, rebuild
+and check by **constructing** the binding, not requiring it: a bare `require`
+exits 0 on a genuine mismatch and proves nothing.

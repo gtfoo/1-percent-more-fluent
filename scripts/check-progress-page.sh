@@ -11,14 +11,14 @@
 # Costs nothing: no LLM, no TTS. Every row it reads it created itself.
 set -u
 
-# better-sqlite3 is a native module built for Node 20. Without this the fixture
+# better-sqlite3 is a native module built for Node 22 (ABI 127). Without this the fixture
 # cannot open the database and every check below fails for a reason that has
 # nothing to do with the page.
 export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 if [ -s "$NVM_DIR/nvm.sh" ]; then
   # shellcheck disable=SC1090
   . "$NVM_DIR/nvm.sh"
-  nvm use 22 >/dev/null
+  nvm use "$(cat "$(dirname "$0")/../.nvmrc")" >/dev/null
 fi
 
 PORT=3003

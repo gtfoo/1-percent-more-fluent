@@ -5,14 +5,14 @@
 #   bash scripts/dev.sh && bash scripts/check-auth-page.sh
 set -u
 
-# better-sqlite3 is a native module built for Node 20. Without this the schema
+# better-sqlite3 is a native module built for Node 22 (ABI 127). Without this the schema
 # checks below read an empty column list and fail for a reason that has nothing
 # to do with the schema.
 export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 if [ -s "$NVM_DIR/nvm.sh" ]; then
   # shellcheck disable=SC1090
   . "$NVM_DIR/nvm.sh"
-  nvm use 22 >/dev/null
+  nvm use "$(cat "$(dirname "$0")/../.nvmrc")" >/dev/null
 fi
 
 cd "$(dirname "$0")/.." || exit 1
