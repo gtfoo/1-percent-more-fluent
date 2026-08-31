@@ -9,7 +9,7 @@
 # the link, which is everything up to the moment mail leaves.
 set -u
 
-PORT=3004
+PORT=3101
 BASE="http://127.0.0.1:$PORT"
 UID_ES=445e3269-f599-4027-98fa-3c4498838c9a
 
@@ -25,7 +25,7 @@ cd "$(dirname "$0")/.." || exit 1
 # Next 16 refuses to run a second dev server from the same directory, so this
 # takes exclusive use of it: any existing one is stopped, and scripts/dev.sh
 # restarts the normal one at the end.
-for p in 3003 "$PORT"; do
+for p in 3100 "$PORT"; do
   for pid in $(ss -ltnp 2>/dev/null | grep ":$p " | grep -oP 'pid=\K[0-9]+' | sort -u); do
     kill -9 "$pid" 2>/dev/null || true
   done

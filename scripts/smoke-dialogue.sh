@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End-to-end: generate a conversation, narrate it as multi-voice dialogue, and
-# report the cast plus what the speaker split produced. Requires :3003.
+# report the cast plus what the speaker split produced. Requires :3100.
 #
 #   bash scripts/smoke-dialogue.sh "two friends arguing about a film"
 set -eu
@@ -13,7 +13,7 @@ USER_ID=$(npx tsx scripts/print-user.ts)
 
 echo "topic : $TOPIC"
 echo "generating conversation ..."
-GEN=$(curl -s -X POST http://127.0.0.1:3003/api/generate \
+GEN=$(curl -s -X POST http://127.0.0.1:3100/api/generate \
   -H "Content-Type: application/json" \
   -H "Cookie: fluent_uid=$USER_ID" \
   -d "{\"format\":\"conversation\",\"topic\":\"$TOPIC\",\"length\":\"short\"}")
@@ -24,7 +24,7 @@ if [ -z "$PIECE_ID" ]; then echo "no piece id; aborting"; exit 1; fi
 
 echo
 echo "narrating as dialogue ..."
-curl -s -X POST http://127.0.0.1:3003/api/tts \
+curl -s -X POST http://127.0.0.1:3100/api/tts \
   -H "Content-Type: application/json" \
   -H "Cookie: fluent_uid=$USER_ID" \
   -d "{\"pieceId\":\"$PIECE_ID\"}" \

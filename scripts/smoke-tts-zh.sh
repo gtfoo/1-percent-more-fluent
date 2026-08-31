@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.." || exit 1
 source ~/.nvm/nvm.sh >/dev/null 2>&1
 nvm use "$(cat "$(dirname "$0")/../.nvmrc")" >/dev/null 2>&1
 
-BASE="${BASE:-http://127.0.0.1:3003}"
+BASE="${BASE:-http://127.0.0.1:3100}"
 FORMAT="${FORMAT:-story}"
 JAR=$(mktemp)
 

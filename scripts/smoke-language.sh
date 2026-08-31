@@ -3,14 +3,14 @@
 # back in. This is the check that was missing: every other signal was green
 # while a Chinese learner was being served Spanish.
 #
-#   bash scripts/smoke-language.sh            # local dev on :3003
+#   bash scripts/smoke-language.sh            # local dev on :3100
 #   BASE=https://... bash scripts/smoke-language.sh
 set -u
 cd "$(dirname "$0")/.." || exit 1
 source ~/.nvm/nvm.sh >/dev/null 2>&1
 nvm use "$(cat "$(dirname "$0")/../.nvmrc")" >/dev/null 2>&1
 
-BASE="${BASE:-http://127.0.0.1:3003}"
+BASE="${BASE:-http://127.0.0.1:3100}"
 
 # Driven from the registry, so a new language is smoke-tested the moment it is
 # registered rather than the day somebody remembers to edit this list.

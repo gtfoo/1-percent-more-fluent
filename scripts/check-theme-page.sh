@@ -23,7 +23,7 @@ if [ -s "$NVM_DIR/nvm.sh" ]; then
   nvm use "$(cat "$(dirname "$0")/../.nvmrc")" >/dev/null
 fi
 
-PORT=3003
+PORT=3100
 BASE="http://127.0.0.1:$PORT"
 
 pass=0

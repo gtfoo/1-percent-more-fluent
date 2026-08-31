@@ -23,7 +23,7 @@ cd "$(dirname "$0")/.." || exit 1
 # inverted - failing loudly about a state that was simply no longer being
 # tested. Next does not override variables already in the environment, so
 # exporting them empty wins over the file.
-PORT=3005
+PORT=3102
 BASE="http://127.0.0.1:$PORT"
 
 export AUTH_SECRET=""
@@ -31,7 +31,7 @@ export AUTH_RESEND_KEY=""
 export AUTH_PASSKEYS=""
 
 # Next 16 refuses a second dev server from the same directory.
-for p in 3003 3004 "$PORT"; do
+for p in 3100 3101 "$PORT"; do
   for pid in $(ss -ltnp 2>/dev/null | grep ":$p " | grep -oP 'pid=\K[0-9]+' | sort -u); do
     kill -9 "$pid" 2>/dev/null || true
   done

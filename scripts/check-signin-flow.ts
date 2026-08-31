@@ -19,7 +19,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-const BASE = "http://127.0.0.1:3003";
+const BASE = "http://127.0.0.1:3100";
 const EMAIL = `fixture-${Date.now()}@example.com`;
 
 let failures = 0;
@@ -54,7 +54,7 @@ async function main() {
   const secret = readSecret();
 
   if (!(await fetch(BASE).then((r) => r.ok).catch(() => false))) {
-    console.error("no dev server on 3003 - run: bash scripts/dev.sh");
+    console.error("no dev server on 3100 - run: bash scripts/dev.sh");
     process.exit(1);
   }
 

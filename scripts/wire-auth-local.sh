@@ -36,7 +36,7 @@ KEY_LINE=$(grep -E '^[[:space:]]*AUTH_RESEND_KEY=' "$SRC" | tail -1)
   echo "AUTH_SECRET=\"$(openssl rand -base64 32)\""
   echo "$KEY_LINE"
   echo "AUTH_EMAIL_FROM=login@gtfoo.com"
-  echo "AUTH_URL=http://localhost:3003"
+  echo "AUTH_URL=http://localhost:3100"
 } >> "$DST"
 
 echo "wrote AUTH_SECRET (fresh), AUTH_RESEND_KEY (copied), AUTH_EMAIL_FROM, AUTH_URL"

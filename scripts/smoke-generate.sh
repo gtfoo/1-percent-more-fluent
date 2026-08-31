@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End-to-end: generate a piece through the running server as a real user, then
-# report what the difficulty checker measured. Requires the dev server on :3003.
+# report what the difficulty checker measured. Requires the dev server on :3100.
 #
 #   bash scripts/smoke-generate.sh "a folk tale about a stubborn goat"
 set -eu
@@ -15,7 +15,7 @@ echo "user  : $USER_ID"
 echo "topic : $TOPIC"
 echo "generating (20-60s) ..."
 
-curl -s -X POST http://127.0.0.1:3003/api/generate \
+curl -s -X POST http://127.0.0.1:3100/api/generate \
   -H "Content-Type: application/json" \
   -H "Cookie: fluent_uid=$USER_ID" \
   -d "{\"format\":\"article\",\"topic\":\"$TOPIC\",\"length\":\"short\"}"

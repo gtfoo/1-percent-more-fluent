@@ -35,7 +35,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for p in 3003 3004 3005; do
+for p in 3100 3101 3102; do
   for pid in $(ss -ltnp 2>/dev/null | grep ":$p " | grep -oP 'pid=\K[0-9]+' | sort -u); do
     kill -9 "$pid" 2>/dev/null || true
   done

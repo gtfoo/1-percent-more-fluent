@@ -10,7 +10,7 @@
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
-BASE="${BASE:-http://127.0.0.1:3003}"
+BASE="${BASE:-http://127.0.0.1:3100}"
 PIECE="${1:-}"
 [ -n "$PIECE" ] || { echo "usage: check-word-tts-guard.sh <piece-id>" >&2; exit 1; }
 

@@ -14,22 +14,6 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
 
 ## Open
 
-- [ ] **Local dev runs on 3003, which `INFRA.md` allocates to indie-degree** —
-      this app's port is **3100**. Production has it right everywhere
-      (`DEPLOY.md`, the systemd unit, the Caddy reverse proxy); local is the
-      problem. `scripts/dev.sh` and roughly fifteen check and smoke scripts
-      hardcode 3003, and `dev.sh`'s comment still claims 3003 "matches the
-      fluent entry in gtfoo/.claude/launch.json" — which the gtfoo agent has
-      since corrected to 3100. So a dev server started from the gtfoo workspace
-      now listens on 3100 while every check script here probes 3003, and both
-      would collide with indie-degree if run together.
-
-      Two parts: a mechanical 3003 → 3100 sweep, and a `.claude/launch.json` of
-      our own, since this repo has none and the only fluent dev-server config in
-      the fleet lives in someone else's tree. Held because it changes the local
-      dev port, which is the owner's call rather than mine.
-      *from: gtfoo agent, 2026-08-30*
-
 - [ ] **The band number is inert below level 70 — decide what replaces it** —
       measured 2026-08-30 on 23 blind generations scored by the app's own
       verifier. Changing the stated band from 500 to 6,613 — levels 0 to 70, so
@@ -108,6 +92,27 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
 
 ## Done
 
+- [x] **Local dev moved off other apps' ports, onto this app's own 31xx block**
+      — `INFRA.md` allocates this app **3100**, and production always used it;
+      local had been on **3003, indie-degree's**, for months. The gtfoo agent
+      spotted it because the only fluent dev-server config in the fleet lived in
+      *their* repo. Checking it here turned up a second one nobody had reported:
+      `check-auth-configured.sh` started its own server on **3004, rain-sg's**.
+      Neither ever broke anything, because a port collision is invisible until
+      both run at once and the survivor is whichever started first.
+
+      Everything this repo binds now sits in its own block: 3100 for the dev
+      server, 3101 and 3102 for the throwaway servers the auth checks spin up.
+      Added `.claude/launch.json`, so the config lives where the server does —
+      deliberately sourcing `.nvmrc` rather than copying gtfoo's hardcoded
+      `node/v22.23.2/bin` PATH pin, which is the exact trap their own letter
+      warned about: a PATH pin sits upstream of the ABI guard, so it passes the
+      check and still ships against the wrong ABI. `.env.local`'s `AUTH_URL`
+      moved too; any locally registered passkey needs re-registering, since
+      WebAuthn binds to the origin and the port is part of it.
+      Verified: the server starts from the new launch entry, `/` and `/setup`
+      both 200 on 3100, nothing left on 3003.
+      *from: gtfoo agent, 2026-08-30*
 - [x] **The budget framing now flips with the zone** — the prompt had one
       wording for a problem with two opposite halves. Above the floor the
       budget must read as a target, or the model plays safe and lands near 1%;

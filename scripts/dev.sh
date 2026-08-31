@@ -5,15 +5,25 @@
 # better-sqlite3 is compiled for Linux. Driving `npm` from Windows across
 # the \\wsl.localhost share does not work.
 #
-# Port 3003 matches the "fluent" entry in gtfoo/.claude/launch.json, so this
-# script and the preview tooling never fight over a socket. 3000/3001/3002
-# already belong to gtfoo, carpark-sg and role-match.
+# Port 3100 is this app's allocation in ~/Git/INFRA.md, and the port production
+# already serves on - local and the box now agree.
+#
+# It was 3003 for months, which is INDIE-DEGREE's. Nothing ever broke, because
+# a port collision is only visible when both run at once and the survivor is
+# whichever started first. The comment here used to justify 3003 by pointing at
+# the "fluent" entry in gtfoo/.claude/launch.json - someone else's repo, which
+# was itself wrong and has since been corrected. This repo now carries its own
+# .claude/launch.json so the dev-server config lives where the dev server does.
+#
+# The auth checks start their own throwaway servers on 3101 and 3102, so every
+# socket this repo binds is inside its own block. 3004 was one of them until
+# today; that is rain-sg's.
 #
 #   bash scripts/dev.sh          # restart
 #   bash scripts/dev.sh --clean  # also wipe the Turbopack cache first
 set -u
 
-PORT=3003
+PORT=3100
 PROJECT=/home/gtfoo/Git/1-percent-more-fluent
 
 cd "$(dirname "$0")/.." || exit 1

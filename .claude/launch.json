@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "fluent",
+      "runtimeExecutable": "wsl.exe",
+      "runtimeArgs": [
+        "-d",
+        "Ubuntu-24.04",
+        "--",
+        "bash",
+        "-c",
+        "cd /home/gtfoo/Git/1-percent-more-fluent && export NVM_DIR=$HOME/.nvm && . $NVM_DIR/nvm.sh && nvm use \"$(cat .nvmrc)\" >/dev/null && exec npm run dev -- -H 0.0.0.0 -p 3100"
+      ],
+      "port": 3100,
+      "autoPort": false
+    }
+  ]
+}

@@ -5,7 +5,7 @@
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
-BASE="${BASE:-http://127.0.0.1:3003}"
+BASE="${BASE:-http://127.0.0.1:3100}"
 ID="${1:-}"
 [ -n "$ID" ] || { echo "usage: check-read-page.sh <piece-id>" >&2; exit 1; }
 
