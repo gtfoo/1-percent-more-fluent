@@ -11,7 +11,11 @@
 set -eu
 cd "$(dirname "$0")/.." || exit 1
 
-SRC=~/Git/career-side-quests/.env.local
+# Rooted, not `~`. From a Windows-rooted session `~` is the WINDOWS home, not
+# the WSL one, so the path silently resolves to nothing and the guard below
+# reports a missing file rather than a wrong home. The droplet agent lost a hook
+# to exactly this. Every other absolute path in this repo is already rooted.
+SRC=/home/gtfoo/Git/career-side-quests/.env.local
 DST=.env.local
 
 [ -f "$SRC" ] || { echo "no $SRC to copy the key from"; exit 1; }
