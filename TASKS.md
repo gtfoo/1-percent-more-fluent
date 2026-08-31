@@ -14,6 +14,22 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
 
 ## Open
 
+- [ ] **Local dev runs on 3003, which `INFRA.md` allocates to indie-degree** —
+      this app's port is **3100**. Production has it right everywhere
+      (`DEPLOY.md`, the systemd unit, the Caddy reverse proxy); local is the
+      problem. `scripts/dev.sh` and roughly fifteen check and smoke scripts
+      hardcode 3003, and `dev.sh`'s comment still claims 3003 "matches the
+      fluent entry in gtfoo/.claude/launch.json" — which the gtfoo agent has
+      since corrected to 3100. So a dev server started from the gtfoo workspace
+      now listens on 3100 while every check script here probes 3003, and both
+      would collide with indie-degree if run together.
+
+      Two parts: a mechanical 3003 → 3100 sweep, and a `.claude/launch.json` of
+      our own, since this repo has none and the only fluent dev-server config in
+      the fleet lives in someone else's tree. Held because it changes the local
+      dev port, which is the owner's call rather than mine.
+      *from: gtfoo agent, 2026-08-30*
+
 - [ ] **The band number is inert below level 70 — decide what replaces it** —
       measured 2026-08-30 on 23 blind generations scored by the app's own
       verifier. Changing the stated band from 500 to 6,613 — levels 0 to 70, so
