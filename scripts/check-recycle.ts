@@ -155,7 +155,7 @@ async function main() {
   ok("no scaffold at normal levels", !/repetition/i.test(normalPrompt));
 
   // The budget framing flips with the zone, because the zones fail in opposite
-  // directions. BENCH_MODE=framing, 2026-08-30, 18 samples: ceiling wording
+  // directions. BENCH_MODE=framing, 2026-08-26, 18 samples: ceiling wording
   // improved the median ratio at all three floor levels (2.80->2.10, 2.47->2.38,
   // 2.14->1.71) with zero under-floor failures. Above the zone the target
   // wording stays, because "at most X%" is what makes the model land near 1%

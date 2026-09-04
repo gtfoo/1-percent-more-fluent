@@ -230,7 +230,7 @@ export function buildPrompt(
     //
     // Below it that framing is backwards. Every floor-zone failure on record is
     // OVER the ceiling, so pushing the distribution upward is the last thing
-    // wanted. Measured with BENCH_MODE=framing on 2026-08-30, 18 samples:
+    // wanted. Measured with BENCH_MODE=framing on 2026-08-26, 18 samples:
     //
     //     level    target      ceiling
     //         8    2.80x        2.10x
@@ -247,7 +247,7 @@ export function buildPrompt(
     // that here the cure would be worse. It does not - zero under-floor
     // failures in nine samples.
     //
-    // Expect a nudge and no more. A 2026-08-30 study varying this percentage
+    // Expect a nudge and no more. A 2026-08-26 study varying this percentage
     // from 3% to 30% moved realized output only 5.3% -> 10.5% and saturated by
     // 15%: framing shifts a median, it cannot set a value. The floor still sits
     // at ~2x budget, and closing that needs the band pasted, not better words.

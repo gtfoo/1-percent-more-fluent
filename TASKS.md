@@ -15,7 +15,7 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
 ## Open
 
 - [ ] **The band number is inert below level 70 — decide what replaces it** —
-      measured 2026-08-30 on 23 blind generations scored by the app's own
+      measured 2026-08-26 on 23 blind generations scored by the app's own
       verifier. Changing the stated band from 500 to 6,613 — levels 0 to 70, so
       most of the range — moved the text not at all: measured against one fixed
       yardstick those three conditions produced 7.2%, 5.9%, 7.2% out-of-band.
@@ -46,7 +46,7 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
       ~1,100 input tokens a call. Above ~70 nothing is needed: the model's
       default register already sits there, which is why 20,000 was the only band
       that moved it. Awaiting the owner.
-      *from: own measurement, 2026-08-30*
+      *from: own measurement, 2026-08-26*
 
 ## Closed with a decision
 
@@ -124,7 +124,7 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
       either way, n=3 a cell), so this shipped on the rates rather than the
       pass count — the same call the scaffold got, for the same reason. It is a
       nudge, not a fix: the floor still sits near 2× budget.
-      *from: own proposal, 2026-08-30*
+      *from: own proposal, 2026-08-26*
 - [x] **Glossary spot-check** — the definitions had never been measured, and a
       gloss is the one thing here that teaches a meaning DIRECTLY, to a reader
       who tapped precisely because they could not judge it. 72 glosses judged by
@@ -140,14 +140,14 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
       sentence instead of "the plain dictionary meaning" it had been
       contradicting while handing the model that sentence.
       `scripts/judge-glossary.ts` reruns it for ~$0.05.
-      *from: own measurement gap, 2026-08-30*
+      *from: own measurement gap, 2026-08-26*
 - [x] **A consistency rule in the piece prompt** — the correctness spot-check's
       single flagged failure was narrative inconsistency, not grammar, and
       nothing in the prompt had ever asked for consistency. One line added,
       naming the reason: a reader at this level cannot tell a contradiction from
       a word they have misunderstood. Too rare to bench, so the next
       `judge-correctness.ts` run is the check. *from: 2026-08-17 item 4
-      follow-on, 2026-08-30*
+      follow-on, 2026-08-26*
 - [x] **Generation feels faster since the retry fix** — owner confirmed on
       2026-08-19, alongside prefetch making the next piece instant. The latency
       thread that started the whole optimisation arc is closed.
