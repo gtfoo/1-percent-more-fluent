@@ -9,7 +9,7 @@
 # the link, which is everything up to the moment mail leaves.
 set -u
 
-PORT=3101
+PORT=3950
 BASE="http://127.0.0.1:$PORT"
 UID_ES=445e3269-f599-4027-98fa-3c4498838c9a
 

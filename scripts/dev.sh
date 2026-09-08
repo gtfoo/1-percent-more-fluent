@@ -15,9 +15,12 @@
 # was itself wrong and has since been corrected. This repo now carries its own
 # .claude/launch.json so the dev-server config lives where the dev server does.
 #
-# The auth checks start their own throwaway servers on 3101 and 3102, so every
-# socket this repo binds is inside its own block. 3004 was one of them until
-# today; that is rain-sg's.
+# The auth checks start their own throwaway servers on 3950 and 3951, from the
+# 3950-59 block INFRA.md allocates this app by name. They were briefly 3101/3102
+# under an earlier convention - "the block above your allocated port" - which was
+# withdrawn because it only had room above OUR row and told four of six apps to
+# bind a neighbour's port. An explicit column replaced it. Before that they were
+# 3004 and 3005; 3004 is rain-sg's.
 #
 #   bash scripts/dev.sh          # restart
 #   bash scripts/dev.sh --clean  # also wipe the Turbopack cache first
