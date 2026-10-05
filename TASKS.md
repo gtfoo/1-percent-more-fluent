@@ -71,6 +71,43 @@ A deferred or declined letter lands here **and** gets a reply — the reply says
 
 ## Declined
 
+- [x] **Jev, TypeSafe AI's decision model** — declined 2026-10-04. The owner had
+      the gtfoo agent put it to every app; nothing was asked of this one. It
+      selects from predefined answer spaces (Choice, Score, Noul) rather than
+      generating text, at roughly a third of the cost and latency of a text model,
+      with reproducible answers.
+
+      Almost nothing here wants it, because almost nothing here asks a model for
+      a judgement. Difficulty is arithmetic — tokenisation against a frequency
+      list, a rate, a ceiling and a floor — so the bench's pass/fail never
+      involved a model at all; the level moves on lookup rate and a one-tap
+      rating; placement asks the reader which paragraph they can follow. The
+      gtfoo agent put it better than this entry can: **Jev is a better way to
+      request, and this app measures.**
+
+      The only genuine candidates are the two model-judged paths,
+      `judge-correctness.ts` and `judge-glossary.ts`, and both are Jev-shaped — a
+      rubric enum and a three-way enum. Running the glossary judge twice over the
+      same 72 glosses at temperature 0 settled it: the aggregate was identical
+      (33/36, 32/36, same verdicts) while one explanation moved, so **the part Jev
+      makes reproducible was already reproducible, and the part that moved is the
+      part Jev cannot generate.** Those judges exist to say *what* is wrong; a
+      tally of three verdict levels would not have found "suelo" served as
+      "ground, soil" where a city was subsiding.
+
+      The cost argument also points away, for the same reason prompt caching was
+      declined in September: text is nearly free here and speech is effectively
+      all of the running cost, so a cheaper decision call optimises the side that
+      was never the problem.
+
+      **What would reopen it:** judging every generated piece live, as production
+      monitoring, instead of ~72 samples periodically. At that scale cost and
+      latency start to matter and an enum-only verdict is enough for a tripwire —
+      which is MLflow's own caveat, that it suits online monitoring rather than
+      development iteration. Today a judge run costs about five cents, so there
+      is no scale problem to solve.
+      *from: gtfoo agent on the owner's review, 2026-10-02*
+
 - [x] **Redact or history-rewrite `DEPLOY.md`** — declined by the owner on
       2026-08-14, on measurement rather than judgement: the host IP is already
       public via DNS, the app ports are verified closed from outside, and a force
